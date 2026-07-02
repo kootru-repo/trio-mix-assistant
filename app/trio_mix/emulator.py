@@ -319,6 +319,12 @@ class EmulatedDesk:
         if addr in ("/unsubscribe", "/renew"):
             self.recv_count += 1
             return
+        if addr == "/showdump":
+            # show-file header, per pmaillot/X32-Behringer function_showdump()
+            self._reply(client, "node",
+                        f'/-show/showfile/show "{C.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 '
+                        f'"{C.X32_FW}"\n')
+            return
 
         ch = _ch_from_addr(addr)
         if ch is not None and addr.endswith("/mix/fader"):
