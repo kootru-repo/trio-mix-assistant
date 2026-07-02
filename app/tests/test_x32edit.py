@@ -174,6 +174,12 @@ class X32EditProtocol(unittest.TestCase):
         r = self.ed.ask("/node", "ch/01/config")
         self.assertRegex(r[1][0], r'^/ch/01/config "[^"]*" 1 \w+ 1\n$')
 
+    def test_showdump_answers_show_header(self):
+        r = self.ed.ask("/showdump")
+        self.assertIsNotNone(r, "no reply for /showdump")
+        self.assertEqual(r[0], "node")
+        self.assertTrue(r[1][0].startswith("/-show/showfile/show "))
+
 
 if __name__ == "__main__":
     unittest.main()
