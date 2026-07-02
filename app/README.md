@@ -1,4 +1,4 @@
-# Acoustic Trio AI Mix-Assistant
+# Acoustic Trio Mix-Assistant
 
 A deliberately small **safety-net** for a small acoustic-trio gig with no sound
 engineer. It *listens* to the channels + a FOH measurement mic and *nudges* a
@@ -8,9 +8,9 @@ and is testable without any hardware.
 
 The **real-time control path is deterministic** — no ML, no LLM: calibration-
 derived priors, a multi-guard feedback detector, and clamped output-levelers.
-The only AI is an **optional, latency-tolerant Claude "slow layer"** that can
-suggest plain-language notes for the band/operator — it is *advisory only* and
-**never touches the mix**. That fast/slow split is the core safety boundary.
+The one exception is an **optional, latency-tolerant Claude "slow layer"** that
+can suggest plain-language notes for the band/operator — it is *advisory only*
+and **never touches the mix**. That fast/slow split is the core safety boundary.
 
 Beyond the safety net it implements the AutoFOH show-side features:
 - **AbleSet show clock → automatic scene recall** with per-song reference levels;
@@ -87,7 +87,7 @@ the exact wire layout. **Caveat:** the emulator encodes the same protocol
 *assumptions* the app does, so it proves mechanical correctness, not that the
 formats match your firmware — that last step is `HARDWARE_BRINGUP.md`.
 
-### Show clock, AI advisor & session log
+### Show clock, Claude advisor & session log
 
 ```bash
 # automatic scene recall from AbleSet (per-song scenes + reference levels)
@@ -103,7 +103,7 @@ python run.py --advisor --venue "The Cellar"
   reference levels and an optional `guest` flag. Omit it for the built-in trio set.
   In simulation the clock walks the setlist automatically so you can watch scenes
   recall live; `--no-show-clock` disables that.
-- **AI advisor** (`--advisor`): a background Claude (Haiku) worker that periodically
+- **Claude advisor** (`--advisor`): a background Claude (Haiku) worker that periodically
   reads recent events and posts a short note ("guitar is masking the vocal — ease
   off"). It runs entirely off the real-time path and is **advisory only**. With no
   `ANTHROPIC_API_KEY` it's simply disabled — everything else still works.
@@ -157,7 +157,7 @@ over `wss://` automatically under https.
 | **Vocal unmask** | advisory | Dynamic EQ sidechained to the lead vocal: when it's up, duck each instrument's `UNMASK_FREQ` (~3 kHz) band toward `UNMASK_DEPTH_DB` (fast attack), release when it pauses (slow). Coach mode advises a static dip. Targets = `UNMASK_CHANNELS` (default: all but vocal/meas/stage). |
 | **Pink-noise calibration** | pre-show | Measure the room, cut the worst peaks, pre-dip feedback-prone freqs, build the baseline + watch-list. |
 | **Manual mixing surface** | performer | Draggable per-channel fader strips + master + one-tap mute, over WebSocket. A human move makes the auto-ride **yield** on that channel for a few seconds (shared-control). |
-| **Coach mode** | advisory | A header toggle that suspends **every** automatic console write — mix corrections *and* setlist automation (scene recall, guest mutes) — and instead lists the exact manual move (channel, band, dB, Hz, scene) in a panel + the log. Only your own manual moves act. **No LLM/AI** — the numbers are the same deterministic math. For mixing by hand with guidance, or previewing what the app would do. |
+| **Coach mode** | advisory | A header toggle that suspends **every** automatic console write — mix corrections *and* setlist automation (scene recall, guest mutes) — and instead lists the exact manual move (channel, band, dB, Hz, scene) in a panel + the log. Only your own manual moves act. The numbers are the same deterministic math as auto mode. For mixing by hand with guidance, or previewing what the app would do. |
 
 Everything passes through **guardrails** (hard fader/gain range, max step,
 smooth ramp), every move is **logged and reversible**, and a **TAKEOVER**
@@ -207,7 +207,7 @@ assistant), the **show side** (template validation, sim + AbleSet show clocks,
 auto scene recall, AUTO/ALERT/MANUAL mode, notification levels, 8-bar gate, manual
 scene recall), the **performer surface** (EQ/FX/send commands + clamping, the
 **template-driven 13-ch map**, detect→actuate latency, room-mic SNR confidence),
-the **AI/logging layer** (SQLite session log off the real-time path, the advisory
+the **advisor/logging layer** (SQLite session log off the real-time path, the advisory
 loop with an injected caller, advisory-only safety, **venue learning** model
 build/save/load + watch-list seeding), the **extensions** (guest mode, stereo
 links, stage-mic detection), a **contract** suite that pins the X32/M32 wire

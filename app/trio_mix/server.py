@@ -131,9 +131,9 @@ _STATIC = os.path.join(os.path.dirname(__file__), "static")
 # Installable-PWA assets so the dashboard "Add to Home Screen"s as a full-screen
 # app on iPad (Safari) and Android tablets (Chrome) alike — one codebase, both.
 _MANIFEST = json.dumps({
-    "name": "Trio AI Mix-Assistant",
+    "name": "Trio Mix-Assistant",
     "short_name": "Mix-Assistant",
-    "description": "Live operator dashboard for the Acoustic Trio AI Mix-Assistant.",
+    "description": "Live operator dashboard for the Acoustic Trio Mix-Assistant.",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",

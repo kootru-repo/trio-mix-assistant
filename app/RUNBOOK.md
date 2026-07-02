@@ -1,4 +1,4 @@
-# Runbook — Acoustic Trio AI Mix‑Assistant (Windows & macOS)
+# Runbook — Acoustic Trio Mix‑Assistant (Windows & macOS)
 
 A practical, show‑day operating guide for the FOH laptop. The app is the same on
 both OSes (pure Python + numpy + python‑osc + sounddevice); only the shell syntax
@@ -17,7 +17,7 @@ where it differs, there's a **Windows** and a **macOS** version side by side.
   measurement mic) and *nudges* the desk within hard guardrails. It never owns the mix.
 - **A human always wins.** Move a fader on the desk and the app adopts it (auto‑ride
   yields); tap **TAKEOVER** and it mutes main + freezes every automatic move.
-- **The AI advisor (optional) never touches the mix** — it only posts text suggestions.
+- **The Claude advisor (optional) never touches the mix** — it only posts text suggestions.
 - **First time on a given console you must validate the OSC formats** against that
   firmware (see `HARDWARE_BRINGUP.md`). After that passes once, every show is just the
   launch command in §3.
@@ -192,7 +192,7 @@ Launched with `--lan` (and ideally `--https`):
   decision log (e.g. *"Feedback 2.5 kHz in the room → cut the MAIN BUS at 2500 Hz by −9 dB
   (Q 8)"*). **Calibration is coach-aware too:** with coach on, *Run calibration* still
   measures the room but *advises* the main-bus EQ (*"set MAIN-BUS PEQ: band 1 250 Hz
-  −6 dB…"*) as a standing recommendation instead of applying it. No AI — the numbers are
+  −6 dB…"*) as a standing recommendation instead of applying it. The numbers are
   the same deterministic math the automatic jobs would use. Coach suspends **every**
   automatic console write — mix corrections (feedback, clip, vocal ride, balance,
   calibration) **and** setlist automation (scene recall, guest mutes) — and advises each
@@ -201,7 +201,7 @@ Launched with `--lan` (and ideally `--https`):
   see what it *would* do before trusting a job.
 - **TAKEOVER** = panic: mutes main, freezes all automatic jobs + scene recall +
   calibration. Tap again to release.
-- **AI advisor** (if enabled) posts short suggestions in its card — they are *advice*,
+- **Claude advisor** (if enabled) posts short suggestions in its card — they are *advice*,
   never actions.
 
 ---

@@ -27,7 +27,7 @@ class TestManualEngine(unittest.TestCase):
         self.assertAlmostEqual(self.e.con.fader_db[1], -3.0, places=1)
 
     def test_manual_fader_full_range(self):
-        # human moves are not bound by the AI guardrails (-12..+6)
+        # human moves are not bound by the assistant guardrails (-12..+6)
         self.e.set_fader(2, -40.0)
         self.assertAlmostEqual(self.e.con.fader_db[2], -40.0, places=1)
         self.e.set_fader(2, 9.0)

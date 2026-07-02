@@ -1,4 +1,4 @@
-"""Acoustic Trio AI Mix-Assistant — a deterministic, safety-net control layer
+"""Acoustic Trio Mix-Assistant — a deterministic, safety-net control layer
 for the Midas M32C (X32/M32 OSC family), plus a live operator dashboard.
 
 No machine learning, no LLM, no MCP: a real-time control program that listens

@@ -1,6 +1,6 @@
 """Layer-1 deterministic coach (advisory mode): the assistant computes the same
 corrections as auto mode but, instead of writing to the console, recommends the
-manual move. No LLM/AI. These tests pin that:
+manual move — same deterministic math as auto. These tests pin that:
   * coach mode NEVER actuates the console, and
   * it produces the right recommendation with the exact numbers, and
   * auto mode is unchanged when coach is off.
