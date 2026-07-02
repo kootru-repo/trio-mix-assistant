@@ -223,7 +223,7 @@ def main() -> None:
             from trio_mix.osc import OscConsole
             from trio_mix.emulator import EmulatedDesk, TimedAudioStream
             emu = EmulatedDesk(external_moves=True)     # echoes /xremote + streams /meters
-            emu.trace_requests = args.trace_osc         # log what an editor (X32-Edit) asks for
+            emu.trace_requests = args.trace_osc         # log what a mixer app (Mixing Station) asks for
             if show_template is not None:               # editors list the setlist's scenes
                 emu.scene_names = {s.scene: s.name for s in show_template.songs
                                    if s.scene is not None}

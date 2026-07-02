@@ -61,9 +61,10 @@ class EmulatedDesk:
         self.recv_count = 0                    # commands received (introspection)
         self.echo_count = 0
         self.meters_sent = 0
-        # X32-Edit compatibility: a parameter model the editor can read/sync, a
-        # registry of external editors subscribed for live updates, and a log of
-        # every address an editor asks for (so we can extend fidelity to match it).
+        # Mixer-app compatibility (Mixing Station, X32-Edit): a parameter model the
+        # editor can read/sync, a registry of external editors subscribed for live
+        # updates, and a log of every address an editor asks for (so we can extend
+        # fidelity to match it).
         self._params: dict[str, list] = {}
         self._remotes: set[tuple[str, int]] = set()     # external editors (NOT the app)
         self._clients: dict[tuple[str, int], object] = {}
@@ -151,7 +152,7 @@ class EmulatedDesk:
     def _h_default(self, addr, *args):
         self.recv_count += 1
 
-    # -- X32-Edit compatibility: console-server protocol -------------------
+    # -- mixer-app compatibility (Mixing Station, X32-Edit): console protocol --
     def _local_ip(self) -> str:
         if self._local is None:
             import socket
@@ -427,7 +428,7 @@ class EmulatedDesk:
         self._params[addr] = [pos]
         if self._client is not None:
             self._client.send_message(addr, pos)
-        self._push(addr, pos)                 # subscribed editors (X32-Edit) see it too
+        self._push(addr, pos)                 # subscribed editors (Mixing Station) see it too
 
     def _start_meters(self):
         if self._meter_thread is None:

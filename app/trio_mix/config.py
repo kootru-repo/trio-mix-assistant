@@ -12,14 +12,15 @@ ABLESET_PORT = 39051          # port we listen on for AbleSet song/section OSC
 SAMPLE_RATE = 48000
 BLOCK = 1024                  # analysis block size (~21 ms @ 48k)
 
-# ---- Emulated-desk identity (what X32-Edit / M32-Edit sees on connect) -----
-# The discovery handshake an editor uses to recognise an X32-family console.
+# ---- Emulated-desk identity (what Mixing Station / X32-Edit sees on connect) ----
+# The discovery handshake a mixer app uses to recognise an X32-family console.
 # VERIFY: against a real M32C /info reply (see the PGM "Unofficial X32 OSC"
 # protocol + HARDWARE_BRINGUP.md). M32 is X32-protocol-compatible and reports the
 # X32 model family; adjust if your desk/editor handshake differs.
 X32_SERVER_VER = "V2.07"      # OSC server version string
-X32_NAME = "MixAssist"        # console name shown in the editor
-X32_MODEL = "X32"             # model family (X32-Edit checks this to connect)
+X32_NAME = "MixAssist"        # console name shown in the mixer app
+X32_MODEL = "X32"             # model family (apps check this; in Mixing Station
+                              # choose console type "Behringer X32")
 X32_FW = "4.06-8"             # console firmware version
 
 # ---- Channel map: console channel number -> role --------------------------
