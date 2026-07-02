@@ -19,6 +19,7 @@ loop.
 """
 from __future__ import annotations
 
+import os
 import re
 import threading
 import time
@@ -27,7 +28,7 @@ import numpy as np
 
 from . import config as C
 from .metersrv import encode_meter_blob
-from .osc import db_to_fader
+from .osc import db_to_fader, fader_to_db
 
 
 def _ch_from_addr(addr: str) -> int | None:
@@ -215,10 +216,31 @@ class EmulatedDesk:
             return f'"{v}"' if (" " in v or v == "") else v
         return str(v)
 
+    # Full default /node answer book: a real M32 scene dump (names scrubbed), one
+    # line per node in exact desk text format. This is what a full-sync editor
+    # (Mixing Station) parses; any node missing here falls through to _NODE_RULES.
+    _NODE_TABLE: dict[str, str] | None = None    # lazy class-level cache
+
+    @classmethod
+    def _node_table(cls) -> dict[str, str]:
+        if cls._NODE_TABLE is None:
+            table = {}
+            path = os.path.join(os.path.dirname(__file__), "x32_default_nodes.scn")
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    for ln in fh:
+                        ln = ln.rstrip()
+                        if ln.startswith("/"):
+                            table[ln.split(" ", 1)[0]] = ln
+            except OSError:
+                pass                              # missing file -> rule/echo fallback
+            cls._NODE_TABLE = table
+        return cls._NODE_TABLE
+
     # X32 /node container formats (per pmaillot/X32-Behringer X32.c): a send
     # container renders as "ON <level>" (even sends) or "ON <level> <pan> <type>
     # <panFollow>" (odd sends, the pan-carrying half of a stereo pair); an output
-    # renders as "<src> <pos> [<inv>]". Values here are quiet defaults.
+    # renders as "<src> <pos> [<inv>]". Fallbacks for nodes absent from the table.
     _NODE_RULES = [
         (re.compile(r"^/(?:ch|auxin|fxrtn)/\d{2}/mix/(\d{2})$"),
          lambda m: "ON -oo +0 POST 0" if int(m.group(1)) % 2 else "ON -oo"),
@@ -230,29 +252,46 @@ class EmulatedDesk:
         (re.compile(r"^/outputs/p16/\d{2}$"), lambda m: "0 POST OFF 0"),
     ]
 
+    _SCOLOR = ["OFF", "RD", "GN", "YE", "BL", "MG", "CY", "WH",
+               "OFFi", "RDi", "GNi", "YEi", "BLi", "MGi", "CYi", "WHi"]
+
     def _reply_node(self, client, args) -> None:
-        """Answer /node — the editor's bulk state read. For a modeled leaf we return
-        'path val'; for a container, its modeled children. Best-effort: the request
-        log tells us what real X32-Edit wants so we can tighten this."""
+        """Answer /node — the editor's bulk state read, one desk-format text line.
+        Order: live-state overrides (channel config/mix) -> the default scene table
+        -> synthesized container rules -> modeled params -> bare-path echo. A real
+        desk terminates every node reply with a newline; strict editors (Mixing
+        Station) may not accept the reply without it."""
         path = (args[0] if args else "").strip("/")
         full = "/" + path
-        for rx, body_for in self._NODE_RULES:      # desk-format container replies
+        self._reply(client, "node", self._node_body(full) + "\n")
+
+    def _node_body(self, full: str) -> str:
+        m = re.match(r"^/ch/(\d{2})/config$", full)
+        if m:                                     # our channel map, not the table's
+            name = self._params.get(full + "/name", [""])[0]
+            color = int(self._params.get(full + "/color", [1])[0]) & 15
+            return f'{full} "{name}" 1 {self._SCOLOR[color]} {int(m.group(1))}'
+        m = re.match(r"^/ch/(\d{2})/mix$", full)
+        if m:                                     # live fader/mute, quiet remainder
+            ch = int(m.group(1))
+            pos = self.fader.get(ch, self._params.get(f"{full}/fader", [0.75])[0])
+            lvl = "-oo" if pos <= 0 else f"{fader_to_db(pos):+.1f}"
+            on = "OFF" if self.mute.get(ch) else "ON"
+            return f"{full} {on} {lvl} ON +0 OFF -oo"
+        table = self._node_table()
+        if full in table:
+            return table[full]
+        for rx, body_for in self._NODE_RULES:      # not in table: synthesized reply
             m = rx.match(full)
             if m:
-                self._reply(client, "node", f"{full} {body_for(m)}\n")
-                return
+                return f"{full} {body_for(m)}"
         if full in self._params:
-            body = f"{full} " + " ".join(self._fmt(v) for v in self._params[full])
-        else:
-            kids = [a for a in self._params if a.startswith(full + "/")]
-            if kids:
-                body = f"{full} " + " ".join(
-                    self._fmt(self._params[k][0]) for k in sorted(kids) if self._params[k])
-            else:
-                body = full          # unknown node: echo the path so the editor moves on
-        # a real desk terminates every node reply with a newline; strict editors
-        # (Mixing Station) may not accept the reply without it
-        self._reply(client, "node", body + "\n")
+            return f"{full} " + " ".join(self._fmt(v) for v in self._params[full])
+        kids = [a for a in self._params if a.startswith(full + "/")]
+        if kids:
+            return f"{full} " + " ".join(
+                self._fmt(self._params[k][0]) for k in sorted(kids) if self._params[k])
+        return full                  # unknown node: echo the path so the editor moves on
 
     def _h_any(self, client, addr, *args):
         """Single socket entry-point (default handler, reply-address aware). Routes
