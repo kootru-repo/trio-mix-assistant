@@ -128,6 +128,19 @@ class X32EditProtocol(unittest.TestCase):
         time.sleep(0.1)
         self.assertIn("/showdata/blah", self.desk.req_log)
 
+    def test_unknown_get_is_answered_not_dropped(self):
+        """Mixing Station full-syncs the whole tree; an unanswered GET stalls it
+        until it aborts ("sync failed"). Every zero-arg GET must get a typed
+        default reply, and re-reads must stay consistent."""
+        r = self.ed.ask("/headamp/053/phantom")              # unmodeled int leaf
+        self.assertEqual(r, ("/headamp/053/phantom", [0]))
+        r = self.ed.ask("/-usb/dir/046/name")                # unmodeled string leaf
+        self.assertEqual(r, ("/-usb/dir/046/name", [""]))
+        r = self.ed.ask("/headamp/053/gain")                 # unmodeled float leaf
+        self.assertEqual(r[0], "/headamp/053/gain")
+        self.assertIsInstance(r[1][0], float)
+        self.assertEqual(self.ed.ask("/headamp/053/gain"), r)  # consistent re-read
+
 
 if __name__ == "__main__":
     unittest.main()

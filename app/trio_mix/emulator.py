@@ -189,6 +189,21 @@ class EmulatedDesk:
         return ("active", self._local_ip(), C.X32_NAME)
 
     @staticmethod
+    def _default_for(addr: str) -> list:
+        """Best-guess default for an unmodeled parameter GET, typed by the leaf
+        name (strings for names, floats for continuous params, ints otherwise).
+        VERIFY: real per-address types/values come from a desk capture; this only
+        keeps a syncing editor moving instead of timing out."""
+        leaf = addr.rsplit("/", 1)[-1]
+        if leaf in ("name", "source"):
+            return [""]
+        if leaf in ("fader", "level", "gain", "trim", "pan", "f", "g", "q",
+                    "mix", "threshold", "ratio", "attack", "release", "hold",
+                    "depth", "time", "hpf", "lpf"):
+            return [0.0]
+        return [0]
+
+    @staticmethod
     def _fmt(v) -> str:
         if isinstance(v, float):
             return f"{v:.4f}"
@@ -266,10 +281,14 @@ class EmulatedDesk:
 
         if not args:                               # generic GET
             val = self._params.get(addr)
-            if val is not None:
-                self._reply(client, addr, *val)
-            else:
-                self.recv_count += 1
+            if val is None:
+                # A real desk answers EVERY valid address; silence makes a
+                # full-sync editor (Mixing Station) time out and abort. Synthesize
+                # a typed default and remember it so re-reads stay consistent.
+                val = self._default_for(addr)
+                self._params[addr] = val
+            self._reply(client, addr, *val)
+            self.recv_count += 1
             return
         self._params[addr] = list(args)            # generic SET
         self._push(addr, *args, exclude=client)
