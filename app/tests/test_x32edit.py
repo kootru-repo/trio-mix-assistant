@@ -152,6 +152,8 @@ class X32EditProtocol(unittest.TestCase):
         self.assertEqual(r[1][0], "/outputs/rec/01 0 POST\n")
         r = self.ed.ask("/node", "outputs/aes/02")             # + invert
         self.assertEqual(r[1][0], "/outputs/aes/02 0 POST OFF\n")
+        r = self.ed.ask("/node", "outputs/main/03/delay")      # on + ms
+        self.assertEqual(r[1][0], "/outputs/main/03/delay OFF 0.3\n")
 
 
 if __name__ == "__main__":
