@@ -45,6 +45,9 @@ move it on the console and confirm the value the app reports matches.
       Pushed 0/+5/−10/−20/−40 dB via `db_to_fader` → X32-Edit displayed exactly those
       dB. The linear 0..1 ↔ dB law in `osc.py` matches Behringer's. (Re-confirm on the
       real M32C, but the scaling itself is no longer an assumption.)
+      **Also (2026-07-03): Mixing Station (Android) fully syncs the emulated desk** —
+      discovery, whole-tree sync, /node bulk reads, show/scene list, live meter
+      streams — a second independent implementation accepting our wire formats.
 - [ ] **Preamp gain**: clip-trim −3 dB actually drops the head-amp ~3 dB.
 - [ ] **Channel EQ notch**: a feedback notch lands on the right band, freq, Q, and gain.
 - [ ] **Main-bus PEQ**: room-correction cuts hit the main/stereo bus, not a channel.
@@ -58,11 +61,11 @@ move it on the console and confirm the value the app reports matches.
 > code centralises every conversion so there's one place to correct per parameter.
 
 > **Validate the app→console direction NOW, without the desk:** run `--emulate` and
-> connect X32-Edit/M32-Edit to this PC (it discovers the emulated desk at the LAN IP
-> on UDP 10023). Anything the app sends is rendered by Behringer's own editor, so the
-> mute/EQ-notch/headamp/scene assumptions above can each be confirmed against it the
-> same way the fader was. (The `/meters` ingestion in §2 is console→app, so it still
-> needs the real desk.)
+> connect **Mixing Station** (or X32-Edit/M32-Edit) to this PC (it discovers the
+> emulated desk as *MixAssist* at the LAN IP on UDP 10023). Anything the app sends is
+> rendered by a production mixer app, so the mute/EQ-notch/headamp/scene assumptions
+> above can each be confirmed against it the same way the fader was. (The `/meters`
+> ingestion in §2 is console→app, so it still needs the real desk.)
 
 ## 2. `/meters` ingestion + fader reconciliation
 - [ ] Start the app in hardware mode; in the sniffer confirm the console is sending

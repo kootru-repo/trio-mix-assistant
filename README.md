@@ -6,7 +6,7 @@
 
 It *listens* to the band and the room, and gently *nudges* the console within hard guardrails. The console is always the source of truth, every move is logged and reversible, and **a human can take over instantly**. Runs and is fully testable **with no hardware at all**.
 
-[Try it in 60 seconds](#-try-it-in-60-seconds) · [Requirements](#-requirements) · [Setup (PC & Mac)](#setup) · [Operating it](#operating-it) · [X32‑Edit / M32‑Edit](#x32-edit) · [How it works](#-how-it-works)
+[Try it in 60 seconds](#-try-it-in-60-seconds) · [Requirements](#-requirements) · [Setup (PC & Mac)](#setup) · [Operating it](#operating-it) · [Mixing Station](#mixing-station) · [How it works](#-how-it-works)
 
 ![Trio Mix-Assistant dashboard](docs/screenshots/dashboard.png)
 
@@ -168,38 +168,37 @@ On a trusted FOH LAN the dashboard is open (no login). On shared/venue WiFi, add
 
 <img src="docs/screenshots/pin-login.png" width="360" alt="PIN login screen">
 
-<a id="x32-edit"></a>
+<a id="mixing-station"></a>
 
-## 🎛️ X32‑Edit / M32‑Edit
+## 🎛️ Mixing Station — the operator's mixer surface
 
-The **M32C has no faders or screen of its own** — it's a stage box, controlled entirely from a computer/tablet. **X32‑Edit** (Behringer) and **M32‑Edit** (Midas) are the free official editor apps for the X32/M32 family; you'll want one installed for full console control alongside this assistant.
+The **M32C has no faders or screen of its own** — it's a stage box, controlled entirely from a tablet or computer. **[Mixing Station](https://mixingstation.app)** is the mixer app this project is designed around (see [docs/ux-design.md](docs/ux-design.md)): the operator mixes on it while the assistant works underneath, and **any move you make in Mixing Station instantly wins** over the automation.
 
-### Download (official, free — Windows / macOS / Linux)
+**The two‑surface setup:** Mixing Station = your hands (full mixer control) · the assistant's dashboard = its voice (what it's doing and why, COACH, TAKEOVER). Run them **split‑screen on one Android/iPad tablet**, or on two devices.
 
-| Editor | Use it for | Download |
+### Get it
+
+| App | Platform | Download |
 |---|---|---|
-| **X32‑Edit** (v4.4) | X32 family; works with M32 too | [behringer.com → X32 → Product Library → Software](https://www.behringer.com/en/products/0603-ACE) · [Mac App Store](https://apps.apple.com/lt/app/x32-edit/id6754563545) |
-| **M32‑Edit** | Midas **M32 / M32C** (native) | [midasconsoles.com → M32 → Downloads](https://www.midasconsoles.com/en/products/0603-aeo) |
+| **Mixing Station** | Android / iOS / Windows / macOS / Linux | [mixingstation.app](https://mixingstation.app) · [Google Play](https://play.google.com/store/apps/details?id=org.devcore.mixingstation) · App Store |
 
-> Pick the build for your OS (Windows / macOS / Linux / Raspberry Pi). These editors talk to the console over the network on UDP **10023**.
+> In Mixing Station choose console type **Behringer X32** (the M32 speaks the same protocol) and access mode **Full**. It talks to the console over UDP **10023**.
 
-### 🔌 Bonus: drive **real X32‑Edit from the emulator** — no console needed
+### 🔌 Rehearse with NO console — connect Mixing Station to the emulator
 
-This project's emulator answers X32‑Edit's discovery handshake, so you can **connect the real editor to your laptop** and watch the assistant drive a genuine console GUI:
+The emulator answers Mixing Station's full discovery + sync + metering protocol, so you can rehearse the exact show‑day setup on a couch:
 
-1. `python run.py --emulate --lan` — it prints `X32-Edit: connect it to <your-ip>:10023`.
-2. In X32‑Edit, open **Setup → Connection**: the emulated desk appears as **MixAssist** (model X32) in the mixer list — select it and click **Connect** (or enter the IP under *Manual IP*).
-3. It transfers the channels, then the assistant's moves mirror live on the editor. To push test moves yourself: `python osc_demo.py --animate`.
+1. `python run.py --emulate --lan` on the laptop.
+2. Phone/tablet on the same WiFi → Mixing Station → **Behringer X32** → the emulated desk appears as **MixAssist** in the search list (or enter the laptop's IP manually) → **Connect**, access **Full**.
+3. It syncs the desk, live meters flow, and the **setlist's scenes appear in Mixing Station's scene list** (recall one — the app follows). The assistant's moves mirror live; your fader moves win instantly. Push test moves: `python osc_demo.py --animate`.
 
-**X32‑Edit's Setup → Connection dialog** — the emulator (*MixAssist*, 192.168.1.12) shows up in the mixer list; select it and **Connect**:
+**Split screen on the operator's tablet** — Mixing Station (left) + the assistant's dashboard (right), both live against the emulator:
 
-![X32-Edit Setup / Connection dialog discovering MixAssist](docs/screenshots/x32edit-setup.png)
+![Mixing Station and the Trio Mix-Assistant dashboard split-screen on one Android tablet](docs/screenshots/mixingstation-split.png)
 
-This also lets you **validate the OSC** against Behringer's own software with no gear — set a fader to a known dB and confirm the editor shows the same value. (The fader law is already verified this way.)
+This also **validates the OSC against a production mixer app** with no gear — set a fader to a known dB in the dashboard and confirm Mixing Station shows the same value (the fader law is verified this way).
 
-**Real X32‑Edit mirroring the app live** — connected to *MixAssist* (IP 192.168.1.12) over the emulator. The channel faders and the muted **Ch 06** are exactly what the assistant pushed:
-
-![X32-Edit mirroring the Trio Mix-Assistant live](docs/screenshots/x32edit-usage.png)
+> **Other editors:** Behringer **X32‑Edit** / Midas **M32‑Edit** (the official desktop editors) also connect to the emulator the same way — free fallback mirrors, same UDP 10023, same MixAssist discovery.
 
 ## 🧠 How it works
 
@@ -231,7 +230,7 @@ trio-mix-assistant/
 ├── README.md                 ← you are here (overview + setup)
 ├── app/                      ← the application
 │   ├── run.py                ← entry point (sim / emulate / hardware)
-│   ├── osc_demo.py           ← push moves so X32-Edit mirrors the app
+│   ├── osc_demo.py           ← push moves so Mixing Station mirrors the app
 │   ├── trio_mix/             ← package: dsp, osc, assistant, engine, server…
 │   ├── static/index.html     ← the single-file dashboard (no build step)
 │   ├── tests/                ← 259 unit + integration tests
