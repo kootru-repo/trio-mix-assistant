@@ -67,6 +67,7 @@ class EmulatedDesk:
         self._params: dict[str, list] = {}
         self._remotes: set[tuple[str, int]] = set()     # external editors (NOT the app)
         self._clients: dict[tuple[str, int], object] = {}
+        self.scene_names: dict[int, str] = {}   # setlist scenes shown to editors
         self.req_seen: set[str] = set()
         self.req_log: list[str] = []
         self.trace_requests = False            # print each new address an editor asks for
@@ -249,6 +250,13 @@ class EmulatedDesk:
         # preset-library slot (ch/fx/routing), SLIBS: pos "name" type flags hasdata
         (re.compile(r"^/-libs/(?:ch|fx|r|mon)/\d{3}$"),
          lambda m: '0 "" 0 %0000000000000000 0'),
+        # show-file slots (all empty by default; the scene table below overrides
+        # slots the app's setlist fills in). SCUE: numb "name" skip scene bit
+        # miditype midichan midipara1 midipara2 / SSCN: "name" "notes" flags
+        # hasdata / SSNP: "name" + 5 ints.
+        (re.compile(r"^/-show/showfile/cue/\d{3}$"), lambda m: '0 "" 0 0 0 0 0 0 0'),
+        (re.compile(r"^/-show/showfile/scene/\d{3}$"), lambda m: '"" "" %000000000 0'),
+        (re.compile(r"^/-show/showfile/snippet/\d{3}$"), lambda m: '"" 0 0 0 0 0'),
         (re.compile(r"^/outputs/main/\d{2}/delay$"), lambda m: "OFF 0.3"),
         (re.compile(r"^/outputs/(?:main|aes)/\d{2}$"), lambda m: "0 POST OFF"),
         (re.compile(r"^/outputs/rec/\d{2}$"), lambda m: "0 POST"),
@@ -269,6 +277,11 @@ class EmulatedDesk:
         self._reply(client, "node", self._node_body(full) + "\n")
 
     def _node_body(self, full: str) -> str:
+        if full == "/-show/showfile/show":        # show header (same as /showdump)
+            return (f'{full} "{C.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "{C.X32_FW}"')
+        m = re.match(r"^/-show/showfile/scene/(\d{3})$", full)
+        if m and int(m.group(1)) in self.scene_names:    # a setlist-filled slot
+            return f'{full} "{self.scene_names[int(m.group(1))]}" "" %111111111 1'
         m = re.match(r"^/ch/(\d{2})/config$", full)
         if m:                                     # our channel map, not the table's
             name = self._params.get(full + "/name", [""])[0]

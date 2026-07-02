@@ -181,6 +181,25 @@ class X32EditProtocol(unittest.TestCase):
         self.assertEqual(r[0], "node")
         self.assertTrue(r[1][0].startswith("/-show/showfile/show "))
 
+    def test_showfile_slots_all_answer(self):
+        """Mixing Station blindly enumerates every cue/scene/snippet slot; each
+        must answer a desk-format line (empty-slot defaults)."""
+        r = self.ed.ask("/node", "-show/showfile/cue/494")
+        self.assertEqual(r[1][0], '/-show/showfile/cue/494 0 "" 0 0 0 0 0 0 0\n')
+        r = self.ed.ask("/node", "-show/showfile/scene/099")
+        self.assertEqual(r[1][0], '/-show/showfile/scene/099 "" "" %000000000 0\n')
+        r = self.ed.ask("/node", "-show/showfile/snippet/000")
+        self.assertEqual(r[1][0], '/-show/showfile/snippet/000 "" 0 0 0 0 0\n')
+        r = self.ed.ask("/node", "-show/showfile/show")
+        self.assertTrue(r[1][0].startswith("/-show/showfile/show "))
+
+    def test_setlist_scenes_listed_for_editors(self):
+        """Scene slots the app's setlist fills must show their song names so the
+        operator can see/recall them from the editor."""
+        self.desk.scene_names = {2: "Bloom"}
+        r = self.ed.ask("/node", "-show/showfile/scene/002")
+        self.assertEqual(r[1][0], '/-show/showfile/scene/002 "Bloom" "" %111111111 1\n')
+
 
 if __name__ == "__main__":
     unittest.main()
