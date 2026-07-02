@@ -192,9 +192,9 @@ The emulator answers Mixing Station's full discovery + sync + metering protocol,
 2. Phone/tablet on the same WiFi → Mixing Station → **Behringer X32** → the emulated desk appears as **MixAssist** in the search list (or enter the laptop's IP manually) → **Connect**, access **Full**.
 3. It syncs the desk, live meters flow, and the **setlist's scenes appear in Mixing Station's scene list** (recall one — the app follows). The assistant's moves mirror live; your fader moves win instantly. Push test moves: `python osc_demo.py --animate`.
 
-**Split screen on the operator's tablet** — Mixing Station (left) + the assistant's dashboard (right), both live against the emulator:
+**Split screen on the operator's Android device** — the assistant's dashboard (top, song bar + COACH + TAKEOVER) and Mixing Station (bottom, the setlist's channels with live meters), both connected to the emulator at once:
 
-![Mixing Station and the Trio Mix-Assistant dashboard split-screen on one Android tablet](docs/screenshots/mixingstation-split.png)
+<img src="docs/screenshots/mixingstation-split.jpg" width="360" alt="Trio Mix-Assistant dashboard and Mixing Station split-screen on one Android device, both live against the emulator">
 
 This also **validates the OSC against a production mixer app** with no gear — set a fader to a known dB in the dashboard and confirm Mixing Station shows the same value (the fader law is verified this way).
 
