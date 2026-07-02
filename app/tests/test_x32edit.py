@@ -141,6 +141,18 @@ class X32EditProtocol(unittest.TestCase):
         self.assertIsInstance(r[1][0], float)
         self.assertEqual(self.ed.ask("/headamp/053/gain"), r)  # consistent re-read
 
+    def test_node_containers_answer_in_desk_format(self):
+        """Mixing Station /node-reads send + output containers and parses the
+        positional desk format; a bare-path echo reads as no data -> sync failed."""
+        r = self.ed.ask("/node", "fxrtn/01/mix/13")            # odd send: has pan
+        self.assertEqual(r[1][0], "/fxrtn/01/mix/13 ON -oo +0 POST 0\n")
+        r = self.ed.ask("/node", "fxrtn/01/mix/14")            # even send: on+level
+        self.assertEqual(r[1][0], "/fxrtn/01/mix/14 ON -oo\n")
+        r = self.ed.ask("/node", "outputs/rec/01")             # src + tap point
+        self.assertEqual(r[1][0], "/outputs/rec/01 0 POST\n")
+        r = self.ed.ask("/node", "outputs/aes/02")             # + invert
+        self.assertEqual(r[1][0], "/outputs/aes/02 0 POST OFF\n")
+
 
 if __name__ == "__main__":
     unittest.main()
