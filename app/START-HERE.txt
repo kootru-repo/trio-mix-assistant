@@ -47,11 +47,14 @@ WHAT YOU NEED
   This runs the WHOLE app against a built-in simulated console.
 
 ------------------------------------------------------------
-  WATCH IT IN X32-EDIT / M32-EDIT (no console needed)
+  MIX ON MIXING STATION (no console needed)
 ------------------------------------------------------------
-  Start the app with   python run.py --emulate --lan   then open X32-Edit and
-  connect it to THIS PC (it appears at your LAN IP, or type 127.0.0.1). It mirrors
-  the app live - the assistant's moves show on the real editor GUI.
+  Start the app with   python run.py --emulate --lan   then open the Mixing
+  Station app (Android/iOS/desktop) on the same WiFi: console type Behringer
+  X32, pick "MixAssist" from the search list (or type this PC's IP), access
+  Full. It syncs the desk with live meters; the assistant's moves mirror live
+  and YOUR fader moves win instantly. The setlist's scenes appear in Mixing
+  Station's scene list. (X32-Edit / M32-Edit desktop editors also work.)
 
   To SEE faders move, three options (run in a second terminal, app still running):
     1.  python osc_demo.py --animate     continuous fader wave (works with --auto)

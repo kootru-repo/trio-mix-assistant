@@ -106,8 +106,9 @@ def main() -> None:
                     help="auto-detect the best input device, size the channel map "
                          "to it, and auto-set input gain (no --audio-device needed)")
     ap.add_argument("--trace-osc", action="store_true",
-                    help="(--emulate) print every OSC address an editor like X32-Edit "
-                         "asks the emulated desk for — for protocol fidelity work")
+                    help="(--emulate) print every OSC address an editor (Mixing "
+                         "Station, X32-Edit) asks the emulated desk for — for "
+                         "protocol fidelity work")
     ap.add_argument("--list-devices", action="store_true",
                     help="list input audio devices and exit")
     ap.add_argument("--https", action="store_true",
@@ -209,7 +210,7 @@ def main() -> None:
             except Exception: pass
         if auto_source is None and cands:
             print("  [!] --auto: no input delivered audio. Close other apps using the mic")
-            print("      (x32 edit, voice tools) and check Windows mic privacy, then restart.")
+            print("      (mixer editors, voice tools) and check Windows mic privacy, then restart.")
 
     emu = None
     if args.emulate:
@@ -329,11 +330,13 @@ def main() -> None:
             print(f"  [!] Desk emulator could not bind OSC port {emu.listen_port}: {exc}")
             print("      Another --emulate session is probably running. Stop it and retry.")
             sys.exit(2)
-        # The emulated desk now answers X32-Edit/M32-Edit's discovery handshake, so you
-        # can connect the editor to it and watch the app drive a real console GUI.
+        # The emulated desk answers a mixer app's full discovery/sync/meter protocol
+        # (Mixing Station, X32-Edit, M32-Edit), so you can mix against the app live.
         from trio_mix import config as C
-        print(f"  X32-Edit: connect it to  {ip}:{emu.listen_port}  (or 127.0.0.1 on this PC)")
-        print(f"            it mirrors the app live; identity = {C.X32_MODEL}/{C.X32_FW}"
+        print(f"  Mixer app: connect Mixing Station (console type Behringer X32, access")
+        print(f"             Full) to  {ip}:{emu.listen_port}  — appears as \"{C.X32_NAME}\""
+              f" in search.")
+        print(f"             X32-Edit/M32-Edit also work; identity = {C.X32_MODEL}/{C.X32_FW}"
               + ("  [--trace-osc ON]" if args.trace_osc else ""))
     # Prepare TLS BEFORE serving so the root CA (if any) can be handed to the
     # server for the /ca.pem install route. Cover every interface the tablet might
