@@ -1,9 +1,11 @@
-"""X32-Edit compatibility: the EmulatedDesk must answer an editor's discovery +
-sync protocol over a real socket so X32-Edit/M32-Edit can connect to --emulate and
-mirror the app live. A simulated editor (one bound UDP socket the desk replies to)
-drives /info/xinfo/status/node/GET, /xremote subscription + live push, and the
+"""Mixer-app compatibility: the EmulatedDesk must answer an editor's discovery +
+sync protocol over a real socket so Mixing Station (and X32-Edit/M32-Edit) can
+connect to --emulate and mirror the app live. A simulated editor (one bound UDP
+socket the desk replies to) drives /info/xinfo/status/node/GET, /xremote
+subscription + live push, meter streams, show-file enumeration, and the
 editor->app reconciliation feed. Pure protocol mechanics — identity strings are
-VERIFY-tagged assumptions (see config.X32_*)."""
+VERIFY-tagged assumptions (see config.X32_*). Mixing Station's full sync was
+validated live against this surface on 2026-07-03."""
 import os
 import socket
 import sys

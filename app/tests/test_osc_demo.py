@@ -1,5 +1,6 @@
-"""osc_demo.py drives a console with the app's real encoder so X32-Edit mirrors
-the app. Verify its one-shot move set actually reaches a desk over the socket."""
+"""osc_demo.py drives a console with the app's real encoder so a mixer app
+(Mixing Station, X32-Edit) mirrors the app. Verify its one-shot move set
+actually reaches a desk over the socket."""
 import os
 import socket
 import sys
