@@ -76,7 +76,7 @@ def _print_qr(url: str) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Acoustic Trio AI Mix-Assistant")
+    ap = argparse.ArgumentParser(description="Acoustic Trio Mix-Assistant")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--lan", action="store_true",
                     help="bind to the LAN so tablets can connect "
@@ -136,7 +136,7 @@ def main() -> None:
                     help="SQLite path for session logging (default: ./sessions.db; "
                          "use 'off' to disable)")
     ap.add_argument("--advisor", action="store_true",
-                    help="enable the Claude AI advisory layer (needs ANTHROPIC_API_KEY; "
+                    help="enable the Claude advisory layer (needs ANTHROPIC_API_KEY; "
                          "advisory notes only — never controls the mix)")
     ap.add_argument("--advisor-interval", type=float, default=30.0,
                     help="seconds between advisor checks (default 30)")
@@ -311,14 +311,14 @@ def main() -> None:
         else:
             print(f"  Venue '{args.venue}': no model yet — will learn after this show.")
 
-    # AI advisory layer (Claude) — opt-in, advisory only
+    # Claude advisory layer — opt-in, advisory only
     if args.advisor:
         from trio_mix.advisor import Advisor
         adv = Advisor(get_context=engine.advisor_context, on_advice=engine.on_advice,
                       interval=args.advisor_interval)
         if adv.available:
             engine.advisor = adv
-            print("  AI advisor: ON (advisory notes only)")
+            print("  Claude advisor: ON (advisory notes only)")
         else:
             print("  [!] --advisor requested but ANTHROPIC_API_KEY is not set; advisor disabled.")
 

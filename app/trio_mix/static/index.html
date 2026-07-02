@@ -140,7 +140,7 @@
   .scenebtn .sn{font-size:13.5px;font-weight:700;color:#eaf2ff}
   .scenebtn.current{border-color:#3a2d5e;background:#160f26;box-shadow:0 0 0 1px #3a2d5e inset}
   .scenebtn.current .sc{color:#cbb6ff}
-  /* AI advisor card */
+  /* Claude advisor card */
   .aibadge{font-size:9px;font-weight:800;letter-spacing:.1em;color:#7fd1ff;border:1px solid #1d3a59;
     background:#0d1f30;border-radius:5px;padding:2px 6px;margin-left:8px;vertical-align:middle}
   .advice{margin-top:12px}
@@ -507,7 +507,7 @@
       </div>
 
       <div class="panel" id="advisorpanel" hidden>
-        <h3><svg class="hic" style="color:var(--accent)"><use href="#ic-vocal"/></svg>AI advisor <span class="aibadge">ADVISORY</span></h3>
+        <h3><svg class="hic" style="color:var(--accent)"><use href="#ic-vocal"/></svg>Claude advisor <span class="aibadge">ADVISORY</span></h3>
         <div class="sub">A slow Claude layer — it never moves the mix; just notes for the band / operator.</div>
         <div class="advice" id="advice"></div>
       </div>
@@ -718,7 +718,7 @@ function renderAdvisor(advice, on){
   let h = "";
   if(advice.prompt)     h += `<div class="prompt">${esc(advice.prompt)}</div>`;
   if(advice.assessment) h += `<div class="assess">${esc(advice.assessment)}</div>`;
-  h += `<div class="ameta">${esc(advice.time||"")} · AI suggestion — not an automatic action</div>`;
+  h += `<div class="ameta">${esc(advice.time||"")} · Claude suggestion — not an automatic action</div>`;
   box.innerHTML = h;
 }
 // ---- performer screens: tabs + EQ / FX / Settings ----

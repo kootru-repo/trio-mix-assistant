@@ -34,7 +34,7 @@ class MixAssistant:
 
         # Coach (advisory) mode: compute every correction exactly as in auto, but
         # instead of writing to the console, tell the engineer the move to make by
-        # hand. No LLM/AI — the numbers come straight from the deterministic jobs.
+        # hand. The numbers come straight from the deterministic jobs.
         self.coach_mode = False
         self.coach_recs: dict[tuple, dict] = {}    # (kind, ch) -> latest recommendation
         self._coach_last_text: dict[tuple, str] = {}

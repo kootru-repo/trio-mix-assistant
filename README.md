@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎚️ Trio AI Mix‑Assistant
+# 🎚️ Trio Mix‑Assistant
 
 ### A live‑sound **safety net** + **operator dashboard** for a Midas M32C / Behringer X32 — for the gig with no sound engineer.
 
@@ -18,10 +18,10 @@ It *listens* to the band and the room, and gently *nudges* the console within ha
 
 Small acoustic acts often play with **no one at front‑of‑house**. This app is the missing safety net: it watches the channels and a measurement mic and makes small, safe corrections — catch a feedback ring, pull back a clipping preamp, hold the lead vocal at a steady level — while **you** keep playing.
 
-- **Deterministic real‑time core — no AI in the audio path.** Feedback/clip/level decisions are plain DSP and clamped controllers, so behaviour is predictable. (An *optional* Claude "slow layer" can post plain‑language advice — **advisory only, it never touches the mix**.)
+- **Deterministic real‑time core.** Feedback/clip/level decisions are plain DSP and clamped controllers — no machine learning, no black box — so behaviour is predictable and repeatable. (An *optional* Claude "slow layer" can post plain‑language advice — **advisory only, it never touches the mix**.)
 - **Console stays in charge.** Move a fader on the desk or a tablet and the app yields. One **TAKEOVER** button hands everything back to a human.
-- **Coach mode — you mix, it guides.** One toggle flips the app from *acting* to *advising*: it suspends **every** automatic move and instead tells you the exact manual change to make (channel, band, dB, Hz, even which scene to recall). Still zero AI — same deterministic math — just surfaced as instructions instead of applied. For hands‑on engineers, teaching, or previewing what it *would* do.
-- **Runs with zero hardware.** A built‑in simulator and a protocol‑faithful console **emulator** let you learn, demo, and rehearse the whole rig on a laptop — and even drive **real X32‑Edit** from it (see below).
+- **Coach mode — you mix, it guides.** One toggle flips the app from *acting* to *advising*: it suspends **every** automatic move and instead tells you the exact manual change to make (channel, band, dB, Hz, even which scene to recall). Same deterministic math — just surfaced as instructions instead of applied. For hands‑on engineers, teaching, or previewing what it *would* do.
+- **Runs with zero hardware.** A built‑in simulator and a protocol‑faithful console **emulator** let you learn, demo, and rehearse the whole rig on a laptop — and even mix on **real Mixing Station** against it (see below).
 - **One dashboard, any screen.** A single installable web app (PWA) works identically on the FOH laptop, an iPad, or an Android tablet over WiFi.
 
 ## 📸 Screenshots
@@ -42,7 +42,7 @@ Small acoustic acts often play with **no one at front‑of‑house**. This app i
 
 ### 🎧 Coach mode — advise, don't act
 
-Flip **COACH** and the app stops touching the console: every move it *would* make — feedback notch, clip trim, vocal ride, room calibration, even scene recall — is listed as a plain manual instruction in a **Coach — manual moves** panel (and the decision log) for you to dial in by hand. Same deterministic math, zero AI; only your own moves act. **Tap the image for the full‑page view.**
+Flip **COACH** and the app stops touching the console: every move it *would* make — feedback notch, clip trim, vocal ride, room calibration, even scene recall — is listed as a plain manual instruction in a **Coach — manual moves** panel (and the decision log) for you to dial in by hand. Same deterministic math; only your own moves act. **Tap the image for the full‑page view.**
 
 [![Coach mode — the assistant advises every manual move instead of applying it](docs/screenshots/coach.png)](docs/screenshots/coach-full.png)
 
@@ -219,7 +219,7 @@ This also **validates the OSC against a production mixer app** with no gear — 
 | **Vocal unmask** | advisory | Sidechained to the lead vocal: when it's present, **dynamically duck** each instrument's ~3 kHz band a few dB so the vocal cuts through, then release when it pauses (fast attack / slow release). Coach mode advises a static dip instead. |
 | **Pink‑noise calibration** | pre‑show | Measure the room, cut the worst peaks, pre‑dip feedback‑prone freqs, seed the watch‑list. |
 
-**Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends **every** automatic move — all the jobs above **plus** setlist scene recall and guest mutes — and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. Same deterministic math, still zero AI, and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
+**Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends **every** automatic move — all the jobs above **plus** setlist scene recall and guest mutes — and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. Same deterministic math, and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
 Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is **logged and reversible**. **259 automated tests** cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 

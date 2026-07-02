@@ -173,7 +173,7 @@ class Engine:
                 self.show_clock = None
         if self.advisor is not None and self.advisor.start():
             with self._lock:
-                self.assistant._emit("system", "AI advisor active (advisory notes only)")
+                self.assistant._emit("system", "Claude advisor active (advisory notes only)")
                 self._rebuild_telemetry()
 
     def _renew_loop(self) -> None:
@@ -355,7 +355,7 @@ class Engine:
 
     def set_coach_mode(self, on: bool) -> None:
         """Toggle the deterministic coach: jobs advise manual moves instead of
-        actuating the console. No AI — the moves are the same math as auto mode."""
+        actuating the console. The moves are the same math as auto mode."""
         with self._lock:
             self.assistant.set_coach_mode(bool(on))
             self._rebuild_telemetry()
@@ -644,7 +644,7 @@ class Engine:
         except Exception:
             return None
 
-    # -- AI slow layer (advisory only; never controls anything) -------------
+    # -- Claude slow layer (advisory only; never controls anything) ---------
     def advisor_context(self) -> dict:
         """A compact snapshot for the Claude advisor. Taken under the lock, then
         the (slow) network call happens off-lock in the Advisor thread."""
