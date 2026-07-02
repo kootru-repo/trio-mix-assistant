@@ -200,6 +200,34 @@ class X32EditProtocol(unittest.TestCase):
         r = self.ed.ask("/node", "-show/showfile/scene/002")
         self.assertEqual(r[1][0], '/-show/showfile/scene/002 "Bloom" "" %111111111 1\n')
 
+    def test_editor_meter_stream(self):
+        """An editor subscribing to a meter bank must receive a stream (a silent
+        desk reads as dead -> Mixing Station reconnects every ~5 s). Blob = LE
+        int32 count + count float32s; /meters/2 = 49 floats."""
+        self.ed.send("/meters", "/meters/2", 2)
+        deadline = time.time() + 2.0
+        got = None
+        while time.time() < deadline:
+            r = self.ed.recv()
+            if r and r[0] == "/meters/2":
+                got = r
+                break
+        self.assertIsNotNone(got, "no meter stream for /meters/2")
+        blob = got[1][0]
+        self.assertEqual(len(blob), 4 + 49 * 4)
+
+    def test_editor_meter_stream_via_batchsubscribe(self):
+        self.ed.send("/batchsubscribe", "meters/0", "/meters/0", 0, 0, 2)
+        deadline = time.time() + 2.0
+        got = None
+        while time.time() < deadline:
+            r = self.ed.recv()
+            if r and r[0] == "/meters/0":
+                got = r
+                break
+        self.assertIsNotNone(got, "no meter stream for batchsubscribe meters/0")
+        self.assertEqual(len(got[1][0]), 4 + 70 * 4)
+
 
 if __name__ == "__main__":
     unittest.main()
