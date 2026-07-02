@@ -68,6 +68,8 @@ class EmulatedDesk:
         self._remotes: set[tuple[str, int]] = set()     # external editors (NOT the app)
         self._clients: dict[tuple[str, int], object] = {}
         self.scene_names: dict[int, str] = {}   # setlist scenes shown to editors
+        # editor meter subscriptions: (client, alias) -> {"path", "count", "last"}
+        self._meter_subs: dict[tuple, dict] = {}
         self.req_seen: set[str] = set()
         self.req_log: list[str] = []
         self.trace_requests = False            # print each new address an editor asks for
@@ -110,6 +112,32 @@ class EmulatedDesk:
                 self.scene = int(args[0])
             except (TypeError, ValueError):
                 pass
+
+    # /meters/N bank sizes (floats), per pmaillot/X32-Behringer function_meters()
+    _METER_COUNTS = {0: 70, 1: 96, 2: 49, 3: 22, 4: 82, 5: 27, 6: 4, 7: 16,
+                     8: 6, 9: 32, 10: 32, 11: 5, 12: 4, 13: 48, 14: 80,
+                     15: 50, 16: 48}
+
+    def _add_meter_sub(self, client, addr, args) -> None:
+        """Register an editor's meter stream. `/meters ,s /meters/N [tf]` streams
+        to the sender at that address; `/batchsubscribe alias path ...` streams to
+        `alias`. A real desk stops after ~10 s unless the editor sends /renew —
+        an editor (Mixing Station) treats a silent desk as dead and reconnects."""
+        if addr == "/meters" and args:
+            alias = path = str(args[0])
+        elif addr in ("/batchsubscribe", "/formatsubscribe") and len(args) >= 2:
+            alias, path = str(args[0]), str(args[1])
+        else:
+            return
+        m = re.match(r"^meters/(\d+)$", path.lstrip("/"))
+        if not m:
+            return
+        count = self._METER_COUNTS.get(int(m.group(1)), 96)
+        if not alias.startswith("/"):
+            alias = "/" + alias
+        self._meter_subs[(client, alias)] = {"path": path, "count": count,
+                                             "last": time.monotonic()}
+        self._start_meters()
 
     def _h_subscribe(self, addr, *args):
         self.recv_count += 1
@@ -324,16 +352,24 @@ class EmulatedDesk:
             return self._reply(client, "/status", *self._status())
         if addr == "/node":
             return self._reply_node(client, args)
-        if addr in ("/xremote", "/formatsubscribe", "/batchsubscribe"):
+        if addr in ("/xremote", "/formatsubscribe", "/batchsubscribe", "/meters"):
             if not is_app:
                 self._remotes.add(client)          # external editor wants live updates
+                self._add_meter_sub(client, addr, args)
             if addr == "/batchsubscribe":
                 self._h_subscribe(addr, *args)
-            else:
+            elif addr != "/meters":
                 self._h_xremote(addr, *args)
             return
         if addr in ("/unsubscribe", "/renew"):
             self.recv_count += 1
+            now = time.monotonic()
+            for key, sub in list(self._meter_subs.items()):
+                if key[0] == client:
+                    if addr == "/renew":
+                        sub["last"] = now          # keep this editor's stream alive
+                    else:
+                        del self._meter_subs[key]
             return
         if addr == "/showdump":
             # show-file header, per pmaillot/X32-Behringer function_showdump()
@@ -402,17 +438,28 @@ class EmulatedDesk:
     def _meter_loop(self):
         period = 1.0 / self.meter_hz
         while not self._stop.wait(period):
-            if not self.subscribed or self._client is None:
+            if not (self.subscribed or self._meter_subs) or self._client is None:
                 continue
             # plausible 0..1 meter levels; values are illustrative, the LAYOUT is
             # the contract (encode_meter_blob).
             self._i += 1
             vals = (0.3 + 0.2 * np.sin(self._i * 0.2 + np.arange(self.n_meters))).tolist()
-            try:
-                self._client.send_message("/meters/1", encode_meter_blob(vals))
-                self.meters_sent += 1
-            except OSError:
-                pass
+            if self.subscribed:
+                try:
+                    self._client.send_message("/meters/1", encode_meter_blob(vals))
+                    self.meters_sent += 1
+                except OSError:
+                    pass
+            # stream each subscribed editor its requested bank (drop stale subs —
+            # a real desk stops ~10 s after the last /renew)
+            now = time.monotonic()
+            for (client, alias), sub in list(self._meter_subs.items()):
+                if now - sub["last"] > 10.0:
+                    del self._meter_subs[(client, alias)]
+                    continue
+                n = sub["count"]
+                bank = (0.3 + 0.2 * np.sin(self._i * 0.2 + np.arange(n))).tolist()
+                self._reply(client, alias, encode_meter_blob(bank))
 
     @staticmethod
     def _ext_pick(k: int):
