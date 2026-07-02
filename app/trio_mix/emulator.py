@@ -19,6 +19,7 @@ loop.
 """
 from __future__ import annotations
 
+import re
 import threading
 import time
 
@@ -171,13 +172,16 @@ class EmulatedDesk:
                 continue
             self._reply(r, addr, *args)
 
-    def _log_req(self, addr: str) -> None:
-        if addr not in self.req_seen:
-            self.req_seen.add(addr)
+    def _log_req(self, addr: str, args: tuple = ()) -> None:
+        # /node carries the real path as an argument — log it, or every node
+        # request collapses into one opaque "/node" line.
+        key = f"{addr} {args[0]}" if (addr == "/node" and args) else addr
+        if key not in self.req_seen:
+            self.req_seen.add(key)
             if len(self.req_log) < 1000:
-                self.req_log.append(addr)
+                self.req_log.append(key)
             if self.trace_requests:
-                print(f"  [emu] editor asked: {addr}")
+                print(f"  [emu] editor asked: {key}")
 
     def _info(self):
         return (C.X32_SERVER_VER, C.X32_NAME, C.X32_MODEL, C.X32_FW)
@@ -211,12 +215,31 @@ class EmulatedDesk:
             return f'"{v}"' if (" " in v or v == "") else v
         return str(v)
 
+    # X32 /node container formats (per pmaillot/X32-Behringer X32.c): a send
+    # container renders as "ON <level>" (even sends) or "ON <level> <pan> <type>
+    # <panFollow>" (odd sends, the pan-carrying half of a stereo pair); an output
+    # renders as "<src> <pos> [<inv>]". Values here are quiet defaults.
+    _NODE_RULES = [
+        (re.compile(r"^/(?:ch|auxin|fxrtn)/\d{2}/mix/(\d{2})$"),
+         lambda m: "ON -oo +0 POST 0" if int(m.group(1)) % 2 else "ON -oo"),
+        (re.compile(r"^/bus/\d{2}/mix/(\d{2})$"),
+         lambda m: "ON -oo +0 POST 0" if int(m.group(1)) % 2 else "ON -oo"),
+        (re.compile(r"^/outputs/(?:main|aes)/\d{2}$"), lambda m: "0 POST OFF"),
+        (re.compile(r"^/outputs/rec/\d{2}$"), lambda m: "0 POST"),
+        (re.compile(r"^/outputs/p16/\d{2}$"), lambda m: "0 POST OFF 0"),
+    ]
+
     def _reply_node(self, client, args) -> None:
         """Answer /node — the editor's bulk state read. For a modeled leaf we return
         'path val'; for a container, its modeled children. Best-effort: the request
         log tells us what real X32-Edit wants so we can tighten this."""
         path = (args[0] if args else "").strip("/")
         full = "/" + path
+        for rx, body_for in self._NODE_RULES:      # desk-format container replies
+            m = rx.match(full)
+            if m:
+                self._reply(client, "node", f"{full} {body_for(m)}\n")
+                return
         if full in self._params:
             body = f"{full} " + " ".join(self._fmt(v) for v in self._params[full])
         else:
@@ -226,13 +249,15 @@ class EmulatedDesk:
                     self._fmt(self._params[k][0]) for k in sorted(kids) if self._params[k])
             else:
                 body = full          # unknown node: echo the path so the editor moves on
-        self._reply(client, "node", body)
+        # a real desk terminates every node reply with a newline; strict editors
+        # (Mixing Station) may not accept the reply without it
+        self._reply(client, "node", body + "\n")
 
     def _h_any(self, client, addr, *args):
         """Single socket entry-point (default handler, reply-address aware). Routes
         the app's commands through the existing handlers AND serves an editor's
         discovery/sync/param protocol, pushing live changes to subscribed editors."""
-        self._log_req(addr)
+        self._log_req(addr, args)
         is_app = (client == self.app)
 
         if addr == "/info":
