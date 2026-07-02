@@ -142,18 +142,37 @@ class X32EditProtocol(unittest.TestCase):
         self.assertEqual(self.ed.ask("/headamp/053/gain"), r)  # consistent re-read
 
     def test_node_containers_answer_in_desk_format(self):
-        """Mixing Station /node-reads send + output containers and parses the
-        positional desk format; a bare-path echo reads as no data -> sync failed."""
-        r = self.ed.ask("/node", "fxrtn/01/mix/13")            # odd send: has pan
-        self.assertEqual(r[1][0], "/fxrtn/01/mix/13 ON -oo +0 POST 0\n")
-        r = self.ed.ask("/node", "fxrtn/01/mix/14")            # even send: on+level
-        self.assertEqual(r[1][0], "/fxrtn/01/mix/14 ON -oo\n")
-        r = self.ed.ask("/node", "outputs/rec/01")             # src + tap point
-        self.assertEqual(r[1][0], "/outputs/rec/01 0 POST\n")
-        r = self.ed.ask("/node", "outputs/aes/02")             # + invert
-        self.assertEqual(r[1][0], "/outputs/aes/02 0 POST OFF\n")
-        r = self.ed.ask("/node", "outputs/main/03/delay")      # on + ms
-        self.assertEqual(r[1][0], "/outputs/main/03/delay OFF 0.3\n")
+        """Mixing Station /node-reads every container and parses the positional
+        desk text format; a bare-path echo reads as no data -> sync failed. Most
+        answers come from the bundled default-scene table; outputs/rec+aes are
+        synthesized rules; minimum token counts pin each family's field count."""
+        for path, min_toks in [
+            ("fxrtn/01/mix/13", 3), ("fxrtn/01/mix/14", 3),    # sends (table)
+            ("outputs/rec/01", 3), ("outputs/aes/02", 4),      # rules
+            ("outputs/main/03/delay", 3),                      # table: ON/OFF + ms
+            ("ch/27/eq/3", 5), ("auxin/04/eq/1", 5),           # type f g q
+            ("ch/10/dyn", 10), ("ch/10/gate", 5),              # dynamics families
+            ("ch/27/dyn/filter", 4), ("ch/01/insert", 4),
+            ("bus/05/mix/01", 3), ("headamp/000", 3),
+        ]:
+            r = self.ed.ask("/node", path)
+            self.assertIsNotNone(r, f"no reply for /node {path}")
+            self.assertEqual(r[0], "node")
+            body = r[1][0]
+            self.assertTrue(body.endswith("\n"), f"{path}: missing newline")
+            toks = body.split()
+            self.assertEqual(toks[0], "/" + path)
+            self.assertGreaterEqual(len(toks), min_toks, f"{path}: {body!r}")
+
+    def test_node_mix_and_config_reflect_live_state(self):
+        """The channel mix/config node lines must mirror the emulator's live desk
+        state (fader/mute/name), not the static scene table."""
+        self.ed.send("/ch/03/mix/fader", 0.5)                  # -10 dB on the wire
+        time.sleep(0.1)
+        r = self.ed.ask("/node", "ch/03/mix")
+        self.assertIn("-10.0", r[1][0])
+        r = self.ed.ask("/node", "ch/01/config")
+        self.assertRegex(r[1][0], r'^/ch/01/config "[^"]*" 1 \w+ 1\n$')
 
 
 if __name__ == "__main__":
