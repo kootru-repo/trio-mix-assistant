@@ -246,6 +246,9 @@ class EmulatedDesk:
          lambda m: "ON -oo +0 POST 0" if int(m.group(1)) % 2 else "ON -oo"),
         (re.compile(r"^/bus/\d{2}/mix/(\d{2})$"),
          lambda m: "ON -oo +0 POST 0" if int(m.group(1)) % 2 else "ON -oo"),
+        # preset-library slot (ch/fx/routing), SLIBS: pos "name" type flags hasdata
+        (re.compile(r"^/-libs/(?:ch|fx|r|mon)/\d{3}$"),
+         lambda m: '0 "" 0 %0000000000000000 0'),
         (re.compile(r"^/outputs/main/\d{2}/delay$"), lambda m: "OFF 0.3"),
         (re.compile(r"^/outputs/(?:main|aes)/\d{2}$"), lambda m: "0 POST OFF"),
         (re.compile(r"^/outputs/rec/\d{2}$"), lambda m: "0 POST"),

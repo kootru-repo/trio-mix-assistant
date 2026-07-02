@@ -154,6 +154,7 @@ class X32EditProtocol(unittest.TestCase):
             ("ch/10/dyn", 10), ("ch/10/gate", 5),              # dynamics families
             ("ch/27/dyn/filter", 4), ("ch/01/insert", 4),
             ("bus/05/mix/01", 3), ("headamp/000", 3),
+            ("-libs/ch/100", 6), ("-libs/fx/001", 6), ("-libs/r/050", 6),
         ]:
             r = self.ed.ask("/node", path)
             self.assertIsNotNone(r, f"no reply for /node {path}")
