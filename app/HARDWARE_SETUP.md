@@ -4,11 +4,11 @@
 This is the *reference spec* for the listening rig. The two companion docs cover the
 other phases:
 
-- **`HARDWARE_BRINGUP.md`** — the one-time on-the-bench validation checklist (verify the
+- **`HARDWARE_BRINGUP.md`**: the one-time on-the-bench validation checklist (verify the
   OSC/`/meters` formats against *your* console before trusting it live).
-- **`RUNBOOK.md`** — the show-day operating guide (launch commands, dashboard, tablet).
+- **`RUNBOOK.md`**: the show-day operating guide (launch commands, dashboard, tablet).
 
-> **TL;DR — the optimal rig**
+> **TL;DR: the optimal rig**
 > **Console X-USB interface as the single 48 kHz capture device (WASAPI/ASIO) + an
 > analog measurement mic on a spare desk channel + wired Ethernet for OSC control.**
 > No outboard audio interface, no second USB mic, no sample-rate conversion.
@@ -47,24 +47,24 @@ recommendation below follows from them:
 
 Two cables to the laptop: **one USB-B** (all audio, in one 48 kHz stream) and **one
 Ethernet** (OSC control + `/meters`). The measurement mic is *analog into a desk
-channel* so it rides the same USB stream as every other channel — it is just the last
+channel*, so it rides the same USB stream as every other channel; it is just the last
 column (`MEAS_MIC_CH`, channel 8 on the default trio map).
 
 ---
 
 ## 3. The pieces
 
-### 3.1 Channel taps — the console's built-in USB interface
+### 3.1 Channel taps: the console's built-in USB interface
 The M32C has an integrated **32×32 USB 2.0** audio interface. Route its
 computer-bound sends to the **direct channel inputs** (the default X-USB routing) and
-the app gets a sample-accurate digital tap of every channel — post-preamp, matching
-the desk's channel numbers — with **zero extra hardware**. The desk is the 48 kHz
+the app gets a sample-accurate digital tap of every channel (post-preamp, matching
+the desk's channel numbers) with **zero extra hardware**. The desk is the 48 kHz
 clock master, so there is no sample-rate conversion.
 
 > If the USB routing sends channel *N* somewhere other than USB column *N−1*, don't
-> rewire — map it: `--channel-map "1:0,2:1,…,8:9"` (console 1-based : column 0-based).
+> rewire; map it instead: `--channel-map "1:0,2:1,…,8:9"` (console 1-based : column 0-based).
 
-### 3.2 Measurement mic — analog, into a spare desk channel (**not** a USB mic)
+### 3.2 Measurement mic: analog, into a spare desk channel (**not** a USB mic)
 This is the one non-obvious choice. Because the engine opens **one** device, a USB
 measurement mic (e.g. miniDSP UMIK-1) is a *second* device and forces you into a
 fragile OS aggregate. Instead use an **analog** measurement mic into a console preamp,
@@ -78,7 +78,7 @@ so it arrives on the same USB stream as `meas_mic`:
 
 **Placement:** at the mix position / a representative listening spot, on a stand at
 ear height, capsule pointed up (omni), away from walls and boundaries. It is the app's
-"truth about the room" — it should hear the PA + room as the audience does. A quiet
+"truth about the room" and should hear the PA + room as the audience does. A quiet
 capsule is fine: `--auto` sets digital input gain automatically, or use `--input-gain
 <dB>` (try 20–40 for a dynamic).
 
@@ -89,15 +89,15 @@ capsule is fine: `--auto` sets digital input gain automatically, or use `--input
   ASIO, if present) device. The stock `sounddevice` wheel ships PortAudio **without**
   ASIO, so plan on **WASAPI exclusive** unless you build PortAudio with the ASIO SDK.
 - **macOS:** **Core Audio** (class-compliant). Grant the Microphone permission on first
-  launch (a denial makes capture *silent* — the app detects and banners it).
+  launch (a denial makes capture *silent*; the app detects and banners it).
 - **Buffer:** 256–512 samples @ 48 k is a good latency/stability trade. The app detects
-  sustained xruns (`overload()`) and shows an **XRUN** chip — bump the buffer if you see it.
+  sustained xruns (`overload()`) and shows an **XRUN** chip. Bump the buffer if you see it.
 - **USB:** a short/quality USB-B cable (≤ 3 m, or an active cable) on a **dedicated**
-  port — not a shared hub with other devices.
+  port, not a shared hub with other devices.
 
-### 3.4 Control network — wired Ethernet
+### 3.4 Control network: wired Ethernet
 Put the **OSC control path** (console ↔ laptop, UDP 10023/10024) on **wired Ethernet**
-with static IPs — never Wi-Fi. A dashboard **tablet** may use Wi-Fi (the dashboard is
+with static IPs, never Wi-Fi. A dashboard **tablet** may use Wi-Fi (the dashboard is
 SSE/WebSocket and tolerant); keep it on the same subnet, client-isolation off.
 
 ---
@@ -112,7 +112,7 @@ SSE/WebSocket and tolerant); keep it on the same subnet, client-isolation off.
 
 The **Minimum** row is the fallback when the console's USB can't give per-channel taps:
 analog direct-outs into a separate multichannel interface. It works but adds an A/D
-round-trip and hardware for no benefit over the desk's own USB — prefer X-USB.
+round-trip and hardware for no benefit over the desk's own USB, so prefer X-USB.
 
 ---
 
@@ -127,12 +127,12 @@ round-trip and hardware for no benefit over the desk's own USB — prefer X-USB.
 
 ---
 
-## 6. Validation status — read before trusting it live
+## 6. Validation status (read before trusting it live)
 
 The software fully supports the setup above and is hardened against the field failure
 modes (unplug, silence, xrun, busy device, wrong channel count, quiet mic). **But the
 happy path of real multichannel console-USB capture has not yet been run against an
-actual M32C** — all multichannel testing to date is synthetic/emulated or a single USB
+actual M32C**. All multichannel testing to date is synthetic/emulated or a single USB
 mic. Two things need a bench pass with the real desk to call "validated":
 
 1. that the X-USB interface exposes N input channels under WASAPI/ASIO, and
