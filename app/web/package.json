@@ -1,0 +1,13 @@
+{
+  "name": "trio-mix-dashboard",
+  "private": true,
+  "description": "TypeScript source for the dashboard and PIN login page; compiles into ../trio_mix/static.",
+  "scripts": {
+    "build": "tsc -p .",
+    "check": "tsc -p . --noEmit",
+    "watch": "tsc -p . --watch"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

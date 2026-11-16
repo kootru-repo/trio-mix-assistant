@@ -47,3 +47,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# --- Dashboard TypeScript toolchain (compiled JS in app/trio_mix/static is committed) ---
+node_modules/

@@ -164,6 +164,18 @@ def _read_index() -> str:
         return f.read()
 
 
+# Compiled browser scripts (TypeScript source in app/web, built with `npm run build`).
+# An explicit allowlist: the request path is never joined onto the static dir.
+# Public like the PWA assets: /login.js must load before the PIN is entered, and
+# neither file holds any state or secret.
+_STATIC_JS = {"/dashboard.js": "dashboard.js", "/login.js": "login.js"}
+
+
+def _read_static_js(name: str) -> str:
+    with open(os.path.join(_STATIC, name), "r", encoding="utf-8") as f:
+        return f.read()
+
+
 def _host_allowed(host_header: str) -> bool:
     """DNS-rebinding guard: legitimate access to this LAN tool is always by IP
     literal, `localhost`, or an mDNS `*.local` name — never a public domain. A
@@ -207,13 +219,7 @@ button{width:100%;margin-top:12px;padding:12px;font-size:15px;font-weight:700;bo
 <h1>🎚️ Mix-Assistant</h1><p>Enter the access PIN to continue</p>
 <input id="pin" type="password" inputmode="numeric" autocomplete="one-time-code"
  autofocus aria-label="PIN"><button>Unlock</button><div class="err" id="err"></div>
-</form><script>
-const f=document.getElementById("f"),pin=document.getElementById("pin"),err=document.getElementById("err");
-f.onsubmit=async e=>{e.preventDefault();err.textContent="";
- let r;try{r=await fetch("/api/login",{method:"POST",headers:{"content-type":"application/json"},
-  body:JSON.stringify({pin:pin.value})});}catch(_){err.textContent="Network error.";return;}
- if(r.ok){location.href="/";}else{err.textContent=r.status===429?"Too many tries — wait a moment.":"Wrong PIN.";pin.value="";pin.focus();}};
-</script></body></html>"""
+</form><script src="/login.js"></script></body></html>"""
 
 
 def make_handler(engine: Engine, pin: str | None = None, ca_pem: str | None = None):
@@ -353,6 +359,14 @@ def make_handler(engine: Engine, pin: str | None = None, ca_pem: str | None = No
                 self._send_text(_MANIFEST, "application/manifest+json")
             elif path == "/icon.svg":
                 self._send_text(_ICON_SVG, "image/svg+xml")
+            elif path in _STATIC_JS:
+                body = _read_static_js(_STATIC_JS[path]).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/javascript; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-cache")   # tablets/PWAs pick up upgrades
+                self.end_headers()
+                self.wfile.write(body)
             elif path in ("/ca.pem", "/ca.crt") and ca_pem:
                 # The public root CA, for one-tap install on a device (no auth —
                 # a CA certificate is public). iOS treats this MIME as a profile.
