@@ -89,6 +89,31 @@ class TestServer(unittest.TestCase):
         self.assertIn("Mix-Assistant", body)
         self.assertIn("window.__INITIAL__", body)
         self.assertNotIn("__INITIAL_STATE__", body)     # token was substituted
+        self.assertIn('<script src="/dashboard.js">', body)
+
+    def test_compiled_scripts_served(self):
+        # TypeScript output (app/web -> static/). A classic <script>, so any
+        # module syntax tsc might emit would be a parse error in the browser.
+        for path, marker in (("/dashboard.js", "function render("),
+                             ("/login.js", "/api/login")):
+            req = urllib.request.Request(self.base + path)
+            with urllib.request.urlopen(req, timeout=5) as r:
+                self.assertEqual(r.status, 200)
+                self.assertTrue(r.headers["Content-Type"].startswith("text/javascript"))
+                self.assertEqual(r.headers["Cache-Control"], "no-cache")
+                body = r.read().decode("utf-8")
+            self.assertIn(marker, body)
+            self.assertNotRegex(body, r"(?m)^\s*(export|import)\b")
+
+    def test_static_js_is_an_allowlist(self):
+        for path in ("/server.py", "/../server.py", "/static/dashboard.js", "/dashboard.ts"):
+            req = urllib.request.Request(self.base + path)
+            try:
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    status = r.status
+            except urllib.error.HTTPError as e:
+                status = e.code
+            self.assertEqual(status, 404, path)
 
     def test_state_json(self):
         status, body = self._get("/state")
@@ -296,6 +321,12 @@ class TestSecurityHardening(unittest.TestCase):
         base = self._server(pin="1352")
         self.assertEqual(self._req(base, "GET", "/manifest.webmanifest")[0], 200)
         self.assertEqual(self._req(base, "GET", "/icon.svg")[0], 200)
+        self.assertEqual(self._req(base, "GET", "/login.js")[0], 200)   # login page needs it
+
+    def test_login_page_loads_external_script(self):
+        base = self._server(pin="1352")
+        _, _, body = self._req(base, "GET", "/")
+        self.assertIn('<script src="/login.js">', body)
 
     def test_wrong_pin_rejected(self):
         base = self._server(pin="1352")
