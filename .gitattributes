@@ -1,0 +1,3 @@
+# Compiled from app/web/src (TypeScript); keep out of GitHub's language stats
+# and collapse in diffs. Edit the .ts source, then run `npm run build`.
+app/trio_mix/static/*.js linguist-generated=true

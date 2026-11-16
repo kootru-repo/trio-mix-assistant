@@ -1,31 +1,31 @@
 # Hardware bring-up & validation checklist
 
 The software is feature-complete, but **production readiness is gated by validation
-against your real M32C + audio interface** — and that can only be done with the gear
+against your real M32C + audio interface**, and that can only be done with the gear
 in front of you. The X32/M32 OSC scalings and the `/meters` blob layout vary by
 firmware; the spec says to verify every constant with a sniffer before trusting it
 live. Work through this once on the bench, then once at a real soundcheck.
 
 Nothing here is destructive to a show: do it with the PA off or at low volume, and
-keep a hand on the console — the app only ever *nudges* within guardrails and a human
+keep a hand on the console. The app only ever *nudges* within guardrails, and a human
 takeover always wins.
 
 ---
 
 ## What the emulator already covers (and what it can't)
 
-Before you touch hardware, `python run.py --emulate` runs the **entire** real stack
-— `OscConsole` → UDP socket → a protocol-faithful desk emulator → `/meters` stream +
+Before you touch hardware, `python run.py --emulate` runs the **entire** real stack:
+`OscConsole` → UDP socket → a protocol-faithful desk emulator → `/meters` stream +
 `/xremote` echoes → `MeterReceiver` → reconciliation, plus the real capture queue fed
 by a timed audio stream. `python -m unittest discover -s tests -p test_contract.py`
 then asserts the exact wire layout. Together these validate the **mechanics**: OSC
 framing/encode/decode, the subscribe→renew handshake, self-move-echo vs.
 reconciliation timing, scene-recall round-trips, meter-blob parsing, and the
-capture/underrun/dead paths — all without gear.
+capture/underrun/dead paths, all without gear.
 
 What the emulator **cannot** tell you: whether those formats are *correct for your
 firmware*. The emulator encodes the same assumptions the app does, so it can only
-prove self-consistency. The checklist below — especially section 1 — is exactly the
+prove self-consistency. The checklist below (especially section 1) is exactly the
 set of assumptions to confirm against the real desk. Each is also a `VERIFY:` line in
 `tests/test_contract.py`; once you have a capture, pin those expected values to the
 real bytes and the test suite becomes a true regression gate.
@@ -45,19 +45,19 @@ move it on the console and confirm the value the app reports matches.
       Pushed 0/+5/−10/−20/−40 dB via `db_to_fader` → X32-Edit displayed exactly those
       dB. The linear 0..1 ↔ dB law in `osc.py` matches Behringer's. (Re-confirm on the
       real M32C, but the scaling itself is no longer an assumption.)
-      **Also (2026-07-03): Mixing Station (Android) fully syncs the emulated desk** —
-      discovery, whole-tree sync, /node bulk reads, show/scene list, live meter
-      streams — a second independent implementation accepting our wire formats.
+      **Also (2026-07-03): Mixing Station (Android) fully syncs the emulated desk**,
+      including discovery, whole-tree sync, /node bulk reads, show/scene list, and live
+      meter streams. That is a second independent implementation accepting our wire formats.
 - [ ] **Preamp gain**: clip-trim −3 dB actually drops the head-amp ~3 dB.
 - [ ] **Channel EQ notch**: a feedback notch lands on the right band, freq, Q, and gain.
 - [ ] **Main-bus PEQ**: room-correction cuts hit the main/stereo bus, not a channel.
 - [ ] **Mute** and **scene recall** (`/-action/goscene`) do what you expect.
 - [ ] **Polarity/phase invert** (`/ch/NN/preamp/invert`, for the *phase* job): flipping
       it in the app toggles the channel Φ on the desk. **Also confirm the card/USB tap
-      point is POST-invert** — the phase job's auto-flip only closes the loop if the
+      point is POST-invert**: the phase job's auto-flip only closes the loop if the
       signal the app captures reflects the polarity flip (else it correctly falls back
       to advisory after one flip). If the address differs, fix it in `osc.py`.
-> If any mapping is off, fix the scaling in `trio_mix/osc.py` (or `config.py`) — the
+> If any mapping is off, fix the scaling in `trio_mix/osc.py` (or `config.py`); the
 > code centralises every conversion so there's one place to correct per parameter.
 
 > **Validate the app→console direction NOW, without the desk:** run `--emulate` and
@@ -70,7 +70,7 @@ move it on the console and confirm the value the app reports matches.
 ## 2. `/meters` ingestion + fader reconciliation
 - [ ] Start the app in hardware mode; in the sniffer confirm the console is sending
       `/meters/1` blobs to UDP 10024 after the app's `/batchsubscribe` + `/xremote`.
-- [ ] Confirm `metersrv.decode_meter_blob` produces sane values (0..1) — if the count
+- [ ] Confirm `metersrv.decode_meter_blob` produces sane values (0..1). If the count
       or float layout is off for your firmware, adjust `decode_meter_blob`.
 - [ ] Move a fader **on the console**; confirm the app log shows
       "moved on console → …" and auto-ride yields (the dashboard shows `console: connected`).
@@ -85,7 +85,7 @@ move it on the console and confirm the value the app reports matches.
 - [ ] Verify the **channel map**: console channel N must map to the device channel the
       app reads for role N. Default is N→N−1; if your routing differs pass
       `--channel-map "1:0,2:1,…,8:9"` (console 1-based : device column 0-based). Speak
-      into the lead mic → the *lead* meter moves. (Rig spec: `HARDWARE_SETUP.md`.)
+      into the lead mic; the *lead* meter moves. (Rig spec: `HARDWARE_SETUP.md`.)
 - [ ] Confirm the **measurement mic** is on `MEAS_MIC_CH` (config) and hears the room.
 - [ ] Confirm the startup log prints `listening on '<your interface>'` (catches a
       wrong/shifted device index) and the footer chip reads `audio: … ok`.
@@ -98,7 +98,7 @@ move it on the console and confirm the value the app reports matches.
 
 ## 4. Calibration (pink noise)
 - [ ] PA at a safe level. Run calibration; confirm pink noise actually plays out the PA
-      and the meas mic records it (watch for the "heard near-silence" abort — that means
+      and the meas mic records it (watch for the "heard near-silence" abort, which means
       playback or the mic isn't reaching the analyzer).
 - [ ] Confirm the resulting cuts land on the main bus and sound sensible (no wild EQ).
 
@@ -115,7 +115,7 @@ move it on the console and confirm the value the app reports matches.
       well under the spec's targets; investigate if `tick_ms` approaches the audio block
       period or jitter is large (CPU contention, too small a `--audio-device` buffer).
 
-## 7. First real show — safety-net only
+## 7. First real show: safety-net only
 - [ ] Run with automatic **jobs disabled**; watch the decision log to confirm what it
       *would* do is correct, before enabling anything.
 - [ ] Enable feedback + clip protection first; add vocal ride / balance once trusted.
@@ -124,7 +124,7 @@ move it on the console and confirm the value the app reports matches.
 
 ---
 
-## Known limitations (by design — plan around these)
+## Known limitations (by design; plan around these)
 
 - **One input device must expose all channels.** The listening half opens a single
   audio device for the console returns **and** the measurement mic. If your meas mic
@@ -133,16 +133,16 @@ move it on the console and confirm the value the app reports matches.
   multichannel interface. A device with too few channels is rejected at launch with a
   clear message.
 - **48 kHz, float32.** Capture runs at 48 kHz. A device locked to 44.1 kHz is rejected
-  with a clear message (no auto-resample) — set the interface to 48 kHz.
+  with a clear message (no auto-resample); set the interface to 48 kHz.
 - **Calibration output.** Pink noise plays to the OS default output unless you pass
-  `--output-device` (point it at the PA) — otherwise it may play out the laptop
+  `--output-device` (point it at the PA). Otherwise it may play out the laptop
   speakers and calibration will (correctly) abort on "near-silence".
-- **The emulator validates mechanics, not your firmware's exact OSC formats** — that's
+- **The emulator validates mechanics, not your firmware's exact OSC formats**; that's
   what §1 is for.
 - **Channel EQ shares 4 bands.** The X32/M32 input has 4 PEQ bands; the performer EQ
   view and the automatic feedback notcher use the *same* 4 bands. The EQ view shows
   active notches as dashed markers + a note, but an operator edit and an auto-notch
-  can land on the same band — the operator (or TAKEOVER) wins. The feedback FX/aux
+  can land on the same band. The operator (or TAKEOVER) wins. The feedback FX/aux
   send OSC addresses are tagged `VERIFY:` like the rest.
 - **TAKEOVER holds the *automatic* system, not your hands.** Takeover mutes the main
   and freezes all automatic jobs + scene recall + calibration; the manual surface

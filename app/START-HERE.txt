@@ -16,9 +16,9 @@ WHAT YOU NEED
 ------------------------------------------------------------
   WINDOWS
 ------------------------------------------------------------
-  1. Double-click   setup.bat        (one time - builds a local environment)
+  1. Double-click   setup.bat        (one time; builds a local environment)
   2. Double-click   list-devices.bat (note the audio device number)
-  3. Open           show.conf        in Notepad - set CONSOLE_IP and AUDIO_DEVICE
+  3. Open           show.conf        in Notepad, set CONSOLE_IP and AUDIO_DEVICE
   4. Double-click   start.bat        (the dashboard opens in your browser)
 
 ------------------------------------------------------------
@@ -27,9 +27,9 @@ WHAT YOU NEED
   Open Terminal, drag this folder onto it (or 'cd' into it), then:
   1.  bash setup.command         (one time)
   2.  bash list-devices.command  (note the audio device number)
-  3.  open show.conf             - set CONSOLE_IP and AUDIO_DEVICE, save
+  3.  open show.conf             (set CONSOLE_IP and AUDIO_DEVICE, save)
   4.  bash start.command
-  The first run, macOS asks for MICROPHONE and NETWORK permission - allow both
+  The first run, macOS asks for MICROPHONE and NETWORK permission. Allow both
   (System Settings > Privacy & Security > Microphone), or capture stays silent.
 
 ------------------------------------------------------------
@@ -40,11 +40,11 @@ WHAT YOU NEED
   then "Add to Home Screen" for a full-screen app.
 
 ------------------------------------------------------------
-  NO HARDWARE YET? TRY IT RISK-FREE
+  NO HARDWARE YET: REHEARSE WITHOUT IT
 ------------------------------------------------------------
   Windows:  double-click  rehearse.bat
   Mac:      bash rehearse.command
-  This runs the WHOLE app against a built-in simulated console.
+  This runs the whole app against a built-in simulated console.
 
 ------------------------------------------------------------
   MIX ON MIXING STATION (no console needed)
@@ -53,10 +53,10 @@ WHAT YOU NEED
   Station app (Android/iOS/desktop) on the same WiFi: console type Behringer
   X32, pick "MixAssist" from the search list (or type this PC's IP), access
   Full. It syncs the desk with live meters; the assistant's moves mirror live
-  and YOUR fader moves win instantly. The setlist's scenes appear in Mixing
+  and your fader moves win instantly. The setlist's scenes appear in Mixing
   Station's scene list. (X32-Edit / M32-Edit desktop editors also work.)
 
-  To SEE faders move, three options (run in a second terminal, app still running):
+  To see faders move, three options (run in a second terminal, app still running):
     1.  python osc_demo.py --animate     continuous fader wave (works with --auto)
     2.  python osc_demo.py               one-shot: known dB + mute + EQ notch
     3.  python run.py --emulate --lan    (no --auto) the desk nudges a fader every
