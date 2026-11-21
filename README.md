@@ -274,6 +274,8 @@ This is a community project and musicians' feedback is as welcome as code. See *
 
 ## License & disclaimer
 
-Released under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**. You may use, copy, change and share it for any noncommercial purpose, as long as you pass on the license terms and the copyright notice. Commercial use needs permission from the authors.
+Copyright © 2026 the Trio Mix-Assistant authors (see [AUTHORS.md](AUTHORS.md)).
+
+Released under the **[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0). You may use it for anything, including paid gigs, and you may copy, change and share it. If you share a changed version, or run one for other people over a network, you must make your source available under the same license. It comes with no warranty.
 
 Not affiliated with or endorsed by Music Tribe, Behringer, or Midas. *X32‑Edit*, *M32‑Edit*, *X32*, and *M32* are trademarks of their respective owners. Download their software only from the official links above. **OSC scalings vary across firmware; validate against your console before trusting it live** (see [HARDWARE_BRINGUP.md](app/HARDWARE_BRINGUP.md)). *Mixing Station* is a product of dev-core.org.

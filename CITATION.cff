@@ -9,7 +9,7 @@ abstract: >-
 authors:
   - family-names: Craton
     given-names: Andrew
-license: PolyForm-Noncommercial-1.0.0
+license: AGPL-3.0-only
 keywords:
   - live sound
   - mixing console

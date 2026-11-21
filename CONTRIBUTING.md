@@ -41,7 +41,7 @@ they were checked (see [HARDWARE_BRINGUP.md](app/HARDWARE_BRINGUP.md)).
 ## Licence of contributions
 
 The project is released under the
-[PolyForm Noncommercial License 1.0.0](LICENSE). By sending a contribution you
+[GNU Affero General Public License v3.0](LICENSE). By sending a contribution you
 agree that it is licensed under the same terms, and that the project authors may
 also offer it under other terms, for example to grant a commercial licence.
 
