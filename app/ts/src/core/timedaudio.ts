@@ -1,0 +1,144 @@
+import type { Clock } from "./clock.ts";
+import { C } from "./config.ts";
+import type {
+  AudioDeviceId,
+  AudioDeviceInfo,
+  AudioHostApiInfo,
+  AudioInputCallback,
+  AudioInputFactory,
+  AudioInputOptions,
+  AudioInputStream,
+} from "./devicecapture.ts";
+import { SeededRng } from "./rng.ts";
+import type { Rng } from "./rng.ts";
+
+export type ContentFn = (i: number) => Float32Array;
+
+export interface TimedAudioOptions {
+  sampleRate?: number;
+  blockSize?: number;
+  content?: ContentFn | null;
+  seed?: number;
+  rng?: Rng | null;
+}
+
+export class TimedAudioStream implements AudioInputStream {
+  readonly channels: number;
+  readonly sampleRate: number;
+  readonly blockSize: number;
+  deliver = true;
+  xrunNext = false;
+  private readonly callback: AudioInputCallback;
+  private readonly clock: Clock;
+  private readonly content: ContentFn;
+  private readonly rng: Rng;
+  private stopped = true;
+  private task: Promise<void> | null = null;
+  private i = 0;
+
+  constructor(callback: AudioInputCallback, channels: number, clock: Clock, opts: TimedAudioOptions = {}) {
+    this.callback = callback;
+    this.channels = channels;
+    this.clock = clock;
+    this.sampleRate = opts.sampleRate ?? C.SAMPLE_RATE;
+    this.blockSize = opts.blockSize ?? C.BLOCK;
+    this.rng = opts.rng ?? new SeededRng(opts.seed ?? 5);
+    this.content = opts.content ?? ((i) => this.defaultContent(i));
+  }
+
+  defaultContent(i: number): Float32Array {
+    const n = this.blockSize;
+    const ch = this.channels;
+    const frame = new Float32Array(n * ch);
+    for (let k = 0; k < frame.length; k++) frame[k] = 0.004 * this.rng.standardNormal();
+    const measCol = C.MEAS_MIC_CH - 1;
+    if (measCol >= 0 && measCol < ch) {
+      const amp = Math.min(0.6, 0.03 * 1.25 ** (i % 60));
+      for (let k = 0; k < n; k++) {
+        const t = (i * n + k) / this.sampleRate;
+        const tone = Math.fround(amp * Math.sin(2 * Math.PI * 2500.0 * t));
+        const at = k * ch + measCol;
+        frame[at] = frame[at]! + tone;
+      }
+    }
+    return frame;
+  }
+
+  private async loop(): Promise<void> {
+    const period = this.blockSize / this.sampleRate;
+    let nextT = this.clock.perfCounter();
+    while (!this.stopped) {
+      const now = this.clock.perfCounter();
+      let burst = 0;
+      while (nextT <= now && burst < 8) {
+        if (this.deliver) {
+          const frame = this.content(this.i);
+          this.i += 1;
+          const xrun = this.xrunNext;
+          this.xrunNext = false;
+          try {
+            this.callback(frame, xrun);
+          } catch {}
+        }
+        nextT += period;
+        burst += 1;
+      }
+      if (nextT <= now) nextT = now + period;
+      await this.clock.sleep(Math.max(0.001, Math.min(period, nextT - this.clock.perfCounter())));
+    }
+  }
+
+  start(): void {
+    if (!this.stopped) return;
+    this.stopped = false;
+    this.task = this.loop();
+  }
+
+  stop(): void {
+    this.stopped = true;
+  }
+
+  close(): void {
+    this.stop();
+  }
+
+  settled(): Promise<void> {
+    return this.task ?? Promise.resolve();
+  }
+}
+
+export class TimedAudioFactory implements AudioInputFactory {
+  private readonly clock: Clock;
+  private readonly maxChannels: number;
+  readonly streams: TimedAudioStream[] = [];
+
+  constructor(clock: Clock, maxChannels: number = 64) {
+    this.clock = clock;
+    this.maxChannels = maxChannels;
+  }
+
+  queryDevice(_device: AudioDeviceId | null): AudioDeviceInfo {
+    return { name: "timed audio (emulated)", max_input_channels: this.maxChannels, default_samplerate: C.SAMPLE_RATE, hostapi: 0 };
+  }
+
+  listDevices(): AudioDeviceInfo[] {
+    return [this.queryDevice(null)];
+  }
+
+  listHostApis(): AudioHostApiInfo[] {
+    return [{ name: "emulated" }];
+  }
+
+  defaultInputIndex(): number | null {
+    return 0;
+  }
+
+  open(options: AudioInputOptions, callback: AudioInputCallback): AudioInputStream {
+    const stream = new TimedAudioStream(callback, options.channels, this.clock, {
+      sampleRate: options.sampleRate,
+      blockSize: options.blockSize,
+    });
+    this.streams.push(stream);
+    return stream;
+  }
+}

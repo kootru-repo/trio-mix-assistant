@@ -6,8 +6,11 @@
   "description": "TypeScript port of the Trio Mix-Assistant engine. src/core has no platform APIs.",
   "scripts": {
     "check": "tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.json --noEmit",
-    "build": "tsc -p tsconfig.json",
-    "test": "node --experimental-strip-types --no-warnings --test \"test/**/*.test.ts\""
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node --experimental-strip-types --no-warnings --test \"test/**/*.test.ts\"",
+    "package": "node --experimental-strip-types --no-warnings tools/package.ts",
+    "start": "node --experimental-strip-types --no-warnings src/host/launch.ts",
+    "run": "node --experimental-strip-types --no-warnings src/host/main.ts"
   },
   "devDependencies": {
     "@types/node": "22.19.1",

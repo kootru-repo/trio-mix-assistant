@@ -261,6 +261,18 @@ python -m pip install -r requirements-dev.txt -c requirements-lock.txt
 python -m ruff check . && python -m ruff format --check . && python -m mypy && python -m pytest -q
 ```
 
+## TypeScript port
+
+A full TypeScript port lives in **[app/ts](app/ts/README.md)**. It needs only Node 22 or newer and has no runtime dependencies, so there is no setup step. Its core has no platform APIs, which is the base for a future phone app. Every module is checked against fixtures recorded from the Python code, and the Python stays the reference until a real show has run on the TypeScript build.
+
+```bash
+cd app/ts
+npm install
+npm test            # checked against the Python reference
+npm run start       # reads show.conf, like start.bat
+npm run package     # build dist/package/TrioMixAssistant.zip
+```
+
 ## Credits
 
 - **Concept and requirements:** Chris Beulow and Eric Craton. The idea is theirs, and the tool is built to their requirements for playing a real stage with no sound engineer.
