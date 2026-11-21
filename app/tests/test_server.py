@@ -27,7 +27,7 @@ def _ws_connect(port):
     )
     data = b""
     while b"\r\n\r\n" not in data:
-        data += s.recv(1024)
+        data += s.recv(1)
     assert b" 101 " in data.split(b"\r\n")[0], data[:64]
     return s
 
