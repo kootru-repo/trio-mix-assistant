@@ -50,3 +50,6 @@ Thumbs.db
 
 # --- Dashboard TypeScript toolchain (compiled JS in app/trio_mix/static is committed) ---
 node_modules/
+
+# --- TypeScript port ---
+app/ts/dist/
