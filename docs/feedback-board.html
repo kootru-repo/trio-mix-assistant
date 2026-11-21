@@ -93,7 +93,7 @@ function sections(body){
     const nl = part.indexOf("\n");
     const key = (nl < 0 ? part : part.slice(0, nl)).trim();
     const value = (nl < 0 ? "" : part.slice(nl + 1)).trim();
-    out[key] = /^_No response_$/i.test(value) ? "" : value;
+    out[key] = /^(_No response_|None)$/i.test(value) ? "" : value;
   }
   return out;
 }
@@ -108,7 +108,7 @@ function toItem(issue){
     kind, number: issue.number, url: issue.html_url,
     title: String(issue.title || "").replace(/^(preference|flow|ui suggestion)\s*:\s*/i, "") || "(untitled)",
     quote: firstAnswer.replace(/!\[[^\]]*\]\([^)]*\)/g, "[image]"),
-    who: s[FIELD.who] || (issue.user && issue.user.login) || "Unknown",
+    who: s[FIELD.who] || "Not named",
     device: s[FIELD.device] || "Not said", where: s[FIELD.where] || "Not said",
     votes: (issue.reactions && issue.reactions["+1"]) || 0, open: issue.state === "open",
   };
