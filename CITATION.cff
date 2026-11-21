@@ -10,7 +10,6 @@ authors:
   - family-names: Craton
     given-names: Andrew
 license: PolyForm-Noncommercial-1.0.0
-repository-code: "https://github.com/kootru-repo/trio-mix-assistant"
 keywords:
   - live sound
   - mixing console

@@ -17,6 +17,11 @@ body:
       description: "A photo, screenshot or sketch helps. Drag it in here."
     validations:
       required: true
+  - type: input
+    id: who
+    attributes:
+      label: "Whose feedback is this?"
+      description: "A name or initials. Leave blank if it is your own."
   - type: dropdown
     id: device
     attributes:

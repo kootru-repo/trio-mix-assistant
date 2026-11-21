@@ -16,6 +16,16 @@ You do not need a console to take part. `python run.py` runs a full simulation,
 and `python run.py --emulate --lan` runs the real stack against a built-in desk
 emulator (see the [README](README.md)).
 
+## Seeing the feedback
+
+Open `docs/feedback-board.html` in a browser and enter this repository as
+`owner/name`. It reads the public issues and shows three columns (Preferences,
+Flow, UI suggestions), with filters for who said it, where, and on what device.
+A thumbs-up on an issue moves it up its column.
+
+If you are logging feedback for a musician who does not use GitHub, open the
+issue yourself and put their name in *Whose feedback is this?*.
+
 ## Pull requests
 
 1. Work from `main` on a branch of your own.

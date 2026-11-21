@@ -21,6 +21,11 @@ body:
       label: "What did you expect to happen?"
     validations:
       required: false
+  - type: input
+    id: who
+    attributes:
+      label: "Whose feedback is this?"
+      description: "A name or initials. Leave blank if it is your own."
   - type: dropdown
     id: device
     attributes:

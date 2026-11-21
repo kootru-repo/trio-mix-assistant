@@ -50,18 +50,18 @@ Flip **COACH** and the app stops touching the console. Every move it would make 
 
 This runs in pure **simulation**, with no console, mic, or audio interface. A closed‑loop "stage" drives the assistant so you can watch feedback get notched, a clip get trimmed, and the vocal ride compensate, live.
 
+Get the code first: on this repository's page choose **Code → Download ZIP** and unzip it (or `git clone` the address shown there). Then open a terminal in the project folder.
+
 **Windows**
 ```powershell
-git clone https://github.com/kootru-repo/trio-mix-assistant.git
-cd trio-mix-assistant\app
+cd app
 python -m pip install numpy
 python run.py
 ```
 
 **macOS**
 ```bash
-git clone https://github.com/kootru-repo/trio-mix-assistant.git
-cd trio-mix-assistant/app
+cd app
 python3 -m pip install numpy
 python3 run.py
 ```
@@ -262,7 +262,7 @@ See **[AUTHORS.md](AUTHORS.md)**. To cite the project, use **[CITATION.cff](CITA
 
 ## Contributing
 
-This is a community project and musicians' feedback is as welcome as code. See **[CONTRIBUTING.md](CONTRIBUTING.md)**, or open an issue and pick *Preference*, *Flow* or *UI suggestion*.
+This is a community project and musicians' feedback is as welcome as code. See **[CONTRIBUTING.md](CONTRIBUTING.md)**, or open an issue and pick *Preference*, *Flow* or *UI suggestion*. **[docs/feedback-board.html](docs/feedback-board.html)** shows everything that has come in, sorted into those three columns.
 
 ## License & disclaimer
 
