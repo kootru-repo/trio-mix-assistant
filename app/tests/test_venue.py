@@ -16,20 +16,24 @@ class TestVenueModel(unittest.TestCase):
         sl = SessionLog(":memory:")
         try:
             sl.start_session(venue="Barn")
-            for msg in ("2500 Hz on lead_vox → notch", "2480 Hz on lead_vox → notch",
-                        "2510 Hz on lead_vox → notch", "180 Hz on bass → notch"):
+            for msg in (
+                "2500 Hz on lead_vox → notch",
+                "2480 Hz on lead_vox → notch",
+                "2510 Hz on lead_vox → notch",
+                "180 Hz on bass → notch",
+            ):
                 sl.log_event({"kind": "feedback", "msg": msg})
             sl.flush()
-            sl.start_session(venue="Barn")              # a second show
+            sl.start_session(venue="Barn")
             sl.log_event({"kind": "feedback", "msg": "2495 Hz on lead → notch"})
             sl.flush()
             m = build_model(sl, "Barn")
             self.assertEqual(m.shows, 2)
             self.assertGreater(m.confidence, 0.0)
             top = m.feedback_freqs[0]
-            self.assertTrue(2400 <= top["hz"] <= 2600)      # the 2.5 kHz bin dominates
+            self.assertTrue(2400 <= top["hz"] <= 2600)
             self.assertGreaterEqual(top["count"], 4)
-            self.assertTrue(any(120 <= f["hz"] <= 220 for f in m.feedback_freqs))  # 180 Hz too
+            self.assertTrue(any(120 <= f["hz"] <= 220 for f in m.feedback_freqs))
         finally:
             sl.close()
 
@@ -40,8 +44,9 @@ class TestVenueModel(unittest.TestCase):
     def test_save_load_roundtrip(self):
         d = tempfile.mkdtemp()
         try:
-            m = VenueModel(venue="The Barn", shows=3,
-                           feedback_freqs=[{"hz": 2500, "count": 5}], confidence=1.0)
+            m = VenueModel(
+                venue="The Barn", shows=3, feedback_freqs=[{"hz": 2500, "count": 5}], confidence=1.0
+            )
             path = save_model(m, d)
             self.assertTrue(os.path.exists(path))
             m2 = load_model("The Barn", d)
@@ -59,19 +64,20 @@ class TestVenueModel(unittest.TestCase):
 class TestEngineVenueIntegration(unittest.TestCase):
     def test_apply_seeds_watchlist_and_telemetry(self):
         e = Engine(sim=True)
-        m = VenueModel(venue="Barn", shows=3,
-                       feedback_freqs=[{"hz": 2500, "count": 4}], confidence=1.0)
+        m = VenueModel(
+            venue="Barn", shows=3, feedback_freqs=[{"hz": 2500, "count": 4}], confidence=1.0
+        )
         e.apply_venue_model(m)
         self.assertIn(2500.0, e.assistant.venue_watch_freqs)
-        self.assertTrue(e.assistant._is_near_watch(2500.0))   # seeded -> reacts sooner
+        self.assertTrue(e.assistant._is_near_watch(2500.0))
         self.assertEqual(e.telemetry["venue"]["shows"], 3)
         self.assertIn(2500, e.telemetry["venue"]["freqs"])
 
     def test_venue_watch_survives_recalibration(self):
         e = Engine(sim=True)
         e.apply_venue_model(VenueModel(feedback_freqs=[{"hz": 2500, "count": 4}]))
-        e.assistant.set_calibration(None)         # recalibrate wipes calib watch list
-        self.assertTrue(e.assistant._is_near_watch(2500.0))   # venue prior persists
+        e.assistant.set_calibration(None)
+        self.assertTrue(e.assistant._is_near_watch(2500.0))
 
     def test_learn_venue_writes_model(self):
         d = tempfile.mkdtemp()
@@ -81,7 +87,7 @@ class TestEngineVenueIntegration(unittest.TestCase):
         e.session_log = sl
         e.venue, e.venue_dir = "Cellar", d
         try:
-            e.assistant._emit("feedback", "2500 Hz on lead → notch", 1)  # -> session log
+            e.assistant._emit("feedback", "2500 Hz on lead → notch", 1)
             path = e.learn_venue()
             self.assertIsNotNone(path)
             m = load_model("Cellar", d)

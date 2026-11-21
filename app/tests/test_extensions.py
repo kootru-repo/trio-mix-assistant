@@ -19,10 +19,10 @@ class TestLatencyInstrumentation(unittest.TestCase):
             self.assertIn(k, e.telemetry["perf"])
         e.start()
         try:
-            time.sleep(0.3)                       # let the loop run a few ticks
+            time.sleep(0.3)
             perf = e.telemetry["perf"]
-            self.assertGreater(perf["tick_ms"], 0.0)      # actually measured compute time
-            self.assertLess(perf["tick_ms"], 100.0)       # sim tick is cheap
+            self.assertGreater(perf["tick_ms"], 0.0)
+            self.assertLess(perf["tick_ms"], 100.0)
         finally:
             e.stop()
 
@@ -31,26 +31,23 @@ class TestGuestMode(unittest.TestCase):
     def test_guest_song_unmutes_guest_channels(self):
         with mock.patch.object(C, "GUEST_CHANNELS", (7,)):
             e = Engine(sim=True)
-            # a guest song unmutes the guest channel
             e.on_song_change(ShowState(song_index=3, song_name="Tide", playing=True))
             self.assertFalse(e.muted[7])
-            # a non-guest song mutes it again
             e.on_song_change(ShowState(song_index=0, song_name="Gravity", playing=True))
             self.assertTrue(e.muted[7])
 
     def test_default_no_guest_channels_is_noop(self):
-        e = Engine(sim=True)                       # GUEST_CHANNELS empty by default
+        e = Engine(sim=True)
         before = dict(e.muted)
         e.on_song_change(ShowState(song_index=3, song_name="Tide", playing=True))
-        self.assertEqual(e.muted, before)          # nothing muted/unmuted
+        self.assertEqual(e.muted, before)
 
     def test_guest_mute_yields_to_operator(self):
         with mock.patch.object(C, "GUEST_CHANNELS", (7,)):
             e = Engine(sim=True)
-            e.set_mute(7, True)                    # operator mutes the guest channel
-            # a guest song would normally unmute it, but the op just touched it
+            e.set_mute(7, True)
             e.on_song_change(ShowState(song_index=3, song_name="Tide", playing=True))
-            self.assertTrue(e.muted[7])            # operator's mute preserved
+            self.assertTrue(e.muted[7])
 
 
 class _Feat:
@@ -65,15 +62,19 @@ class TestStageMic(unittest.TestCase):
         with mock.patch.object(C, "STAGE_MIC_CH", 9), mock.patch.object(C, "STAGE_RISE_DB", 4.0):
             e = Engine(sim=True)
             a = e.assistant
-            for _ in range(200):                          # settle a quiet baseline
+            for _ in range(200):
                 a.handle_stage_volume(_Feat(-50.0), 0.0)
             a.last_stage_warn = -1e9
-            a.handle_stage_volume(_Feat(-30.0), 100.0)    # sudden +20 dB on stage
-            self.assertTrue(any(ev["kind"] == "system" and "stage volume up" in ev["msg"]
-                                for ev in list(e.events)))
+            a.handle_stage_volume(_Feat(-30.0), 100.0)
+            self.assertTrue(
+                any(
+                    ev["kind"] == "system" and "stage volume up" in ev["msg"]
+                    for ev in list(e.events)
+                )
+            )
 
     def test_default_off(self):
-        self.assertIsNone(C.STAGE_MIC_CH)                 # disabled unless configured
+        self.assertIsNone(C.STAGE_MIC_CH)
 
 
 class TestStereoLinks(unittest.TestCase):
@@ -82,7 +83,7 @@ class TestStereoLinks(unittest.TestCase):
             e = Engine(sim=True)
             e.set_fader(2, -5.0)
             self.assertAlmostEqual(e.assistant.fader_db[2], -5.0, places=1)
-            self.assertAlmostEqual(e.assistant.fader_db[3], -5.0, places=1)  # partner followed
+            self.assertAlmostEqual(e.assistant.fader_db[3], -5.0, places=1)
 
     def test_partner_lookup(self):
         with mock.patch.object(C, "STEREO_LINKS", ((2, 3),)):

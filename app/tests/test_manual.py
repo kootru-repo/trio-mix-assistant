@@ -13,13 +13,13 @@ from trio_mix.osc import SimConsole
 
 def feat(rms=-30.0, peak=-20.0, fb=None, contrast=None):
     if contrast is None:
-        contrast = 24.0 if fb else 6.0     # a real ring is high-contrast (peak >> floor)
+        contrast = 24.0 if fb else 6.0
     return ChannelFeatures(rms_dbfs=rms, peak_dbfs=peak, fb_freq=fb, contrast_db=contrast)
 
 
 class TestManualEngine(unittest.TestCase):
     def setUp(self):
-        self.e = Engine(sim=True)          # no loop needed
+        self.e = Engine(sim=True)
 
     def test_manual_fader(self):
         self.e.set_fader(1, -3.0)
@@ -27,7 +27,6 @@ class TestManualEngine(unittest.TestCase):
         self.assertAlmostEqual(self.e.con.fader_db[1], -3.0, places=1)
 
     def test_manual_fader_full_range(self):
-        # human moves are not bound by the assistant guardrails (-12..+6)
         self.e.set_fader(2, -40.0)
         self.assertAlmostEqual(self.e.con.fader_db[2], -40.0, places=1)
         self.e.set_fader(2, 9.0)
@@ -67,13 +66,11 @@ class TestManualHold(unittest.TestCase):
         a = MixAssistant(con)
         a.enabled["vocal_ride"] = True
         a.lead_target = -6.0
-        # human just touched the lead fader -> auto should yield for 5 s
         a.note_manual(C.LEAD_VOCAL_CH, now=0.0, hold=5.0)
         start = a.fader_db[C.LEAD_VOCAL_CH]
         for k in range(6):
             a.on_features(C.LEAD_VOCAL_CH, feat(rms=-30.0), now=0.5 + k * 0.3)
-        self.assertEqual(a.fader_db[C.LEAD_VOCAL_CH], start)      # held -> no move
-        # after the hold window, the ride resumes
+        self.assertEqual(a.fader_db[C.LEAD_VOCAL_CH], start)
         for k in range(10):
             a.on_features(C.LEAD_VOCAL_CH, feat(rms=-30.0), now=6.0 + k * 0.3)
         self.assertGreater(a.fader_db[C.LEAD_VOCAL_CH], start)

@@ -17,18 +17,25 @@ the ones to confirm against a real-desk capture / the published X32 OSC protocol
 (see HARDWARE_BRINGUP.md). Pin the contract tests to that reference to close the
 loop.
 """
+
 from __future__ import annotations
 
+import contextlib
+import logging
 import os
 import re
 import threading
 import time
+from collections.abc import Callable
+from typing import Any, ClassVar
 
 import numpy as np
 
 from . import config as C
 from .metersrv import encode_meter_blob
 from .osc import db_to_fader, fader_to_db
+
+_log = logging.getLogger(__name__)
 
 
 def _ch_from_addr(addr: str) -> int | None:
@@ -41,50 +48,45 @@ def _ch_from_addr(addr: str) -> int | None:
     return None
 
 
-# ---------------------------------------------------------------------------
-# The desk
-# ---------------------------------------------------------------------------
 class EmulatedDesk:
-    def __init__(self, listen_port: int = C.CONSOLE_PORT, app_ip: str = "127.0.0.1",
-                 app_port: int = C.LOCAL_PORT, meter_hz: float = 10.0,
-                 n_meters: int = 16, external_moves: bool = False) -> None:
+    def __init__(
+        self,
+        listen_port: int = C.CONSOLE_PORT,
+        app_ip: str = "127.0.0.1",
+        app_port: int = C.LOCAL_PORT,
+        meter_hz: float = 10.0,
+        n_meters: int = 16,
+        external_moves: bool = False,
+    ) -> None:
         self.listen_port = listen_port
         self.app = (app_ip, app_port)
         self.meter_hz = meter_hz
         self.n_meters = n_meters
         self.external_moves = external_moves
-        # desk model
-        self.fader: dict[int, float] = {}      # ch -> wire position 0..1
+        self.fader: dict[int, float] = {}
         self.mute: dict[int, bool] = {}
         self.scene: int | None = None
         self.subscribed = False
-        self.recv_count = 0                    # commands received (introspection)
+        self.recv_count = 0
         self.echo_count = 0
         self.meters_sent = 0
-        # Mixer-app compatibility (Mixing Station, X32-Edit): a parameter model the
-        # editor can read/sync, a registry of external editors subscribed for live
-        # updates, and a log of every address an editor asks for (so we can extend
-        # fidelity to match it).
         self._params: dict[str, list] = {}
-        self._remotes: set[tuple[str, int]] = set()     # external editors (NOT the app)
+        self._remotes: set[tuple[str, int]] = set()
         self._clients: dict[tuple[str, int], object] = {}
-        self.scene_names: dict[int, str] = {}   # setlist scenes shown to editors
-        # editor meter subscriptions: (client, alias) -> {"path", "count", "last"}
+        self.scene_names: dict[int, str] = {}
         self._meter_subs: dict[tuple, dict] = {}
         self.req_seen: set[str] = set()
         self.req_log: list[str] = []
-        self.trace_requests = False            # print each new address an editor asks for
-        self._local = None
+        self.trace_requests = False
+        self._local: str | None = None
         self._seed_params()
-        # transport
-        self._server = None
-        self._client = None
+        self._server: Any | None = None
+        self._client: Any | None = None
         self._stop = threading.Event()
         self._meter_thread: threading.Thread | None = None
         self._ext_thread: threading.Thread | None = None
         self._i = 0
 
-    # -- OSC handlers (the app -> the desk) --------------------------------
     def _h_fader(self, addr, *args):
         ch = _ch_from_addr(addr)
         self.recv_count += 1
@@ -94,8 +96,6 @@ class EmulatedDesk:
             except (TypeError, ValueError):
                 return
             self.fader[ch] = pos
-            # With /xremote active a real desk pushes the change back. We echo our
-            # OWN-applied position so the app's self-move suppression is tested.
             if self.subscribed and self._client is not None:
                 self.echo_count += 1
                 self._client.send_message(f"/ch/{ch:02d}/mix/fader", pos)
@@ -104,20 +104,33 @@ class EmulatedDesk:
         ch = _ch_from_addr(addr)
         self.recv_count += 1
         if ch is not None and args:
-            self.mute[ch] = (float(args[0]) == 0)   # /mix/on 0 == muted
+            self.mute[ch] = float(args[0]) == 0
 
     def _h_scene(self, addr, *args):
         self.recv_count += 1
         if args:
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 self.scene = int(args[0])
-            except (TypeError, ValueError):
-                pass
 
-    # /meters/N bank sizes (floats), per pmaillot/X32-Behringer function_meters()
-    _METER_COUNTS = {0: 70, 1: 96, 2: 49, 3: 22, 4: 82, 5: 27, 6: 4, 7: 16,
-                     8: 6, 9: 32, 10: 32, 11: 5, 12: 4, 13: 48, 14: 80,
-                     15: 50, 16: 48}
+    _METER_COUNTS: ClassVar[dict[int, int]] = {
+        0: 70,
+        1: 96,
+        2: 49,
+        3: 22,
+        4: 82,
+        5: 27,
+        6: 4,
+        7: 16,
+        8: 6,
+        9: 32,
+        10: 32,
+        11: 5,
+        12: 4,
+        13: 48,
+        14: 80,
+        15: 50,
+        16: 48,
+    }
 
     def _add_meter_sub(self, client, addr, args) -> None:
         """Register an editor's meter stream. `/meters ,s /meters/N [tf]` streams
@@ -136,8 +149,7 @@ class EmulatedDesk:
         count = self._METER_COUNTS.get(int(m.group(1)), 96)
         if not alias.startswith("/"):
             alias = "/" + alias
-        self._meter_subs[(client, alias)] = {"path": path, "count": count,
-                                             "last": time.monotonic()}
+        self._meter_subs[(client, alias)] = {"path": path, "count": count, "last": time.monotonic()}
         self._start_meters()
 
     def _h_subscribe(self, addr, *args):
@@ -152,10 +164,10 @@ class EmulatedDesk:
     def _h_default(self, addr, *args):
         self.recv_count += 1
 
-    # -- mixer-app compatibility (Mixing Station, X32-Edit): console protocol --
     def _local_ip(self) -> str:
         if self._local is None:
             import socket
+
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.connect(("8.8.8.8", 80))
@@ -169,6 +181,7 @@ class EmulatedDesk:
         """Seed the parameters an editor reads on connect, so it shows a coherent
         desk instead of blanks. Channel names/colors + faders/mutes + main fader."""
         from .osc import db_to_fader
+
         for ch in range(1, 33):
             role = C.CHANNELS.get(ch)
             name = (C.ROLE_LABELS.get(role, role) if role else "")[:12]
@@ -186,15 +199,14 @@ class EmulatedDesk:
         c = self._clients.get(client)
         if c is None:
             from pythonosc.udp_client import SimpleUDPClient
+
             c = SimpleUDPClient(client[0], client[1])
             self._clients[client] = c
         return c
 
     def _reply(self, client, addr, *args) -> None:
-        try:
+        with contextlib.suppress(OSError):
             self._client_for(client).send_message(addr, list(args))
-        except OSError:
-            pass
 
     def _push(self, addr, *args, exclude=None) -> None:
         """Push a parameter change to every subscribed external editor."""
@@ -204,8 +216,6 @@ class EmulatedDesk:
             self._reply(r, addr, *args)
 
     def _log_req(self, addr: str, args: tuple = ()) -> None:
-        # /node carries the real path as an argument — log it, or every node
-        # request collapses into one opaque "/node" line.
         key = f"{addr} {args[0]}" if (addr == "/node" and args) else addr
         if key not in self.req_seen:
             self.req_seen.add(key)
@@ -232,9 +242,26 @@ class EmulatedDesk:
         leaf = addr.rsplit("/", 1)[-1]
         if leaf in ("name", "source"):
             return [""]
-        if leaf in ("fader", "level", "gain", "trim", "pan", "f", "g", "q",
-                    "mix", "threshold", "ratio", "attack", "release", "hold",
-                    "depth", "time", "hpf", "lpf"):
+        if leaf in (
+            "fader",
+            "level",
+            "gain",
+            "trim",
+            "pan",
+            "f",
+            "g",
+            "q",
+            "mix",
+            "threshold",
+            "ratio",
+            "attack",
+            "release",
+            "hold",
+            "depth",
+            "time",
+            "hpf",
+            "lpf",
+        ):
             return [0.0]
         return [0]
 
@@ -246,10 +273,7 @@ class EmulatedDesk:
             return f'"{v}"' if (" " in v or v == "") else v
         return str(v)
 
-    # Full default /node answer book: a real M32 scene dump (names scrubbed), one
-    # line per node in exact desk text format. This is what a full-sync editor
-    # (Mixing Station) parses; any node missing here falls through to _NODE_RULES.
-    _NODE_TABLE: dict[str, str] | None = None    # lazy class-level cache
+    _NODE_TABLE: dict[str, str] | None = None
 
     @classmethod
     def _node_table(cls) -> dict[str, str]:
@@ -263,26 +287,20 @@ class EmulatedDesk:
                         if ln.startswith("/"):
                             table[ln.split(" ", 1)[0]] = ln
             except OSError:
-                pass                              # missing file -> rule/echo fallback
+                _log.debug("default node table unavailable; using rule fallback", exc_info=True)
             cls._NODE_TABLE = table
         return cls._NODE_TABLE
 
-    # X32 /node container formats (per pmaillot/X32-Behringer X32.c): a send
-    # container renders as "ON <level>" (even sends) or "ON <level> <pan> <type>
-    # <panFollow>" (odd sends, the pan-carrying half of a stereo pair); an output
-    # renders as "<src> <pos> [<inv>]". Fallbacks for nodes absent from the table.
-    _NODE_RULES = [
-        (re.compile(r"^/(?:ch|auxin|fxrtn)/\d{2}/mix/(\d{2})$"),
-         lambda m: "ON -oo +0 POST 0" if int(m.group(1)) % 2 else "ON -oo"),
-        (re.compile(r"^/bus/\d{2}/mix/(\d{2})$"),
-         lambda m: "ON -oo +0 POST 0" if int(m.group(1)) % 2 else "ON -oo"),
-        # preset-library slot (ch/fx/routing), SLIBS: pos "name" type flags hasdata
-        (re.compile(r"^/-libs/(?:ch|fx|r|mon)/\d{3}$"),
-         lambda m: '0 "" 0 %0000000000000000 0'),
-        # show-file slots (all empty by default; the scene table below overrides
-        # slots the app's setlist fills in). SCUE: numb "name" skip scene bit
-        # miditype midichan midipara1 midipara2 / SSCN: "name" "notes" flags
-        # hasdata / SSNP: "name" + 5 ints.
+    _NODE_RULES: ClassVar[list[tuple[re.Pattern[str], Callable[[re.Match[str]], str]]]] = [
+        (
+            re.compile(r"^/(?:ch|auxin|fxrtn)/\d{2}/mix/(\d{2})$"),
+            lambda m: "ON -oo +0 POST 0" if int(m.group(1)) % 2 else "ON -oo",
+        ),
+        (
+            re.compile(r"^/bus/\d{2}/mix/(\d{2})$"),
+            lambda m: "ON -oo +0 POST 0" if int(m.group(1)) % 2 else "ON -oo",
+        ),
+        (re.compile(r"^/-libs/(?:ch|fx|r|mon)/\d{3}$"), lambda m: '0 "" 0 %0000000000000000 0'),
         (re.compile(r"^/-show/showfile/cue/\d{3}$"), lambda m: '0 "" 0 0 0 0 0 0 0'),
         (re.compile(r"^/-show/showfile/scene/\d{3}$"), lambda m: '"" "" %000000000 0'),
         (re.compile(r"^/-show/showfile/snippet/\d{3}$"), lambda m: '"" 0 0 0 0 0'),
@@ -292,8 +310,24 @@ class EmulatedDesk:
         (re.compile(r"^/outputs/p16/\d{2}$"), lambda m: "0 POST OFF 0"),
     ]
 
-    _SCOLOR = ["OFF", "RD", "GN", "YE", "BL", "MG", "CY", "WH",
-               "OFFi", "RDi", "GNi", "YEi", "BLi", "MGi", "CYi", "WHi"]
+    _SCOLOR: ClassVar[list[str]] = [
+        "OFF",
+        "RD",
+        "GN",
+        "YE",
+        "BL",
+        "MG",
+        "CY",
+        "WH",
+        "OFFi",
+        "RDi",
+        "GNi",
+        "YEi",
+        "BLi",
+        "MGi",
+        "CYi",
+        "WHi",
+    ]
 
     def _reply_node(self, client, args) -> None:
         """Answer /node — the editor's bulk state read, one desk-format text line.
@@ -306,18 +340,18 @@ class EmulatedDesk:
         self._reply(client, "node", self._node_body(full) + "\n")
 
     def _node_body(self, full: str) -> str:
-        if full == "/-show/showfile/show":        # show header (same as /showdump)
-            return (f'{full} "{C.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "{C.X32_FW}"')
+        if full == "/-show/showfile/show":
+            return f'{full} "{C.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "{C.X32_FW}"'
         m = re.match(r"^/-show/showfile/scene/(\d{3})$", full)
-        if m and int(m.group(1)) in self.scene_names:    # a setlist-filled slot
+        if m and int(m.group(1)) in self.scene_names:
             return f'{full} "{self.scene_names[int(m.group(1))]}" "" %111111111 1'
         m = re.match(r"^/ch/(\d{2})/config$", full)
-        if m:                                     # our channel map, not the table's
+        if m:
             name = self._params.get(full + "/name", [""])[0]
             color = int(self._params.get(full + "/color", [1])[0]) & 15
             return f'{full} "{name}" 1 {self._SCOLOR[color]} {int(m.group(1))}'
         m = re.match(r"^/ch/(\d{2})/mix$", full)
-        if m:                                     # live fader/mute, quiet remainder
+        if m:
             ch = int(m.group(1))
             pos = self.fader.get(ch, self._params.get(f"{full}/fader", [0.75])[0])
             lvl = "-oo" if pos <= 0 else f"{fader_to_db(pos):+.1f}"
@@ -326,7 +360,7 @@ class EmulatedDesk:
         table = self._node_table()
         if full in table:
             return table[full]
-        for rx, body_for in self._NODE_RULES:      # not in table: synthesized reply
+        for rx, body_for in self._NODE_RULES:
             m = rx.match(full)
             if m:
                 return f"{full} {body_for(m)}"
@@ -335,15 +369,16 @@ class EmulatedDesk:
         kids = [a for a in self._params if a.startswith(full + "/")]
         if kids:
             return f"{full} " + " ".join(
-                self._fmt(self._params[k][0]) for k in sorted(kids) if self._params[k])
-        return full                  # unknown node: echo the path so the editor moves on
+                self._fmt(self._params[k][0]) for k in sorted(kids) if self._params[k]
+            )
+        return full
 
     def _h_any(self, client, addr, *args):
         """Single socket entry-point (default handler, reply-address aware). Routes
         the app's commands through the existing handlers AND serves an editor's
         discovery/sync/param protocol, pushing live changes to subscribed editors."""
         self._log_req(addr, args)
-        is_app = (client == self.app)
+        is_app = client == self.app
 
         if addr == "/info":
             return self._reply(client, "/info", *self._info())
@@ -355,7 +390,7 @@ class EmulatedDesk:
             return self._reply_node(client, args)
         if addr in ("/xremote", "/formatsubscribe", "/batchsubscribe", "/meters"):
             if not is_app:
-                self._remotes.add(client)          # external editor wants live updates
+                self._remotes.add(client)
                 self._add_meter_sub(client, addr, args)
             if addr == "/batchsubscribe":
                 self._h_subscribe(addr, *args)
@@ -368,15 +403,16 @@ class EmulatedDesk:
             for key, sub in list(self._meter_subs.items()):
                 if key[0] == client:
                     if addr == "/renew":
-                        sub["last"] = now          # keep this editor's stream alive
+                        sub["last"] = now
                     else:
                         del self._meter_subs[key]
             return
         if addr == "/showdump":
-            # show-file header, per pmaillot/X32-Behringer function_showdump()
-            self._reply(client, "node",
-                        f'/-show/showfile/show "{C.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 '
-                        f'"{C.X32_FW}"\n')
+            self._reply(
+                client,
+                "node",
+                f'/-show/showfile/show "{C.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "{C.X32_FW}"\n',
+            )
             return
 
         ch = _ch_from_addr(addr)
@@ -385,7 +421,7 @@ class EmulatedDesk:
                 self._h_fader(addr, *args)
                 self._params[addr] = [float(args[0])]
                 self._push(addr, float(args[0]), exclude=client)
-                if not is_app:                     # human moved it in the editor -> app reconciles
+                if not is_app:
                     self._client.send_message(addr, float(args[0]))
             else:
                 self._reply(client, addr, self.fader.get(ch, self._params.get(addr, [0.0])[0]))
@@ -403,22 +439,18 @@ class EmulatedDesk:
                 self._h_scene(addr, *args)
             return
 
-        if not args:                               # generic GET
+        if not args:
             val = self._params.get(addr)
             if val is None:
-                # A real desk answers EVERY valid address; silence makes a
-                # full-sync editor (Mixing Station) time out and abort. Synthesize
-                # a typed default and remember it so re-reads stay consistent.
                 val = self._default_for(addr)
                 self._params[addr] = val
             self._reply(client, addr, *val)
             self.recv_count += 1
             return
-        self._params[addr] = list(args)            # generic SET
+        self._params[addr] = list(args)
         self._push(addr, *args, exclude=client)
         self._h_default(addr, *args)
 
-    # -- the desk -> the app -----------------------------------------------
     def move_fader_externally(self, ch: int, db: float) -> None:
         """Simulate a HUMAN moving a fader on the desk surface: update the model
         and push the change to the app (this is what reconciliation adopts)."""
@@ -428,12 +460,13 @@ class EmulatedDesk:
         self._params[addr] = [pos]
         if self._client is not None:
             self._client.send_message(addr, pos)
-        self._push(addr, pos)                 # subscribed editors (Mixing Station) see it too
+        self._push(addr, pos)
 
     def _start_meters(self):
         if self._meter_thread is None:
-            self._meter_thread = threading.Thread(target=self._meter_loop,
-                                                  name="emudesk-meters", daemon=True)
+            self._meter_thread = threading.Thread(
+                target=self._meter_loop, name="emudesk-meters", daemon=True
+            )
             self._meter_thread.start()
 
     def _meter_loop(self):
@@ -441,18 +474,12 @@ class EmulatedDesk:
         while not self._stop.wait(period):
             if not (self.subscribed or self._meter_subs) or self._client is None:
                 continue
-            # plausible 0..1 meter levels; values are illustrative, the LAYOUT is
-            # the contract (encode_meter_blob).
             self._i += 1
             vals = (0.3 + 0.2 * np.sin(self._i * 0.2 + np.arange(self.n_meters))).tolist()
             if self.subscribed:
-                try:
+                with contextlib.suppress(OSError):
                     self._client.send_message("/meters/1", encode_meter_blob(vals))
                     self.meters_sent += 1
-                except OSError:
-                    pass
-            # stream each subscribed editor its requested bank (drop stale subs —
-            # a real desk stops ~10 s after the last /renew)
             now = time.monotonic()
             for (client, alias), sub in list(self._meter_subs.items()):
                 if now - sub["last"] > 10.0:
@@ -471,7 +498,7 @@ class EmulatedDesk:
 
     def _ext_loop(self):
         k = 0
-        while not self._stop.wait(12.0):       # every 12 s, "a human" nudges a fader
+        while not self._stop.wait(12.0):
             if not self.subscribed:
                 continue
             ch = self._ext_pick(k)
@@ -480,47 +507,38 @@ class EmulatedDesk:
             k += 1
             self.move_fader_externally(ch, -8.0 + 4.0 * ((k % 3) - 1))
 
-    # -- lifecycle ----------------------------------------------------------
     def start(self):
         from pythonosc.dispatcher import Dispatcher
         from pythonosc.osc_server import ThreadingOSCUDPServer
         from pythonosc.udp_client import SimpleUDPClient
+
         disp = Dispatcher()
-        # One reply-address-aware entry point: _h_any routes the app's commands
-        # through the existing handlers AND serves an editor's discovery/sync.
         disp.set_default_handler(self._h_any, needs_reply_address=True)
         self._server = ThreadingOSCUDPServer(("0.0.0.0", self.listen_port), disp)
         self._client = SimpleUDPClient(*self.app)
-        threading.Thread(target=self._server.serve_forever, name="emudesk",
-                         daemon=True).start()
+        threading.Thread(target=self._server.serve_forever, name="emudesk", daemon=True).start()
         if self.external_moves:
-            self._ext_thread = threading.Thread(target=self._ext_loop,
-                                               name="emudesk-ext", daemon=True)
+            self._ext_thread = threading.Thread(
+                target=self._ext_loop, name="emudesk-ext", daemon=True
+            )
             self._ext_thread.start()
         return self
 
     def stop(self):
         self._stop.set()
         if self._server is not None:
-            try:
+            with contextlib.suppress(OSError):
                 self._server.shutdown()
                 self._server.server_close()
-            except OSError:
-                pass
             self._server = None
         for c in list(self._clients.values()) + ([self._client] if self._client else []):
             sock = getattr(c, "_sock", None)
             if sock is not None:
-                try:
+                with contextlib.suppress(OSError):
                     sock.close()
-                except OSError:
-                    pass
         self._clients.clear()
 
 
-# ---------------------------------------------------------------------------
-# Timed fake audio stream (drives the REAL capture callback at block rate)
-# ---------------------------------------------------------------------------
 class TimedAudioStream:
     """A stand-in for sounddevice.InputStream: a timer thread that fires the
     capture callback at the true block rate with generated multichannel content,
@@ -531,8 +549,15 @@ class TimedAudioStream:
     (callbacks stop -> dead-stream detection); `.xrun_next = True` flags one xrun.
     """
 
-    def __init__(self, callback, channels: int, samplerate: int = C.SAMPLE_RATE,
-                 blocksize: int = C.BLOCK, content=None, seed: int = 5) -> None:
+    def __init__(
+        self,
+        callback,
+        channels: int,
+        samplerate: int = C.SAMPLE_RATE,
+        blocksize: int = C.BLOCK,
+        content=None,
+        seed: int = 5,
+    ) -> None:
         self.callback = callback
         self.channels = channels
         self.samplerate = samplerate
@@ -562,13 +587,9 @@ class TimedAudioStream:
         next_t = time.perf_counter()
         while not self._stop.is_set():
             now = time.perf_counter()
-            # Deliver as many blocks as wall-clock demands. On a busy machine (e.g.
-            # serving the dashboard to a phone) the daemon thread can be descheduled
-            # for >100 ms; a plain wait(period) would then starve the consumer and
-            # trip a FALSE dead-stream alert. Catching up keeps the queue fed.
             burst = 0
             while next_t <= now and burst < 8:
-                if self.deliver:                # deliver=False == "unplugged"
+                if self.deliver:
                     frame = self.content(self._i)
                     self._i += 1
                     status = "input overflow" if self.xrun_next else None
@@ -576,18 +597,17 @@ class TimedAudioStream:
                     try:
                         self.callback(frame, self.blocksize, None, status)
                     except Exception:
-                        pass
+                        _log.debug("timed audio callback raised", exc_info=True)
                 next_t += period
                 burst += 1
-            if next_t <= now:                   # capped the burst -> resync, no backlog
+            if next_t <= now:
                 next_t = now + period
             if self._stop.wait(max(0.001, min(period, next_t - time.perf_counter()))):
                 break
 
     def start(self):
         if self._thread is None:
-            self._thread = threading.Thread(target=self._loop, name="timed-audio",
-                                           daemon=True)
+            self._thread = threading.Thread(target=self._loop, name="timed-audio", daemon=True)
             self._thread.start()
 
     def stop(self):

@@ -4,8 +4,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from trio_mix import osc
 from trio_mix import config as C
+from trio_mix import osc
 
 
 class TestScaling(unittest.TestCase):
@@ -17,7 +17,7 @@ class TestScaling(unittest.TestCase):
             self.assertAlmostEqual(osc.fader_to_db(f), db, places=4)
 
     def test_fader_known_points(self):
-        self.assertAlmostEqual(osc.db_to_fader(0.0), 0.75, places=3)   # 0.75 = 0 dB
+        self.assertAlmostEqual(osc.db_to_fader(0.0), 0.75, places=3)
         self.assertEqual(osc.db_to_fader(-95), 0.0)
 
     def test_freq_param_range(self):
@@ -37,7 +37,6 @@ class TestScaling(unittest.TestCase):
         con = osc.SimConsole()
         self.assertEqual(con.set_fader_db(1, +99), C.FADER_MAX_DB)
         self.assertEqual(con.set_fader_db(1, -99), C.FADER_MIN_DB)
-        # headamp clamp
         g = con.nudge_gain_db(1, 60.0, +50.0)
         self.assertLessEqual(g, C.HEADAMP_MAX_DB)
 

@@ -12,12 +12,17 @@ We listen on LOCAL_PORT and:
 The OSC server needs python-osc; the blob decoder and the handlers are plain
 functions so they're unit-testable without any console.
 """
+
 from __future__ import annotations
 
+import logging
 import struct
 import threading
+from typing import Any
 
 from . import config as C
+
+_log = logging.getLogger(__name__)
 
 
 def decode_meter_blob(blob: bytes) -> list[float]:
@@ -29,7 +34,7 @@ def decode_meter_blob(blob: bytes) -> list[float]:
     n = max(0, min(n, (len(blob) - 4) // 4))
     if n == 0:
         return []
-    return list(struct.unpack_from("<%df" % n, blob, 4))
+    return list(struct.unpack_from(f"<{n}f", blob, 4))
 
 
 def encode_meter_blob(values) -> bytes:
@@ -39,7 +44,7 @@ def encode_meter_blob(values) -> bytes:
     the X32/M32 `/meters/1` bank; VERIFY it against a real desk capture or the
     published X32 OSC protocol before trusting it live (see HARDWARE_BRINGUP.md)."""
     vals = [float(v) for v in values]
-    return struct.pack("<i", len(vals)) + struct.pack("<%df" % len(vals), *vals)
+    return struct.pack("<i", len(vals)) + struct.pack(f"<{len(vals)}f", *vals)
 
 
 def _ch_from_fader_addr(addr: str) -> int | None:
@@ -54,17 +59,17 @@ def _ch_from_fader_addr(addr: str) -> int | None:
 
 
 class MeterReceiver:
-    def __init__(self, on_fader=None, on_meters=None,
-                 ip: str = "0.0.0.0", port: int = C.LOCAL_PORT) -> None:
-        self.on_fader = on_fader          # callback(ch:int, db:float)
-        self.on_meters = on_meters        # callback(list[float])
+    def __init__(
+        self, on_fader=None, on_meters=None, ip: str = "0.0.0.0", port: int = C.LOCAL_PORT
+    ) -> None:
+        self.on_fader = on_fader
+        self.on_meters = on_meters
         self.ip, self.port = ip, port
-        self.server = None
+        self.server: Any | None = None
         self._running = False
 
-    # -- OSC handlers (called by python-osc as handler(address, *args)) ------
     def handle_meters(self, address, *args) -> None:
-        if not self._running:                 # straggler after stop() -> drop it
+        if not self._running:
             return
         if args and isinstance(args[0], (bytes, bytearray)):
             vals = decode_meter_blob(bytes(args[0]))
@@ -72,7 +77,7 @@ class MeterReceiver:
                 self.on_meters(vals)
 
     def handle_fader(self, address, *args) -> None:
-        if not self._running:                 # straggler after stop() -> drop it
+        if not self._running:
             return
         ch = _ch_from_fader_addr(address)
         if ch is None or not args:
@@ -82,27 +87,28 @@ class MeterReceiver:
         except (TypeError, ValueError):
             return
         from .osc import fader_to_db
+
         if self.on_fader:
             self.on_fader(ch, fader_to_db(pos))
 
-    # -- lifecycle ----------------------------------------------------------
-    def start(self) -> None:                              # pragma: no cover - needs python-osc bind
+    def start(self) -> None:
         from pythonosc.dispatcher import Dispatcher
         from pythonosc.osc_server import ThreadingOSCUDPServer
+
         disp = Dispatcher()
         disp.map("/meters*", self.handle_meters)
         disp.map("/ch/*/mix/fader", self.handle_fader)
-        disp.set_default_handler(lambda *a: None)         # ignore everything else
+        disp.set_default_handler(lambda *a: None)
         self.server = ThreadingOSCUDPServer((self.ip, self.port), disp)
         self._running = True
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
     def stop(self) -> None:
-        self._running = False                 # fence: in-flight handlers become no-ops
+        self._running = False
         if self.server is not None:
             try:
                 self.server.shutdown()
                 self.server.server_close()
             except Exception:
-                pass
+                _log.debug("meter receiver did not close cleanly", exc_info=True)
             self.server = None

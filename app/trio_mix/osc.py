@@ -11,8 +11,10 @@ Every high-level method also calls ``_record(kind, **semantic)`` so a console
 can keep a clean, human-meaningful view of its state alongside the raw wire
 traffic.
 """
+
 from __future__ import annotations
 
+import contextlib
 import math
 import queue
 import threading
@@ -21,9 +23,6 @@ import time
 from . import config as C
 
 
-# ---------------------------------------------------------------------------
-# Wire-format scaling (X32/M32). Faders/gains are LINEAR 0..1, never dB.
-# ---------------------------------------------------------------------------
 def db_to_fader(db: float) -> float:
     """dB -> X32 linear fader position 0.0..1.0 (always in range)."""
     if db <= -90.0:
@@ -35,8 +34,8 @@ def db_to_fader(db: float) -> float:
     elif db < -10.0:
         f = (db + 50.0) / 80.0
     else:
-        f = (db + 30.0) / 40.0          # -10..+10 dB
-    return min(1.0, max(0.0, f))        # never emit out-of-range wire values
+        f = (db + 30.0) / 40.0
+    return min(1.0, max(0.0, f))
 
 
 def fader_to_db(f: float) -> float:
@@ -75,17 +74,13 @@ def _clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
 
 
-# ---------------------------------------------------------------------------
-# Console base
-# ---------------------------------------------------------------------------
 class ConsoleBase:
     """Thin, guard-railed wrapper around the M32C parameter tree."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._ramp_q: queue.Queue | None = None     # lazy async-ramp worker
+        self._ramp_q: queue.Queue | None = None
 
-    # -- transport hooks (overridden) ---------------------------------------
     def _send(self, addr: str, *args) -> None:
         raise NotImplementedError
 
@@ -96,9 +91,8 @@ class ConsoleBase:
     def close(self) -> None:
         """Release transport resources; stop the ramp worker if it was started."""
         if self._ramp_q is not None:
-            self._ramp_q.put(None)            # sentinel -> worker exits its loop
+            self._ramp_q.put(None)
 
-    # -- faders -------------------------------------------------------------
     def set_fader_db(self, ch: int, db: float) -> float:
         db = _clamp(db, C.FADER_MIN_DB, C.FADER_MAX_DB)
         with self._lock:
@@ -106,34 +100,35 @@ class ConsoleBase:
         self._record("fader", ch=ch, db=db)
         return db
 
-    def ramp_fader_db(self, ch: int, start_db: float, end_db: float,
-                      ms: int = C.RAMP_MS, steps: int = 12) -> float:
+    def ramp_fader_db(
+        self, ch: int, start_db: float, end_db: float, ms: int = C.RAMP_MS, steps: int = 12
+    ) -> float:
         """Smooth ramp performed on a background worker, so the caller (the
         engine loop thread) NEVER blocks on the ramp's sleeps. Returns the end
         position immediately; the believed-state update can happen at once while
         the console fader glides there over `ms`."""
         end_db = _clamp(end_db, C.FADER_MIN_DB, C.FADER_MAX_DB)
-        self._ensure_ramp_worker()
-        self._ramp_q.put((ch, start_db, end_db, ms, steps))
+        self._ensure_ramp_worker().put((ch, start_db, end_db, ms, steps))
         return end_db
 
-    def _ensure_ramp_worker(self) -> None:
-        with self._lock:                      # guard the lazy start against a race
-            if self._ramp_q is None:
-                self._ramp_q = queue.Queue()
-                threading.Thread(target=self._ramp_loop, daemon=True).start()
+    def _ensure_ramp_worker(self) -> queue.Queue:
+        with self._lock:
+            q = self._ramp_q
+            if q is None:
+                q = self._ramp_q = queue.Queue()
+                threading.Thread(target=self._ramp_loop, args=(q,), daemon=True).start()
+            return q
 
-    def _ramp_loop(self) -> None:
+    def _ramp_loop(self, q: queue.Queue) -> None:
         while True:
-            job = self._ramp_q.get()
-            if job is None:                   # sentinel from close()
+            job = q.get()
+            if job is None:
                 return
             ch, start_db, end_db, ms, steps = job
             for i in range(1, steps + 1):
                 self.set_fader_db(ch, start_db + (end_db - start_db) * (i / steps))
                 time.sleep((ms / 1000.0) / steps)
 
-    # -- preamp / clip ------------------------------------------------------
     def nudge_gain_db(self, ch: int, current_db: float, delta_db: float) -> float:
         """Headamp (preamp) trim. /headamp index = (ch-1) on M32."""
         new = _clamp(current_db + delta_db, C.HEADAMP_MIN_DB, C.HEADAMP_MAX_DB)
@@ -142,20 +137,23 @@ class ConsoleBase:
         self._record("gain", ch=ch, db=new)
         return new
 
-    # -- parametric EQ notch (feedback) -------------------------------------
-    def set_eq_notch(self, ch: int, band: int, hz: float,
-                     gain_db: float = C.FB_NOTCH_GAIN_DB,
-                     q: float = C.FB_NOTCH_Q) -> None:
+    def set_eq_notch(
+        self,
+        ch: int,
+        band: int,
+        hz: float,
+        gain_db: float = C.FB_NOTCH_GAIN_DB,
+        q: float = C.FB_NOTCH_Q,
+    ) -> None:
         base = f"/ch/{ch:02d}/eq/{band}"
         with self._lock:
-            self._send(f"{base}/type", 2)                  # PEQ
+            self._send(f"{base}/type", 2)
             self._send(f"{base}/f", freq_to_eq_param(hz))
             self._send(f"{base}/g", (gain_db + 15.0) / 30.0)
             self._send(f"{base}/q", q_to_param(q))
             self._send(f"/ch/{ch:02d}/eq/on", 1)
         self._record("notch", ch=ch, band=band, hz=hz, gain_db=gain_db, q=q)
 
-    # -- main-bus EQ (room correction) --------------------------------------
     def set_bus_eq(self, band: int, hz: float, gain_db: float, q: float = 4.0) -> None:
         base = f"/{C.MAIN_BUS}/eq/{band}"
         with self._lock:
@@ -166,22 +164,21 @@ class ConsoleBase:
             self._send(f"/{C.MAIN_BUS}/eq/on", 1)
         self._record("bus_eq", band=band, hz=hz, gain_db=gain_db, q=q)
 
-    # -- full parametric EQ band (performer EQ view) ------------------------
-    def set_eq_band(self, ch: int, band: int, hz: float, gain_db: float,
-                    q: float, on: bool = True) -> None:
+    def set_eq_band(
+        self, ch: int, band: int, hz: float, gain_db: float, q: float, on: bool = True
+    ) -> None:
         """Set one channel PEQ band to an arbitrary cut/boost (the EQ view), vs
         set_eq_notch which is the feedback-specific deep cut. Same 4 hardware
         bands — they share."""
         base = f"/ch/{ch:02d}/eq/{band}"
         with self._lock:
-            self._send(f"{base}/type", 2)                   # PEQ
+            self._send(f"{base}/type", 2)
             self._send(f"{base}/f", freq_to_eq_param(hz))
-            self._send(f"{base}/g", (gain_db + 15.0) / 30.0)  # VERIFY: g maps -15..+15 dB
+            self._send(f"{base}/g", (gain_db + 15.0) / 30.0)
             self._send(f"{base}/q", q_to_param(q))
             self._send(f"/ch/{ch:02d}/eq/on", 1 if on else 0)
         self._record("eq_band", ch=ch, band=band, hz=hz, gain_db=gain_db, q=q, on=on)
 
-    # -- FX / aux sends (performer FX view) ---------------------------------
     def set_send(self, ch: int, bus: int, level_db: float) -> None:
         """Channel send level to a mix/FX bus. VERIFY: X32 channel->bus send addr
         `/ch/NN/mix/BB/level` and its 0..1 mapping against your firmware."""
@@ -195,7 +192,6 @@ class ConsoleBase:
             self._send(f"/fxrtn/{fx:02d}/mix/fader", db_to_fader(level_db))
         self._record("fx_return", fx=fx, level_db=level_db)
 
-    # -- scene / mute -------------------------------------------------------
     def recall_scene(self, index: int) -> None:
         with self._lock:
             self._send("/-action/goscene", index)
@@ -212,7 +208,6 @@ class ConsoleBase:
             self._send(f"/ch/{ch:02d}/eq/on", 0)
         self._record("eq_clear", ch=ch)
 
-    # -- manual surface (human-driven; full physical range, not guardrailed) --
     def set_fader_raw(self, ch: int, db: float) -> float:
         """A human fader move — clamped only to the console's physical range."""
         db = _clamp(db, -90.0, 10.0)
@@ -251,64 +246,53 @@ class ConsoleBase:
             self._send("/xremote")
 
 
-# ---------------------------------------------------------------------------
-# Real console (UDP)
-# ---------------------------------------------------------------------------
 class OscConsole(ConsoleBase):
     def __init__(self, ip: str = C.CONSOLE_IP, port: int = C.CONSOLE_PORT) -> None:
         super().__init__()
         self.ip = ip
         try:
             from pythonosc.udp_client import SimpleUDPClient
-        except ImportError as e:  # pragma: no cover - hardware path
+        except ImportError as e:
             raise RuntimeError(
                 "python-osc is required for real-console mode: pip install python-osc"
             ) from e
         self.client = SimpleUDPClient(ip, port)
 
-    def _send(self, addr: str, *args) -> None:  # pragma: no cover - needs hw
-        # python-osc takes a single value or a list of values.
+    def _send(self, addr: str, *args) -> None:
         self.client.send_message(addr, list(args) if len(args) != 1 else args[0])
 
-    def close(self) -> None:  # pragma: no cover - needs hw
-        super().close()                       # stop the ramp worker
+    def close(self) -> None:
+        super().close()
         sock = getattr(self.client, "_sock", None)
         if sock is not None:
-            try:
+            with contextlib.suppress(OSError):
                 sock.close()
-            except OSError:
-                pass
 
 
-# ---------------------------------------------------------------------------
-# Simulated console (records a semantic mirror; no I/O)
-# ---------------------------------------------------------------------------
 class SimConsole(ConsoleBase):
     """Records every move so the simulator/tests can read console state back."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.wire_log: list[tuple] = []                 # raw (addr, *args)
+        self.wire_log: list[tuple] = []
         self.fader_db: dict[int, float] = {}
         self.gain_db: dict[int, float] = {}
-        self.notches: dict[int, list[dict]] = {}        # ch -> [{band,hz,...}]
-        self.bus_eq: dict[int, dict] = {}               # band -> {hz,gain_db,q}
+        self.notches: dict[int, list[dict]] = {}
+        self.bus_eq: dict[int, dict] = {}
         self.main_muted = False
         self.ch_muted: dict[int, bool] = {}
         self.master_db = 0.0
         self.last_scene: int | None = None
-        self.eq_bands: dict[int, dict[int, dict]] = {}   # ch -> band -> {hz,gain_db,q,on}
-        self.sends: dict[tuple, float] = {}              # (ch,bus) -> level_db
-        self.fx_returns: dict[int, float] = {}           # fx -> level_db
-        self.polarity: dict[int, bool] = {}              # ch -> phase-inverted?
+        self.eq_bands: dict[int, dict[int, dict]] = {}
+        self.sends: dict[tuple, float] = {}
+        self.fx_returns: dict[int, float] = {}
+        self.polarity: dict[int, bool] = {}
 
-    # record raw wire traffic (fidelity) ------------------------------------
     def _send(self, addr: str, *args) -> None:
         self.wire_log.append((addr, *args))
 
-    # record semantic state (introspection) ---------------------------------
     def _record(self, kind: str, **s) -> None:
-        with self._lock:                  # keep the semantic mirror self-consistent
+        with self._lock:
             self._apply_record(kind, s)
 
     def _apply_record(self, kind: str, s: dict) -> None:
@@ -318,12 +302,11 @@ class SimConsole(ConsoleBase):
             self.gain_db[s["ch"]] = s["db"]
         elif kind == "notch":
             self.notches.setdefault(s["ch"], [])
-            # one band slot is reused; replace any entry on the same band
-            self.notches[s["ch"]] = [
-                n for n in self.notches[s["ch"]] if n["band"] != s["band"]
-            ] + [dict(band=s["band"], hz=s["hz"], gain_db=s["gain_db"], q=s["q"])]
+            self.notches[s["ch"]] = [n for n in self.notches[s["ch"]] if n["band"] != s["band"]] + [
+                {"band": s["band"], "hz": s["hz"], "gain_db": s["gain_db"], "q": s["q"]}
+            ]
         elif kind == "bus_eq":
-            self.bus_eq[s["band"]] = dict(hz=s["hz"], gain_db=s["gain_db"], q=s["q"])
+            self.bus_eq[s["band"]] = {"hz": s["hz"], "gain_db": s["gain_db"], "q": s["q"]}
         elif kind == "main_mute":
             self.main_muted = s["muted"]
         elif kind == "scene":
@@ -337,19 +320,22 @@ class SimConsole(ConsoleBase):
         elif kind == "master":
             self.master_db = s["db"]
         elif kind == "eq_band":
-            self.eq_bands.setdefault(s["ch"], {})[s["band"]] = dict(
-                hz=s["hz"], gain_db=s["gain_db"], q=s["q"], on=s["on"])
+            self.eq_bands.setdefault(s["ch"], {})[s["band"]] = {
+                "hz": s["hz"],
+                "gain_db": s["gain_db"],
+                "q": s["q"],
+                "on": s["on"],
+            }
         elif kind == "send":
             self.sends[(s["ch"], s["bus"])] = s["level_db"]
         elif kind == "fx_return":
             self.fx_returns[s["fx"]] = s["level_db"]
 
-    # ride ramps would block the sim loop with sleeps -> apply instantly
-    def ramp_fader_db(self, ch: int, start_db: float, end_db: float,
-                      ms: int = C.RAMP_MS, steps: int = 12) -> float:
+    def ramp_fader_db(
+        self, ch: int, start_db: float, end_db: float, ms: int = C.RAMP_MS, steps: int = 12
+    ) -> float:
         return self.set_fader_db(ch, end_db)
 
-    # -- sim introspection helpers ------------------------------------------
     def notch_freqs(self, ch: int) -> list[float]:
         return [n["hz"] for n in self.notches.get(ch, [])]
 

@@ -5,27 +5,24 @@ server. No command-line knowledge required.
 Run modes (set MODE in show.conf): hardware | emulate | sim.
 Special args: `--list-devices` (print audio inputs), `--rehearse` (force emulate).
 """
+
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 import threading
 import time
 import webbrowser
 
-try:                                  # Windows consoles default to cp1252
-    sys.stdout.reconfigure(encoding="utf-8")
-except (AttributeError, ValueError):
-    pass
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def read_conf(path: str) -> dict:
-    cfg = {}
+def read_conf(path: str) -> dict[str, str]:
+    cfg: dict[str, str] = {}
     if not os.path.exists(path):
         return cfg
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
@@ -35,29 +32,33 @@ def read_conf(path: str) -> dict:
     return cfg
 
 
-def _yes(v) -> bool:
+def _yes(v: object) -> bool:
     return str(v).strip().lower() in ("1", "yes", "y", "true", "on")
 
 
-def build_argv(cfg: dict, rehearse: bool = False):
+def build_argv(cfg: dict[str, str], rehearse: bool = False) -> tuple[list[str], str, str]:
     argv = ["run.py"]
     mode = "emulate" if rehearse else cfg.get("MODE", "sim").strip().lower()
     if _yes(cfg.get("AUTO", "no")):
-        argv += ["--auto"]                 # auto-detect device + map + gain
+        argv += ["--auto"]
     if mode == "hardware":
         argv += ["--hardware"]
         ip = cfg.get("CONSOLE_IP", "").strip()
         if ip:
             argv += ["--console-ip", ip]
         else:
-            print("  [!] MODE=hardware but CONSOLE_IP is blank in show.conf — "
-                  "the console feed won't connect until you set it.")
+            print(
+                "  [!] MODE=hardware but CONSOLE_IP is blank in show.conf — "
+                "the console feed won't connect until you set it."
+            )
         dev = cfg.get("AUDIO_DEVICE", "").strip()
         if dev:
             argv += ["--audio-device", dev]
         else:
-            print("  [i] AUDIO_DEVICE blank — running manual mixing + scene recall "
-                  "only (the assistant won't listen). Run list-devices to pick one.")
+            print(
+                "  [i] AUDIO_DEVICE blank — running manual mixing + scene recall "
+                "only (the assistant won't listen). Run list-devices to pick one."
+            )
         outdev = cfg.get("OUTPUT_DEVICE", "").strip()
         if outdev:
             argv += ["--output-device", outdev]
@@ -69,7 +70,6 @@ def build_argv(cfg: dict, rehearse: bool = False):
             argv += ["--ableset-port", ab]
     elif mode == "emulate":
         argv += ["--emulate"]
-    # mode == "sim": no mode flag
 
     tmpl = cfg.get("TEMPLATE", "").strip()
     if tmpl:
@@ -77,10 +77,20 @@ def build_argv(cfg: dict, rehearse: bool = False):
     venue = cfg.get("VENUE", "").strip()
     if venue:
         argv += ["--venue", venue]
-    if _yes(cfg.get("LAN", "yes")):
+    lan = _yes(cfg.get("LAN", "yes"))
+    if lan:
         argv += ["--lan"]
-    if _yes(cfg.get("HTTPS", "yes")):
+    https = _yes(cfg.get("HTTPS", "yes"))
+    if https:
         argv += ["--https"]
+    pin = cfg.get("PIN", "").strip()
+    if pin:
+        argv += ["--pin", pin]
+        if lan and not https:
+            print(
+                "  [!] PIN is set but HTTPS=no — the PIN travels unencrypted. "
+                "Set HTTPS=yes in show.conf."
+            )
     port = cfg.get("PORT", "").strip() or "8770"
     argv += ["--port", port]
     if _yes(cfg.get("ADVISOR", "no")):
@@ -91,17 +101,20 @@ def build_argv(cfg: dict, rehearse: bool = False):
 def _open_browser_later(url: str, delay: float = 2.0) -> None:
     def go():
         time.sleep(delay)
-        try:
+        with contextlib.suppress(webbrowser.Error, OSError):
             webbrowser.open(url)
-        except Exception:
-            pass
+
     threading.Thread(target=go, daemon=True).start()
 
 
 def main() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        with contextlib.suppress(ValueError, OSError):
+            reconfigure(encoding="utf-8")
     try:
-        import run                          # imports numpy + the app
-    except Exception as e:                  # numpy/app missing -> setup not run
+        import run
+    except Exception as e:
         print("Could not load the app:", e)
         print("Run setup first  (setup.bat on Windows, 'bash setup.command' on macOS).")
         input("Press Enter to close...")

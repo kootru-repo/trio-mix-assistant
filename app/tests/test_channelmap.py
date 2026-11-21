@@ -12,15 +12,23 @@ from trio_mix.engine import Engine
 
 class TestChannelMap(unittest.TestCase):
     def setUp(self):
-        self._snap = C.channel_map_state()      # isolate: restore the global map after
+        self._snap = C.channel_map_state()
 
     def tearDown(self):
         C.restore_channel_map_state(self._snap)
 
     def test_apply_mutates_config(self):
-        C.apply_channel_map({"map": {"1": "v", "2": "g"}, "lead": 1, "meas_mic": 2,
-                             "balance": [2], "guest": [2], "stereo_links": [[1, 2]],
-                             "stage_mic": None})
+        C.apply_channel_map(
+            {
+                "map": {"1": "v", "2": "g"},
+                "lead": 1,
+                "meas_mic": 2,
+                "balance": [2],
+                "guest": [2],
+                "stereo_links": [[1, 2]],
+                "stage_mic": None,
+            }
+        )
         self.assertEqual(C.CHANNELS, {1: "v", 2: "g"})
         self.assertEqual(C.LEAD_VOCAL_CH, 1)
         self.assertEqual(C.MEAS_MIC_CH, 2)
@@ -30,7 +38,7 @@ class TestChannelMap(unittest.TestCase):
     def test_restore(self):
         C.apply_channel_map({"map": {"1": "v"}})
         C.restore_channel_map_state(self._snap)
-        self.assertEqual(len(C.CHANNELS), 8)    # back to the trio default
+        self.assertEqual(len(C.CHANNELS), 8)
         self.assertEqual(C.CHANNELS[1], "lead_vox")
 
     def test_autofoh_pilot_loads_and_applies(self):
@@ -50,10 +58,10 @@ class TestChannelMap(unittest.TestCase):
         t = tmpl.load(os.path.join(APP, "templates", "autofoh_pilot.json"))
         C.apply_channel_map(t.channels)
         e = Engine(sim=True, template=t)
-        self.assertIn(4, e.eq)                  # gtr_l has performer EQ
-        self.assertNotIn(14, e.eq)              # meas mic excluded from EQ surface
+        self.assertIn(4, e.eq)
+        self.assertNotIn(14, e.eq)
         self.assertEqual(len(e.telemetry["channels"]), 15)
-        e.set_fader(4, -5.0)                    # stereo link 4+5 mirrors
+        e.set_fader(4, -5.0)
         self.assertAlmostEqual(e.assistant.fader_db[5], -5.0, places=1)
 
     def test_bench_mic_template(self):
@@ -61,36 +69,41 @@ class TestChannelMap(unittest.TestCase):
         C.apply_channel_map(t.channels)
         self.assertEqual(C.CHANNELS, {1: "meas_mic"})
         self.assertEqual(C.MEAS_MIC_CH, 1)
-        self.assertEqual(C.BALANCE_CHANNELS, ())        # cleared for the bench
+        self.assertEqual(C.BALANCE_CHANNELS, ())
         e = Engine(sim=True, template=t)
         self.assertEqual(len(e.telemetry["channels"]), 1)
 
     def test_template_balance_validated_against_own_map(self):
         with self.assertRaises(tmpl.TemplateError):
-            tmpl.from_dict({"channels": {"map": {"1": "v"}},
-                            "songs": [{"name": "A", "balance": {"9": -3}}]})
-        t = tmpl.from_dict({"channels": {"map": {"1": "v", "2": "g"}},
-                            "songs": [{"name": "A", "balance": {"2": -3}}]})
+            tmpl.from_dict(
+                {"channels": {"map": {"1": "v"}}, "songs": [{"name": "A", "balance": {"9": -3}}]}
+            )
+        t = tmpl.from_dict(
+            {
+                "channels": {"map": {"1": "v", "2": "g"}},
+                "songs": [{"name": "A", "balance": {"2": -3}}],
+            }
+        )
         self.assertEqual(t.songs[0].balance[2], -3.0)
 
     def test_apply_is_atomic_on_bad_spec(self):
         before = dict(C.CHANNELS)
         with self.assertRaises((ValueError, TypeError)):
             C.apply_channel_map({"map": {"1": "v"}, "lead": "notanint"})
-        self.assertEqual(C.CHANNELS, before)        # not left half-applied
+        self.assertEqual(C.CHANNELS, before)
 
     def test_reapply_clears_stale_labels(self):
         C.apply_channel_map({"map": {"1": "alpha"}})
         C.apply_channel_map({"map": {"1": "beta"}})
-        self.assertNotIn("alpha", C.ROLE_LABELS)    # stale label gone
+        self.assertNotIn("alpha", C.ROLE_LABELS)
         self.assertIn("beta", C.ROLE_LABELS)
 
     def test_invalid_channels_block_rejected(self):
         for bad in (
-            {"channels": {"map": {"x": "v"}}},                       # non-int key
-            {"channels": {"map": {"1": ""}}},                        # empty role
-            {"channels": {"map": {"1": "v"}, "lead": 9}},            # lead not in map
-            {"channels": {"map": {"1": "v"}, "stereo_links": [[1]]}},  # bad pair
+            {"channels": {"map": {"x": "v"}}},
+            {"channels": {"map": {"1": ""}}},
+            {"channels": {"map": {"1": "v"}, "lead": 9}},
+            {"channels": {"map": {"1": "v"}, "stereo_links": [[1]]}},
         ):
             with self.assertRaises(tmpl.TemplateError):
                 tmpl.from_dict(bad)

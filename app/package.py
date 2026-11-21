@@ -6,8 +6,10 @@ caches, certs, the session DB, and any local .venv.
 
     python package.py
 """
+
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import zipfile
@@ -18,11 +20,25 @@ NAME = "TrioMixAssistant"
 DEST = os.path.join(OUT_DIR, NAME)
 
 FILES = [
-    "run.py", "launcher.py", "osc_demo.py", "show.conf", "requirements-run.txt",
-    "setup.bat", "start.bat", "list-devices.bat", "rehearse.bat", "fetch-wheels.bat",
-    "setup.command", "start.command", "list-devices.command", "rehearse.command",
+    "run.py",
+    "launcher.py",
+    "osc_demo.py",
+    "show.conf",
+    "requirements-run.txt",
+    "setup.bat",
+    "start.bat",
+    "list-devices.bat",
+    "rehearse.bat",
+    "fetch-wheels.bat",
+    "setup.command",
+    "start.command",
+    "list-devices.command",
+    "rehearse.command",
     "fetch-wheels.command",
-    "START-HERE.txt", "RUNBOOK.md", "HARDWARE_BRINGUP.md", "README.md",
+    "START-HERE.txt",
+    "RUNBOOK.md",
+    "HARDWARE_BRINGUP.md",
+    "README.md",
 ]
 
 
@@ -35,26 +51,26 @@ def _clear_contents(d: str) -> None:
     may be handle-locked (IDE/indexer) on Windows, but its contents are writable."""
     for name in os.listdir(d):
         p = os.path.join(d, name)
-        try:
+        with contextlib.suppress(OSError):
             if os.path.isdir(p) and not os.path.islink(p):
                 shutil.rmtree(p, ignore_errors=True)
             else:
                 os.remove(p)
-        except OSError:
-            pass
 
 
 def main() -> None:
     os.makedirs(DEST, exist_ok=True)
     _clear_contents(DEST)
 
-    shutil.copytree(os.path.join(HERE, "trio_mix"),
-                    os.path.join(DEST, "trio_mix"), ignore=_ignore, dirs_exist_ok=True)
-    # ship the example show templates (incl. the 13-input AutoFOH map)
+    shutil.copytree(
+        os.path.join(HERE, "trio_mix"),
+        os.path.join(DEST, "trio_mix"),
+        ignore=_ignore,
+        dirs_exist_ok=True,
+    )
     tdir = os.path.join(HERE, "templates")
     if os.path.isdir(tdir):
-        shutil.copytree(tdir, os.path.join(DEST, "templates"),
-                        ignore=_ignore, dirs_exist_ok=True)
+        shutil.copytree(tdir, os.path.join(DEST, "templates"), ignore=_ignore, dirs_exist_ok=True)
 
     copied, missing = [], []
     for f in FILES:

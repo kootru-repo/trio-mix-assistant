@@ -106,14 +106,14 @@ The app has three modes, and each needs different things. Simulation needs almos
 1. Install **Python 3.10+** from [python.org](https://www.python.org/downloads/) and tick **“Add Python to PATH”**.
 2. In `app/`, double‑click **`setup.bat`** (one time).
 3. Double‑click **`list-devices.bat`** and note your audio device number.
-4. Open **`show.conf`** in Notepad and set `CONSOLE_IP` and `AUDIO_DEVICE` (or set `AUTO=yes` to auto‑detect).
+4. Open **`show.conf`** in Notepad and set `CONSOLE_IP` and `AUDIO_DEVICE` (or set `AUTO=yes` to auto‑detect). On shared or venue WiFi also set `PIN`.
 5. Double‑click **`start.bat`**. The dashboard opens in your browser.
 
 ### macOS
 1. Install **Python 3.10+** from [python.org](https://www.python.org/downloads/).
 2. Open Terminal, `cd` into `app/`, then `bash setup.command` (one time).
 3. `bash list-devices.command` and note your audio device number.
-4. `open show.conf`, set `CONSOLE_IP` and `AUDIO_DEVICE` (or `AUTO=yes`), and save.
+4. `open show.conf`, set `CONSOLE_IP` and `AUDIO_DEVICE` (or `AUTO=yes`), and save. On shared or venue WiFi also set `PIN`.
 5. `bash start.command`.
    - On the first run, macOS asks for **Microphone** and **Network** permission. **Allow both** (System Settings → Privacy & Security → Microphone), or capture stays silent.
 
@@ -162,7 +162,7 @@ The QR at right is an *example* (`https://192.168.1.50:8770/`); yours encodes th
 
 ### Locking it down (untrusted networks)
 
-On a trusted FOH LAN the dashboard is open (no login). On shared/venue WiFi, add **`--pin "1234"`** (ideally with `--https`): the dashboard then asks for the PIN before it opens, and every control endpoint and the telemetry stream require it, so a stranger on the WiFi can't touch the console. The PIN is entered once per device (a `HttpOnly; SameSite=Strict` session cookie), with lockout after repeated wrong tries. The server also validates the `Host` header (DNS‑rebinding guard) regardless of the PIN.
+On a trusted FOH LAN the dashboard is open (no login). On shared/venue WiFi, set **`PIN=1234`** in `show.conf` or add **`--pin "1234"`** (ideally with `--https`): the dashboard then asks for the PIN before it opens, and every control endpoint and the telemetry stream require it, so a stranger on the WiFi can't touch the console. The PIN is entered once per device (a `HttpOnly; SameSite=Strict` session cookie), Five wrong tries lock out only the device that made them, for 30 seconds, and devices already signed in keep control throughout. At most 20 unsuccessful sign-in attempts a minute are accepted across all devices; past that, new sign-ins are refused until the minute passes. With or without a PIN, the server validates the `Host` header (DNS‑rebinding guard) and refuses control requests and WebSocket connections that come from another website (`Origin` check), so a page open in the operator's browser cannot drive the console.
 
 **Zero cert warnings:** a self‑signed cert always shows a one‑time browser warning (it's encrypted but not *trusted*). To remove it completely, launch with **`--trust`**: the app runs a local root CA and serves a cert signed by it, then prints steps to install that root **once per device** (browse to `/ca.pem`, or copy `app/.certs/ca.pem`). After the one‑time install, every https connection is fully trusted: green padlock, no warning. (There's no server‑only way to skip the per‑device install; that's how certificate trust works. The alternative is plain http, with no cert and no warning, but also no PWA/Wake‑Lock, and the PIN travels in clear.)
 
@@ -221,7 +221,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 
 **Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends every automatic move, covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
-Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is logged and reversible. 259 automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
+Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is logged and reversible. 327 automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 
 ## Project layout
 
@@ -234,7 +234,7 @@ trio-mix-assistant/
 │   ├── trio_mix/             ← package: dsp, osc, assistant, engine, server…
 │   │   └── static/           ← dashboard page + compiled JS (committed)
 │   ├── web/                  ← TypeScript source for the dashboard (npm run build)
-│   ├── tests/                ← 305 unit + integration tests
+│   ├── tests/                ← 327 unit + integration tests
 │   ├── setup/start/list-devices/rehearse  (.bat + .command)
 │   ├── README.md             ← developer docs (architecture, internals)
 │   ├── RUNBOOK.md            ← show-day guide (Windows & macOS)
@@ -251,6 +251,14 @@ trio-mix-assistant/
 ```bash
 cd app
 python -m unittest discover -s tests
+```
+
+For development, install the pinned toolchain and run the same checks as CI (`.github/workflows/ci.yml`):
+
+```bash
+cd app
+python -m pip install -r requirements-dev.txt -c requirements-lock.txt
+python -m ruff check . && python -m ruff format --check . && python -m mypy && python -m pytest -q
 ```
 
 ## Credits

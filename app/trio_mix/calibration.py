@@ -1,4 +1,5 @@
 """Pre-show pink-noise room calibration."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -12,7 +13,7 @@ from .osc import ConsoleBase
 
 @dataclass
 class CalibrationResult:
-    baseline: dict[float, float] = field(default_factory=dict)   # fc -> dB
+    baseline: dict[float, float] = field(default_factory=dict)
     corrections: list[tuple[float, float]] = field(default_factory=list)
     watchlist: list[tuple[float, float]] = field(default_factory=list)
 
@@ -32,8 +33,7 @@ class Calibrator:
         shared state — heavy FFTs here are safe to run OFF any lock."""
         baseline = dsp.octave_band_levels(captured)
         corrections, watchlist = dsp.find_resonant_peaks(captured)
-        return CalibrationResult(baseline=baseline, corrections=corrections,
-                                 watchlist=watchlist)
+        return CalibrationResult(baseline=baseline, corrections=corrections, watchlist=watchlist)
 
     def plan(self, res: CalibrationResult) -> list[dict]:
         """The main-bus PEQ moves calibration would make: gentle room-peak cuts on
@@ -52,8 +52,16 @@ class Calibrator:
                 break
             if fc in corrected:
                 continue
-            steps.append({"band": 5 + n_predip, "hz": fc, "gain": C.CAL_PREDIP_DB,
-                          "q": 6.0, "kind": "predip", "excess": excess})
+            steps.append(
+                {
+                    "band": 5 + n_predip,
+                    "hz": fc,
+                    "gain": C.CAL_PREDIP_DB,
+                    "q": 6.0,
+                    "kind": "predip",
+                    "excess": excess,
+                }
+            )
             n_predip += 1
         return steps
 
@@ -62,10 +70,6 @@ class Calibrator:
         (a handful of OSC sends) — call this under the engine lock. Returns the
         set of main-bus bands it claimed, so live feedback notching can avoid
         clobbering them."""
-        # Start from a clean main-bus EQ: flatten all 6 bands first. This means a
-        # re-calibration leaves no ghost cuts and any live feedback notch parked
-        # on the bus is cleared (the assistant resets its feedback-band tracking
-        # to match). `used` returns only the bands carrying a real cut.
         for band in range(1, 7):
             self.con.set_bus_eq(band, 1000.0, 0.0, q=2.0)
         used: set[int] = set()
@@ -75,12 +79,15 @@ class Calibrator:
             if s["kind"] == "room":
                 log(f"bus EQ {s['band']}: {s['hz']:.0f} Hz {s['gain']:+.1f} dB")
             else:
-                log(f"pre-dip {s['band']}: {s['hz']:.0f} Hz {s['gain']:+.1f} dB "
-                    f"(excess {s['excess']:.1f} dB)")
+                log(
+                    f"pre-dip {s['band']}: {s['hz']:.0f} Hz {s['gain']:+.1f} dB "
+                    f"(excess {s['excess']:.1f} dB)"
+                )
         return used
 
-    def run(self, capture_meas_mic, emit_pink_noise=None, apply: bool = True,
-            log=print) -> CalibrationResult:
+    def run(
+        self, capture_meas_mic, emit_pink_noise=None, apply: bool = True, log=print
+    ) -> CalibrationResult:
         """Emit (optional) + capture + analyze + optionally apply. Used by tests;
         the engine instead splits analyze (off-lock) from apply (on-lock)."""
         if emit_pink_noise:

@@ -1,6 +1,4 @@
 {
-  // Browser code only. Output lands next to index.html and is committed, so the
-  // Python app keeps running with no Node toolchain on show machines.
   "compilerOptions": {
     "target": "ES2020",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
@@ -11,7 +9,7 @@
     "outDir": "../trio_mix/static",
     "sourceMap": false,
     "declaration": false,
-    "removeComments": false,
+    "removeComments": true,
     "newLine": "lf",
     "skipLibCheck": true
   },

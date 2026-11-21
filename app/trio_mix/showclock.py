@@ -13,12 +13,17 @@ The exact AbleSet OSC addresses are firmware/version-specific — verify them
 against your AbleSet with an OSC monitor (same caveat as the console scalings).
 The handlers below target AbleSet's documented `/setlist` + `/playback` API.
 """
+
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass
+from typing import Any
 
 from . import config as C
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -31,7 +36,6 @@ class ShowState:
     playing: bool = False
 
     def key(self) -> tuple:
-        # what counts as a "change worth acting on"
         return (self.song_name, self.section, self.playing)
 
 
@@ -54,9 +58,6 @@ class ShowClock:
             self.on_change(state)
 
 
-# ---------------------------------------------------------------------------
-# Simulated clock: walk the setlist on a timer
-# ---------------------------------------------------------------------------
 class SimShowClock(ShowClock):
     def __init__(self, template, on_change=None, interval: float = 15.0) -> None:
         super().__init__(on_change)
@@ -73,11 +74,19 @@ class SimShowClock(ShowClock):
         self._i = (self._i + 1) % len(songs)
         cur = songs[self._i]
         nxt = songs[(self._i + 1) % len(songs)]
-        self._fire(ShowState(song_index=self._i, song_name=cur.name,
-                             next_song=nxt.name, section="Song", bpm=None, playing=True))
+        self._fire(
+            ShowState(
+                song_index=self._i,
+                song_name=cur.name,
+                next_song=nxt.name,
+                section="Song",
+                bpm=None,
+                playing=True,
+            )
+        )
 
     def _loop(self) -> None:
-        self._advance()                                  # kick off on song 1 immediately
+        self._advance()
         while not self._stop.wait(self.interval):
             self._advance()
 
@@ -95,9 +104,6 @@ class SimShowClock(ShowClock):
             self._thread = None
 
 
-# ---------------------------------------------------------------------------
-# AbleSet clock: receive song/section over OSC (UDP)
-# ---------------------------------------------------------------------------
 def _as_str(args) -> str:
     return str(args[0]).strip() if args else ""
 
@@ -114,23 +120,20 @@ class AbleSetReceiver(ShowClock):
     Fires on_change only when the song / section / playback actually changes (not
     on every beat tick)."""
 
-    def __init__(self, on_change=None, ip: str = "0.0.0.0",
-                 port: int = C.ABLESET_PORT) -> None:
+    def __init__(self, on_change=None, ip: str = "0.0.0.0", port: int = C.ABLESET_PORT) -> None:
         super().__init__(on_change)
         self.ip, self.port = ip, port
-        self.server = None
+        self.server: Any | None = None
         self._running = False
         self._cur = ShowState()
-        self._last_key = None
+        self._last_key: tuple | None = None
 
-    # -- handlers ----------------------------------------------------------
     def _maybe_fire(self) -> None:
         if not self._running:
             return
         k = self._cur.key()
         if k != self._last_key and self._cur.song_name:
             self._last_key = k
-            # copy so a later in-place edit can't mutate what we handed out
             self._fire(ShowState(**vars(self._cur)))
 
     def h_song_name(self, address, *args) -> None:
@@ -168,10 +171,10 @@ class AbleSetReceiver(ShowClock):
             return
         self._cur.bpm = _as_float(args)
 
-    # -- lifecycle ---------------------------------------------------------
     def start(self) -> None:
         from pythonosc.dispatcher import Dispatcher
         from pythonosc.osc_server import ThreadingOSCUDPServer
+
         disp = Dispatcher()
         disp.map("/setlist/activeSongName", self.h_song_name)
         disp.map("/setlist/activeSongIndex", self.h_song_index)
@@ -182,8 +185,7 @@ class AbleSetReceiver(ShowClock):
         disp.set_default_handler(lambda *a: None)
         self.server = ThreadingOSCUDPServer((self.ip, self.port), disp)
         self._running = True
-        threading.Thread(target=self.server.serve_forever, name="ableset",
-                         daemon=True).start()
+        threading.Thread(target=self.server.serve_forever, name="ableset", daemon=True).start()
 
     def stop(self) -> None:
         self._running = False
@@ -192,5 +194,5 @@ class AbleSetReceiver(ShowClock):
                 self.server.shutdown()
                 self.server.server_close()
             except Exception:
-                pass
+                _log.debug("show clock server did not close cleanly", exc_info=True)
             self.server = None

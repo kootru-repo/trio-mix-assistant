@@ -26,7 +26,7 @@ together with the `.ts` change.
 ## Keep in step with the server
 
 `types.d.ts` mirrors `Engine._rebuild_telemetry()` (the `/state` snapshot) and
-`Engine.command()` (the control messages) in `trio_mix/engine.py`. When either
+`Engine.command()` (the control messages) in `trio_mix/engine/` (`base.py` and `core.py`). When either
 changes, update the matching type and rebuild; the compiler then flags every
 place in the dashboard that needs attention.
 

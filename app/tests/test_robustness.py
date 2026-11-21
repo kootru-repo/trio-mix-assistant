@@ -10,8 +10,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from trio_mix import dsp
-from trio_mix import osc
+from trio_mix import dsp, osc
 from trio_mix.engine import Engine
 
 
@@ -19,14 +18,22 @@ class TestInputHardening(unittest.TestCase):
     def test_command_tolerates_malformed_and_hostile_input(self):
         e = Engine(sim=True)
         before = dict(e.assistant.fader_db)
-        for bad in [None, "x", 5, [], {}, {"type": "fader"},
-                    {"type": "fader", "ch": "nope", "db": 0},
-                    {"type": "fader", "ch": 1, "db": float("nan")},
-                    {"type": "master", "db": float("inf")},
-                    {"type": "lead_target", "db": "loud"},
-                    {"type": "toggle"}, {"type": "unknown"}]:
-            e.command(bad)                       # must never raise
-        self.assertEqual(e.assistant.fader_db, before)   # nothing applied
+        for bad in [
+            None,
+            "x",
+            5,
+            [],
+            {},
+            {"type": "fader"},
+            {"type": "fader", "ch": "nope", "db": 0},
+            {"type": "fader", "ch": 1, "db": float("nan")},
+            {"type": "master", "db": float("inf")},
+            {"type": "lead_target", "db": "loud"},
+            {"type": "toggle"},
+            {"type": "unknown"},
+        ]:
+            e.command(bad)
+        self.assertEqual(e.assistant.fader_db, before)
 
     def test_setters_reject_non_finite(self):
         e = Engine(sim=True)
@@ -49,7 +56,7 @@ class TestStateMachine(unittest.TestCase):
         e.panic(True)
         self.assertEqual(e.status, "takeover")
         e.run_calibration()
-        self.assertEqual(e.calib_status, "none")     # never started actuating
+        self.assertEqual(e.calib_status, "none")
         self.assertEqual(e.status, "takeover")
 
 
@@ -76,9 +83,6 @@ class TestScalingDomain(unittest.TestCase):
 
 class TestConcurrency(unittest.TestCase):
     def test_hammer_from_many_threads_no_races(self):
-        # Runs the engine loop while many handler-like threads mutate state and
-        # serialize telemetry concurrently. Before the single-lock refactor this
-        # intermittently raised "deque/dict mutated during iteration".
         e = Engine(sim=True, tick=0.005)
         e.start()
         errors = []
@@ -90,7 +94,7 @@ class TestConcurrency(unittest.TestCase):
                 while not stop.is_set():
                     e.command(seq[i % len(seq)])
                     i += 1
-            except Exception as ex:          # any race surfaces here
+            except Exception as ex:
                 errors.append(repr(ex))
 
         def reader():
@@ -103,10 +107,16 @@ class TestConcurrency(unittest.TestCase):
         seqs = [
             [{"type": "fader", "ch": 1, "db": -3}, {"type": "fader", "ch": 1, "db": 2}],
             [{"type": "mute", "ch": 3, "on": True}, {"type": "mute", "ch": 3, "on": False}],
-            [{"type": "toggle", "job": "vocal_ride", "on": True},
-             {"type": "toggle", "job": "balance", "on": True}],
-            [{"type": "master", "db": -5}, {"type": "reset_notches"},
-             {"type": "panic", "on": True}, {"type": "panic", "on": False}],
+            [
+                {"type": "toggle", "job": "vocal_ride", "on": True},
+                {"type": "toggle", "job": "balance", "on": True},
+            ],
+            [
+                {"type": "master", "db": -5},
+                {"type": "reset_notches"},
+                {"type": "panic", "on": True},
+                {"type": "panic", "on": False},
+            ],
         ]
         threads = [threading.Thread(target=hammer, args=(s,)) for s in seqs]
         threads.append(threading.Thread(target=reader))
@@ -120,7 +130,7 @@ class TestConcurrency(unittest.TestCase):
         e.stop()
         self.assertEqual(errors, [], f"concurrency races: {errors}")
         self.assertTrue(alive, "engine loop thread died under load")
-        self.assertTrue(json.dumps(e.snapshot()))     # still serializable
+        self.assertTrue(json.dumps(e.snapshot()))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ from trio_mix.osc import SimConsole
 
 def feat(rms=-30.0, peak=-20.0, fb=None, contrast=None):
     if contrast is None:
-        contrast = 24.0 if fb else 6.0     # a real ring is high-contrast (peak >> floor)
+        contrast = 24.0 if fb else 6.0
     return ChannelFeatures(rms_dbfs=rms, peak_dbfs=peak, fb_freq=fb, contrast_db=contrast)
 
 
@@ -21,7 +21,7 @@ class TestClip(unittest.TestCase):
         con = SimConsole()
         a = MixAssistant(con)
         before = a.gain_db[3]
-        a.on_features(3, feat(peak=-0.5), now=1.0)       # within 1 dB of FS
+        a.on_features(3, feat(peak=-0.5), now=1.0)
         self.assertLess(a.gain_db[3], before)
         self.assertEqual(a.gain_db[3], before + C.CLIP_TRIM_DB)
 
@@ -34,9 +34,8 @@ class TestClip(unittest.TestCase):
     def test_clip_recovers_when_clean(self):
         con = SimConsole()
         a = MixAssistant(con)
-        a.on_features(3, feat(peak=-0.5), now=1.0)        # trim
+        a.on_features(3, feat(peak=-0.5), now=1.0)
         trimmed = a.gain_db[3]
-        # long after, clean signal -> creep back up
         a.on_features(3, feat(peak=-30.0), now=1.0 + C.CLIP_RECOVER_S + 1)
         self.assertGreater(a.gain_db[3], trimmed)
 
@@ -49,7 +48,6 @@ class TestFeedback(unittest.TestCase):
     def test_rising_stable_ring_is_notched(self):
         con = SimConsole()
         a = MixAssistant(con)
-        # stable 2500 Hz, rising level over several blocks
         self._drive(a, 2, [(2500, -30 + i) for i in range(8)])
         self.assertTrue(con.notches.get(2))
         self.assertAlmostEqual(con.notch_freqs(2)[0], 2500, delta=1)
@@ -57,43 +55,47 @@ class TestFeedback(unittest.TestCase):
     def test_steady_note_not_notched(self):
         con = SimConsole()
         a = MixAssistant(con)
-        # stable freq but constant level (a held sung note) -> never rising
         self._drive(a, 1, [(220, -25) for _ in range(12)])
         self.assertFalse(con.notches.get(1))
 
     def test_wandering_freq_not_notched(self):
         con = SimConsole()
         a = MixAssistant(con)
-        # rising level but the frequency drifts (vibrato) -> not stable
         self._drive(a, 1, [(220 + 30 * i, -25 + i) for i in range(10)])
         self.assertFalse(con.notches.get(1))
 
     def test_watchlist_reacts_sooner(self):
-        # with 2500 on the watch-list, the notch needs one fewer block
-        con_w = SimConsole(); aw = MixAssistant(con_w)
+        con_w = SimConsole()
+        aw = MixAssistant(con_w)
         aw.watch_freqs = [2500]
-        con_n = SimConsole(); an = MixAssistant(con_n)
-        seq = [(2500, -30 + i) for i in range(4)]   # short burst
+        con_n = SimConsole()
+        an = MixAssistant(con_n)
+        seq = [(2500, -30 + i) for i in range(4)]
         for f, lvl in seq:
             aw.on_features(2, feat(rms=lvl, fb=f), now=0.0)
             an.on_features(2, feat(rms=lvl, fb=f), now=0.0)
-        # watch-listed catches within the short burst; the un-listed does not yet
         self.assertTrue(con_w.notches.get(2))
         self.assertFalse(con_n.notches.get(2))
 
     def test_harmonic_tone_needs_more_sustain(self):
-        # Same rising, stable ring on two channels; the one flagged as harmonic
-        # (a musical note) must NOT notch as fast as the pure-tone one.
-        con_p = SimConsole(); ap = MixAssistant(con_p)
-        con_h = SimConsole(); ah = MixAssistant(con_h)
-        for i in range(6):                                   # enough for a pure tone
+        con_p = SimConsole()
+        ap = MixAssistant(con_p)
+        con_h = SimConsole()
+        ah = MixAssistant(con_h)
+        for i in range(6):
             lvl = -30 + i
-            ap.on_features(2, ChannelFeatures(rms_dbfs=lvl, peak_dbfs=-20,
-                                              fb_freq=2500, harmonicity=0.0), now=0.0)
-            ah.on_features(2, ChannelFeatures(rms_dbfs=lvl, peak_dbfs=-20,
-                                              fb_freq=2500, harmonicity=1.0), now=0.0)
-        self.assertTrue(con_p.notches.get(2))                # pure ring -> notched
-        self.assertFalse(con_h.notches.get(2))               # harmonic -> held back
+            ap.on_features(
+                2,
+                ChannelFeatures(rms_dbfs=lvl, peak_dbfs=-20, fb_freq=2500, harmonicity=0.0),
+                now=0.0,
+            )
+            ah.on_features(
+                2,
+                ChannelFeatures(rms_dbfs=lvl, peak_dbfs=-20, fb_freq=2500, harmonicity=1.0),
+                now=0.0,
+            )
+        self.assertTrue(con_p.notches.get(2))
+        self.assertFalse(con_h.notches.get(2))
 
     def test_reset_clears_notches(self):
         con = SimConsole()
@@ -111,7 +113,6 @@ class TestRides(unittest.TestCase):
         a = MixAssistant(con)
         a.enabled["vocal_ride"] = True
         a.lead_target = -6.0
-        # input sits well below target -> fader should climb (and clamp at max)
         now = 0.0
         for _ in range(20):
             a.on_features(C.LEAD_VOCAL_CH, feat(rms=-30.0), now=now)
@@ -124,7 +125,6 @@ class TestRides(unittest.TestCase):
         a = MixAssistant(con)
         a.enabled["vocal_ride"] = True
         a.lead_target = -6.0
-        # input already at target-ish (output_est ~ -6) -> no move
         now = 0.0
         for _ in range(10):
             a.on_features(C.LEAD_VOCAL_CH, feat(rms=-6.0), now=now)
@@ -137,12 +137,11 @@ class TestRides(unittest.TestCase):
         a.fader_db[5] = 0.0
         a.capture_balance({5: -20.0, 7: -18.0})
         self.assertAlmostEqual(a.balance_targets[5], -20.0, places=1)
-        # enable + drive an off-target level -> a move happens
         a.enabled["balance"] = True
         now = 0.0
         start = a.fader_db[5]
         for _ in range(10):
-            a.on_features(5, feat(rms=-28.0), now=now)   # 8 dB low
+            a.on_features(5, feat(rms=-28.0), now=now)
             now += 1.1
         self.assertNotEqual(a.fader_db[5], start)
 

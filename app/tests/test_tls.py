@@ -10,8 +10,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from trio_mix.tls import ensure_cert
 
 
+def _load_cert(path):
+    from cryptography import x509
+
+    with open(path, "rb") as f:
+        return x509.load_pem_x509_certificate(f.read())
+
+
 def _lifetime_days(c):
-    import datetime
     nb = getattr(c, "not_valid_before_utc", None) or c.not_valid_before
     na = getattr(c, "not_valid_after_utc", None) or c.not_valid_after
     return (na - nb).days
@@ -20,23 +26,34 @@ def _lifetime_days(c):
 def _write_overlong(certfile, keyfile, days=3650):
     """Write a self-signed cert with an over-long validity (the old 10-year bug)."""
     import datetime
+
     from cryptography import x509
-    from cryptography.x509.oid import NameOID
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "old")])
     now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name)
-            .public_key(key.public_key()).serial_number(x509.random_serial_number())
-            .not_valid_before(now - datetime.timedelta(days=1))
-            .not_valid_after(now + datetime.timedelta(days=days))
-            .add_extension(x509.SubjectAlternativeName([x509.DNSName("localhost")]),
-                           critical=False)
-            .sign(key, hashes.SHA256()))
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=days))
+        .add_extension(x509.SubjectAlternativeName([x509.DNSName("localhost")]), critical=False)
+        .sign(key, hashes.SHA256())
+    )
     with open(keyfile, "wb") as f:
-        f.write(key.private_bytes(serialization.Encoding.PEM,
-            serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
+        f.write(
+            key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.TraditionalOpenSSL,
+                serialization.NoEncryption(),
+            )
+        )
     with open(certfile, "wb") as f:
         f.write(cert.public_bytes(serialization.Encoding.PEM))
 
@@ -48,12 +65,13 @@ class TestTLS(unittest.TestCase):
             cert, _ = ensure_cert(d, ["127.0.0.1"])
             from cryptography import x509
             from cryptography.x509.oid import ExtendedKeyUsageOID
-            c = x509.load_pem_x509_certificate(open(cert, "rb").read())
-            self.assertLessEqual(_lifetime_days(c), 398)          # under the browser cap
+
+            c = _load_cert(cert)
+            self.assertLessEqual(_lifetime_days(c), 398)
             eku = c.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value
-            self.assertIn(ExtendedKeyUsageOID.SERVER_AUTH, eku)   # a serverAuth leaf...
+            self.assertIn(ExtendedKeyUsageOID.SERVER_AUTH, eku)
             bc = c.extensions.get_extension_for_class(x509.BasicConstraints).value
-            self.assertFalse(bc.ca)                               # ...not a CA cert
+            self.assertFalse(bc.ca)
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
@@ -61,94 +79,112 @@ class TestTLS(unittest.TestCase):
         d = tempfile.mkdtemp(prefix="autofoh_cert_")
         try:
             cert, key = ensure_cert(d, ["127.0.0.1"])
-            _write_overlong(cert, key)                            # simulate the old 10-yr cert
-            from cryptography import x509
-            c0 = x509.load_pem_x509_certificate(open(cert, "rb").read())
-            self.assertGreater(_lifetime_days(c0), 398)           # confirm it's the bad one
-            ensure_cert(d, ["127.0.0.1"])                         # must detect + replace
-            c1 = x509.load_pem_x509_certificate(open(cert, "rb").read())
-            self.assertLessEqual(_lifetime_days(c1), 398)         # regenerated short-lived
+            _write_overlong(cert, key)
+
+            c0 = _load_cert(cert)
+            self.assertGreater(_lifetime_days(c0), 398)
+            ensure_cert(d, ["127.0.0.1"])
+            c1 = _load_cert(cert)
+            self.assertLessEqual(_lifetime_days(c1), 398)
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
     def test_trusted_ca_mode_shapes(self):
-        from trio_mix.tls import ensure_trusted_cert
         from cryptography import x509
         from cryptography.x509.oid import ExtendedKeyUsageOID
+
+        from trio_mix.tls import ensure_trusted_cert
+
         d = tempfile.mkdtemp(prefix="autofoh_ca_")
         try:
             cert, key, ca = ensure_trusted_cert(d, ["127.0.0.1", "192.168.1.50"])
             self.assertTrue(all(os.path.exists(p) for p in (cert, key, ca)))
-            ca_c = x509.load_pem_x509_certificate(open(ca, "rb").read())
-            self.assertTrue(ca_c.extensions.get_extension_for_class(  # the CA is a CA
-                x509.BasicConstraints).value.ca)
-            leaf = x509.load_pem_x509_certificate(open(cert, "rb").read())  # first in the chain
-            self.assertEqual(leaf.issuer, ca_c.subject)           # leaf signed by our CA
-            self.assertFalse(leaf.extensions.get_extension_for_class(
-                x509.BasicConstraints).value.ca)
-            self.assertIn(ExtendedKeyUsageOID.SERVER_AUTH,
-                          leaf.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value)
+            ca_c = _load_cert(ca)
+            self.assertTrue(ca_c.extensions.get_extension_for_class(x509.BasicConstraints).value.ca)
+            leaf = _load_cert(cert)
+            self.assertEqual(leaf.issuer, ca_c.subject)
+            self.assertFalse(
+                leaf.extensions.get_extension_for_class(x509.BasicConstraints).value.ca
+            )
+            self.assertIn(
+                ExtendedKeyUsageOID.SERVER_AUTH,
+                leaf.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value,
+            )
             self.assertLessEqual(_lifetime_days(leaf), 398)
             san = leaf.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
-            self.assertIn(ipaddress.ip_address("192.168.1.50"),
-                          san.get_values_for_type(x509.IPAddress))
-            # idempotent: the same root CA is reused on a re-issue
+            self.assertIn(
+                ipaddress.ip_address("192.168.1.50"), san.get_values_for_type(x509.IPAddress)
+            )
             _, _, ca2 = ensure_trusted_cert(d, ["127.0.0.1"])
-            self.assertEqual(ca_c.serial_number,
-                             x509.load_pem_x509_certificate(open(ca2, "rb").read()).serial_number)
+            self.assertEqual(
+                ca_c.serial_number,
+                _load_cert(ca2).serial_number,
+            )
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
     def test_ca_signed_cert_verifies_like_an_installed_root(self):
-        # The real "no warning" guarantee: a client that trusts ONLY our CA (as a
-        # device does after installing the root) completes a verified handshake
-        # with hostname checking — no bypass, no warning.
         import socket
         import ssl
         import threading
+
         from trio_mix.tls import ensure_trusted_cert
+
         d = tempfile.mkdtemp(prefix="autofoh_ca_")
         try:
             cert, key, ca = ensure_trusted_cert(d, ["127.0.0.1"])
             sctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             sctx.load_cert_chain(cert, key)
             srv = socket.socket()
-            srv.bind(("127.0.0.1", 0)); srv.listen(1)
+            srv.bind(("127.0.0.1", 0))
+            srv.listen(1)
             port = srv.getsockname()[1]
             errs = []
+
+            got = []
 
             def _acc():
                 try:
                     conn, _ = srv.accept()
-                    ss = sctx.wrap_socket(conn, server_side=True); ss.recv(4); ss.close()
-                except Exception as e:              # noqa: BLE001
+                    with sctx.wrap_socket(conn, server_side=True) as ss:
+                        got.append(ss.recv(2))
+                        ss.sendall(b"ack")
+                except (OSError, ssl.SSLError) as e:
                     errs.append(e)
 
-            threading.Thread(target=_acc, daemon=True).start()
+            acceptor = threading.Thread(target=_acc, daemon=True)
+            acceptor.start()
             cctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            cctx.load_verify_locations(ca)          # trust ONLY our root
+            cctx.load_verify_locations(ca)
             cctx.check_hostname = True
-            with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
-                with cctx.wrap_socket(s, server_hostname="127.0.0.1") as ts:
-                    ts.send(b"ok")                  # verified handshake succeeded
+            with (
+                socket.create_connection(("127.0.0.1", port), timeout=5) as s,
+                cctx.wrap_socket(s, server_hostname="127.0.0.1") as ts,
+            ):
+                ts.sendall(b"ok")
+                self.assertEqual(ts.recv(3), b"ack")
+                acceptor.join(timeout=5)
+            srv.close()
+            self.assertFalse(acceptor.is_alive())
             self.assertEqual(errs, [])
+            self.assertEqual(got, [b"ok"])
         finally:
             shutil.rmtree(d, ignore_errors=True)
+
     def test_generate_with_lan_ip_in_san(self):
         d = tempfile.mkdtemp(prefix="autofoh_cert_")
         try:
             cert, key = ensure_cert(d, ["localhost", "127.0.0.1", "192.168.1.50"])
             self.assertTrue(os.path.exists(cert) and os.path.exists(key))
 
-            # idempotent: a second call reuses the same files
             cert2, _ = ensure_cert(d, ["localhost"])
             self.assertEqual(cert, cert2)
 
             from cryptography import x509
+
             with open(cert, "rb") as f:
                 c = x509.load_pem_x509_certificate(f.read())
-            san = c.extensions.get_extension_for_class(
-                x509.SubjectAlternativeName).value
+            san = c.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
             ips = san.get_values_for_type(x509.IPAddress)
             self.assertIn(ipaddress.ip_address("192.168.1.50"), ips)
             self.assertIn(ipaddress.ip_address("127.0.0.1"), ips)

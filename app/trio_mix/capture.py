@@ -14,16 +14,22 @@ per tick from a CaptureSource. Implementations:
 `block()` must be cheap and non-blocking (the engine calls it under its lock).
 `capture_meas()` may block for seconds (it's called off-lock, during calibration).
 """
+
 from __future__ import annotations
 
+import contextlib
+import logging
 import queue
 import threading
 import time
+from typing import Any
 
 import numpy as np
 
 from . import config as C
 from . import dsp
+
+_log = logging.getLogger(__name__)
 
 
 class CaptureError(RuntimeError):
@@ -53,7 +59,6 @@ class CaptureSource:
         Returns True if playback was issued (or N/A for sim), False on failure."""
         return True
 
-    # -- health hooks (uniform across all sources; real device overrides) ---
     def dead(self) -> bool:
         """True if the stream has stopped delivering audio (device gone/wedged)."""
         return False
@@ -73,9 +78,6 @@ class CaptureSource:
         return {"kind": "none"}
 
 
-# ---------------------------------------------------------------------------
-# Simulation source (closed loop: reads console state back to tame feedback)
-# ---------------------------------------------------------------------------
 def sim_room_capture(rng=None) -> np.ndarray:
     """A synthetic measurement-mic recording for the pink-noise calibration:
     pink noise + a boomy 250 Hz room mode + a hot 2.5 kHz resonance."""
@@ -88,8 +90,8 @@ def sim_room_capture(rng=None) -> np.ndarray:
 
 class SimCapture(CaptureSource):
     NOISE = 0.008
-    RING_FREQ = 2500.0          # a calibration watch-list frequency
-    BOOM_FREQ = 250.0           # steady room mode — must NOT be flagged
+    RING_FREQ = 2500.0
+    BOOM_FREQ = 250.0
 
     def __init__(self, console, seed: int = 7) -> None:
         self.con = console
@@ -102,7 +104,7 @@ class SimCapture(CaptureSource):
         self.next_clip = 90
 
     def _gaintrim_lin(self, ch: int) -> float:
-        trim = self.con.gain_db.get(ch, 20.0) - 20.0   # dB below nominal
+        trim = self.con.gain_db.get(ch, 20.0) - 20.0
         return 10 ** (trim / 20.0)
 
     def block(self) -> dict[int, np.ndarray]:
@@ -116,15 +118,19 @@ class SimCapture(CaptureSource):
             x = self.NOISE * self.rng.standard_normal(C.BLOCK)
             lin = self._gaintrim_lin(ch)
             if role == "lead_vox":
-                env = 10 ** ((3.0 * np.sin(2 * np.pi * t / 20.0)) / 20.0)   # slow ±3 dB
-                vib = 220.0 * (1 + 0.015 * np.sin(2 * np.pi * 5.0 * t))      # vibrato
+                env = 10 ** ((3.0 * np.sin(2 * np.pi * t / 20.0)) / 20.0)
+                vib = 220.0 * (1 + 0.015 * np.sin(2 * np.pi * 5.0 * t))
                 x = x + 0.50 * env * np.sin(2 * np.pi * vib * t)
             elif role == "harm_vox_l":
                 x = x + 0.06 * np.sin(2 * np.pi * 330.0 * t)
             elif role == "harm_vox_r":
                 x = x + 0.06 * np.sin(2 * np.pi * 440.0 * t)
             elif role == "acoustic_gtr":
-                x = x + 0.09 * np.sin(2 * np.pi * 196.0 * t) + 0.03 * self.rng.standard_normal(C.BLOCK)
+                x = (
+                    x
+                    + 0.09 * np.sin(2 * np.pi * 196.0 * t)
+                    + 0.03 * self.rng.standard_normal(C.BLOCK)
+                )
             elif role == "bass_di":
                 x = x + 0.12 * np.sin(2 * np.pi * 82.0 * t)
             elif role == "cajon":
@@ -135,9 +141,9 @@ class SimCapture(CaptureSource):
                 x = x + 0.95 * np.sin(2 * np.pi * 700.0 * t)
             frame[ch] = (x * lin).astype(np.float32)
 
-        # the room, heard at the measurement mic
-        room = (self.NOISE * self.rng.standard_normal(C.BLOCK)
-                + 0.055 * np.sin(2 * np.pi * self.BOOM_FREQ * t))
+        room = self.NOISE * self.rng.standard_normal(C.BLOCK) + 0.055 * np.sin(
+            2 * np.pi * self.BOOM_FREQ * t
+        )
         if i >= self.next_ring and self.ring_amp == 0.0:
             self.ring_amp = 0.05
         if self.ring_amp > 0.0:
@@ -163,88 +169,81 @@ class SimCapture(CaptureSource):
         return {"kind": "simulation"}
 
 
-# ---------------------------------------------------------------------------
-# Real multichannel capture (PortAudio / sounddevice)
-# ---------------------------------------------------------------------------
 class SoundDeviceCapture(CaptureSource):
     """Live multichannel capture. The console's USB/card stream + the FOH meas
     mic arrive on one (or several) input device channels. `channel_map` maps each
     console channel to a 0-based device channel index (default: console N -> dev
     N-1). Pass `stream_factory` to inject a fake stream in tests."""
 
-    def __init__(self, device=None, channel_map: dict[int, int] | None = None,
-                 samplerate: int = C.SAMPLE_RATE, block: int = C.BLOCK,
-                 meas_ch: int | None = None, output_device=None,
-                 stream_factory=None, output_factory=None, gain_db: float = 0.0) -> None:
+    def __init__(
+        self,
+        device=None,
+        channel_map: dict[int, int] | None = None,
+        samplerate: int = C.SAMPLE_RATE,
+        block: int = C.BLOCK,
+        meas_ch: int | None = None,
+        output_device=None,
+        stream_factory=None,
+        output_factory=None,
+        gain_db: float = 0.0,
+    ) -> None:
         self.device = device
         self.output_device = output_device
-        # digital input trim — for quiet interfaces / dynamic mics (e.g. Samson Q9U)
         self.gain_db = float(gain_db)
         self._gain = 10.0 ** (self.gain_db / 20.0)
-        self._auto_db = None            # level auto_gain measured (None = no audio at all)
+        self._auto_db: float | None = None
         self.samplerate = samplerate
-        self.blocksize = block          # NB: 'block' is also the method name
-        # resolve at call time, NOT as a default arg — C.MEAS_MIC_CH changes when a
-        # template / auto map is applied, and a frozen import-time default (8) would
-        # point at a channel the map no longer has, breaking capture_meas.
+        self.blocksize = block
         self.meas_ch = C.MEAS_MIC_CH if meas_ch is None else meas_ch
         chans = sorted(C.CHANNELS)
         self.channel_map = channel_map or {ch: ch - 1 for ch in chans}
-        self.ndev = max(self.channel_map.values()) + 1     # device input channels to open
+        self.ndev = max(self.channel_map.values()) + 1
         self._q: queue.Queue = queue.Queue(maxsize=32)
-        self._stream = None
-        self._stream_lock = threading.Lock()         # serialize open/close vs restart()
+        self._stream: Any | None = None
+        self._stream_lock = threading.Lock()
         self._stream_factory = stream_factory
         self._output_factory = output_factory
         self._last: np.ndarray | None = None
         self._overruns = 0
         self._underruns = 0
         self._consec_underruns = 0
-        self._silent_since: float | None = None     # when input first went dead-silent
-        self._peak = 0.0                             # most recent frame peak (telemetry)
-        self._ovr_mark_t: float | None = None        # xrun-rate window
+        self._silent_since: float | None = None
+        self._peak = 0.0
+        self._ovr_mark_t: float | None = None
         self._ovr_mark_val = 0
         self._overload = False
-        self._dev_name: str | None = None            # resolved device name (catches index shift)
+        self._dev_name: str | None = None
 
-    # -- audio thread (keep it trivial: copy into the queue, drop on overflow) --
     def _on_audio(self, indata, frames=None, time_info=None, status=None) -> None:
         if status:
             self._overruns += 1
         item = np.asarray(indata, dtype="float32").copy()
         if self._gain != 1.0:
-            item *= self._gain                             # digital input trim
+            item *= self._gain
         try:
             self._q.put_nowait(item)
         except queue.Full:
-            self._overruns += 1                            # consumer fell behind:
-            try:                                           # drop the OLDEST, keep newest
+            self._overruns += 1
+            with contextlib.suppress(queue.Empty, queue.Full):
                 self._q.get_nowait()
                 self._q.put_nowait(item)
-            except (queue.Empty, queue.Full):
-                pass
 
-    # -- lifecycle ----------------------------------------------------------
     def start(self) -> None:
-        # _stream_lock serializes open/close so a recovery restart() on the loop
-        # thread can't race a stop() from engine shutdown.
         with self._stream_lock:
             if self._stream is not None:
                 return
             factory = self._stream_factory or self._make_input_stream
-            stream = factory(self._on_audio)        # may raise CaptureError (left None)
+            stream = factory(self._on_audio)
             stream.start()
             self._stream = stream
 
-    def _make_input_stream(self, callback):                # pragma: no cover - needs hw
+    def _make_input_stream(self, callback):
         try:
             import sounddevice as sd
         except ImportError as e:
             raise CaptureError(
-                "the 'sounddevice' package isn't installed — run setup "
-                "(pip install sounddevice)") from e
-        # Pre-flight: a clear "device has N inputs, need M" / "device not found"
-        # beats PortAudio's opaque error codes.
+                "the 'sounddevice' package isn't installed — run setup (pip install sounddevice)"
+            ) from e
         try:
             info = sd.query_devices(self.device, "input")
             self._dev_name = info.get("name")
@@ -253,23 +252,30 @@ class SoundDeviceCapture(CaptureSource):
                 raise CaptureError(
                     f"audio device '{info.get('name', self.device)}' has {maxin} input "
                     f"channel(s) but this setup needs {self.ndev} "
-                    f"(console returns + meas mic). Pick a fuller device or aggregate.")
+                    f"(console returns + meas mic). Pick a fuller device or aggregate."
+                )
         except CaptureError:
             raise
-        except Exception as e:                  # device index/name not found, etc.
+        except Exception as e:
             raise CaptureError(
                 f"audio device {self.device!r} could not be opened "
                 f"({type(e).__name__}: {e}). Run --list-devices and check --audio-device."
             ) from e
         try:
-            return sd.InputStream(device=self.device, channels=self.ndev,
-                                  samplerate=self.samplerate, blocksize=self.blocksize,
-                                  dtype="float32", callback=callback)
-        except Exception as e:                  # busy/exclusive, samplerate unsupported, ...
+            return sd.InputStream(
+                device=self.device,
+                channels=self.ndev,
+                samplerate=self.samplerate,
+                blocksize=self.blocksize,
+                dtype="float32",
+                callback=callback,
+            )
+        except Exception as e:
             raise CaptureError(
                 f"could not open audio device {self.device!r} at {self.samplerate} Hz "
                 f"({type(e).__name__}: {e}). It may be in use by another app, or not "
-                f"support {self.samplerate} Hz.") from e
+                f"support {self.samplerate} Hz."
+            ) from e
 
     def stop(self) -> None:
         with self._stream_lock:
@@ -278,10 +284,9 @@ class SoundDeviceCapture(CaptureSource):
                     self._stream.stop()
                     self._stream.close()
                 except Exception:
-                    pass
+                    _log.debug("audio stream did not close cleanly", exc_info=True)
                 self._stream = None
 
-    # -- frames -------------------------------------------------------------
     def _map(self, frame: np.ndarray) -> dict[int, np.ndarray]:
         n = frame.shape[0]
         ncols = frame.shape[1] if frame.ndim == 2 else 1
@@ -293,14 +298,13 @@ class SoundDeviceCapture(CaptureSource):
                 out[ch] = np.zeros(n, dtype="float32")
         return out
 
-    SILENCE_AFTER = 4          # consecutive empty ticks -> stream is dead, emit silence
-    SILENCE_FLOOR = 1e-4       # whole-frame peak below this == digital silence (~-80 dBFS);
-                               # any one live channel clears it, so no quiet-passage false +ve
-    SILENCE_HOLD_S = 5.0       # sustained that long while the stream runs -> flag "no audio"
+    SILENCE_AFTER = 4
+    SILENCE_FLOOR = 1e-4
+    SILENCE_HOLD_S = 5.0
 
     def block(self) -> dict[int, np.ndarray]:
         frame = None
-        while True:                                        # take the most recent, drop backlog
+        while True:
             try:
                 frame = self._q.get_nowait()
             except queue.Empty:
@@ -312,9 +316,6 @@ class SoundDeviceCapture(CaptureSource):
         else:
             self._underruns += 1
             self._consec_underruns += 1
-            # Briefly reuse the last frame (smooths jitter); but if the stream has
-            # gone silent for a while (device unplugged / driver wedged) emit real
-            # silence so the assistant can't keep "hearing" a frozen frame.
             if self._consec_underruns > self.SILENCE_AFTER or self._last is None:
                 frame = np.zeros((self.blocksize, self.ndev), "float32")
             else:
@@ -339,7 +340,7 @@ class SoundDeviceCapture(CaptureSource):
             return False
         return (time.monotonic() - self._silent_since) > self.SILENCE_HOLD_S
 
-    OVERLOAD_RATE = 10.0       # sustained xruns/sec -> the buffer is too small
+    OVERLOAD_RATE = 10.0
 
     def overload(self) -> bool:
         """True if the interface is dropping samples (xruns) at a sustained rate —
@@ -364,6 +365,7 @@ class SoundDeviceCapture(CaptureSource):
             self._silent_since = None
             return True
         except Exception:
+            _log.debug("audio device re-open failed", exc_info=True)
             return False
 
     def capture_meas(self, seconds: float) -> np.ndarray | None:
@@ -386,40 +388,52 @@ class SoundDeviceCapture(CaptureSource):
             return None
         return np.concatenate(chunks)[:need].astype(np.float32)
 
-    def auto_gain(self, target_dbfs: float = -32.0, seconds: float = 0.6,
-                  max_db: float = 48.0) -> float:
+    def auto_gain(
+        self, target_dbfs: float = -32.0, seconds: float = 0.6, max_db: float = 48.0
+    ) -> float:
         """Sample a moment of the meas mic and set the digital input gain to bring
         a quiet (e.g. dynamic) mic up to ~target. Call right after start(), before
         the engine loop drains the queue. Returns the gain applied (dB)."""
-        self.gain_db, self._gain = 0.0, 1.0               # measure raw level
-        time.sleep(0.4)                                   # let the stream settle
+        self.gain_db, self._gain = 0.0, 1.0
+        time.sleep(0.4)
         rec = self.capture_meas(seconds)
         if rec is None or not rec.size:
-            self._auto_db = None                          # the mic delivered nothing
+            self._auto_db = None
             return 0.0
         rms = float(np.sqrt(np.mean(rec.astype(np.float64) ** 2))) + 1e-9
-        self._auto_db = 20.0 * np.log10(rms)
-        boost = max(0.0, min(max_db, target_dbfs - self._auto_db))
+        level_db = float(20.0 * np.log10(rms))
+        self._auto_db = level_db
+        boost = max(0.0, min(max_db, target_dbfs - level_db))
         self.gain_db = round(float(boost), 1)
         self._gain = 10.0 ** (self.gain_db / 20.0)
         return self.gain_db
 
     def emit_pink_noise(self, samples: np.ndarray) -> bool:
-        try:                                               # pragma: no cover - needs hw
+        try:
             if self._output_factory:
                 self._output_factory(samples, self.samplerate)
                 return True
             import sounddevice as sd
+
             sd.play(samples, self.samplerate, device=self.output_device)
             return True
         except Exception:
-            return False                                   # no/failed output device
+            _log.warning("could not play calibration noise", exc_info=True)
+            return False
 
     def status(self) -> dict:
-        return {"kind": "audio", "overruns": self._overruns, "underruns": self._underruns,
-                "dead": self.dead(), "silent": self.silent(), "overload": self.overload(),
-                "peak": round(self._peak, 5), "name": self._dev_name,
-                "device": str(self.device), "channels": self.ndev}
+        return {
+            "kind": "audio",
+            "overruns": self._overruns,
+            "underruns": self._underruns,
+            "dead": self.dead(),
+            "silent": self.silent(),
+            "overload": self.overload(),
+            "peak": round(self._peak, 5),
+            "name": self._dev_name,
+            "device": str(self.device),
+            "channels": self.ndev,
+        }
 
 
 def _rank_inputs(devs, hostapis, default_name, prefer_sr: int = C.SAMPLE_RATE):
@@ -437,29 +451,33 @@ def _rank_inputs(devs, hostapis, default_name, prefer_sr: int = C.SAMPLE_RATE):
 
     def score(item):
         _i, d = item
-        name = (d.get("name") or "")
+        name = d.get("name") or ""
         s = 0.0
         if default_name and name == default_name:
-            s += 10.0                                       # the OS default input
-        if int(round(d.get("default_samplerate", 0) or 0)) == prefer_sr:
-            s += 5.0                                        # native at the app's rate
+            s += 10.0
+        if round(d.get("default_samplerate", 0) or 0) == prefer_sr:
+            s += 5.0
         api = api_name(d)
         if "ASIO" in api:
-            s += 4.0                                        # lowest-latency pro path; the
-                                                            # native driver for multichannel
-                                                            # interfaces (console X-USB cards)
+            s += 4.0
         elif any(k in api for k in ("WASAPI", "Core Audio", "ALSA", "JACK")):
-            s += 3.0                                        # low-latency / no resampling
+            s += 3.0
         if any(k in name.lower() for k in ("array", "built-in", "built in", "internal")):
-            s -= 15.0                                       # prefer a plugged-in external mic
-        s += min(2.0, d.get("max_input_channels", 0) * 0.01)   # tiebreak: more inputs
+            s -= 15.0
+        s += min(2.0, d.get("max_input_channels", 0) * 0.01)
         return s
 
     ranked = sorted(cands, key=score, reverse=True)
-    return [{"index": i, "name": d.get("name"),
-             "channels": int(d.get("max_input_channels", 1)),
-             "samplerate": int(round(d.get("default_samplerate", prefer_sr) or prefer_sr)),
-             "hostapi": api_name(d)} for i, d in ranked]
+    return [
+        {
+            "index": i,
+            "name": d.get("name"),
+            "channels": int(d.get("max_input_channels", 1)),
+            "samplerate": round(d.get("default_samplerate", prefer_sr) or prefer_sr),
+            "hostapi": api_name(d),
+        }
+        for i, d in ranked
+    ]
 
 
 def _pick_input(devs, hostapis, default_name, prefer_sr: int = C.SAMPLE_RATE):
@@ -467,13 +485,14 @@ def _pick_input(devs, hostapis, default_name, prefer_sr: int = C.SAMPLE_RATE):
     return r[0] if r else None
 
 
-def autodetect_inputs(prefer_sr: int = C.SAMPLE_RATE):     # pragma: no cover - needs hw
+def autodetect_inputs(prefer_sr: int = C.SAMPLE_RATE):
     """Ranked list (best-first) of input devices on this machine (Windows/macOS).
     No device is opened here — the caller opens each in order for real and keeps
     the first that actually delivers audio, so a contended/dead entry is skipped
     without the double-open that WASAPI doesn't tolerate. Returns a list of dicts."""
     try:
         import sounddevice as sd
+
         devs = list(sd.query_devices())
         apis = list(sd.query_hostapis())
         din = sd.default.device
@@ -481,6 +500,7 @@ def autodetect_inputs(prefer_sr: int = C.SAMPLE_RATE):     # pragma: no cover - 
         name = devs[di].get("name") if isinstance(di, int) and 0 <= di < len(devs) else None
         return _rank_inputs(devs, apis, name, prefer_sr)
     except Exception:
+        _log.debug("input device scan failed", exc_info=True)
         return []
 
 
@@ -502,7 +522,7 @@ def parse_channel_map(spec: str) -> dict[int, int]:
         try:
             ch, dev = int(c), int(d)
         except ValueError:
-            raise ValueError(f"entry '{pair}' has non-integer channel/column")
+            raise ValueError(f"entry '{pair}' has non-integer channel/column") from None
         if ch < 1 or dev < 0:
             raise ValueError(f"entry '{pair}': console channel >= 1, device column >= 0")
         out[ch] = dev
@@ -520,15 +540,18 @@ def _format_device_list(devs, apis) -> str:
         if d.get("max_input_channels", 0) > 0:
             h = d.get("hostapi")
             api = apis[h]["name"] if isinstance(h, int) and 0 <= h < len(apis) else "?"
-            lines.append(f"  [{i}] {d['name']}  ({d['max_input_channels']} in, "
-                         f"{int(d.get('default_samplerate', 0))} Hz, {api})")
+            lines.append(
+                f"  [{i}] {d['name']}  ({d['max_input_channels']} in, "
+                f"{int(d.get('default_samplerate', 0))} Hz, {api})"
+            )
     return "Input devices:\n" + ("\n".join(lines) or "  (none found)")
 
 
-def list_audio_devices() -> str:                           # pragma: no cover - needs hw
+def list_audio_devices() -> str:
     """Human-readable list of input audio devices (for --list-devices)."""
     try:
         import sounddevice as sd
+
         return _format_device_list(list(sd.query_devices()), list(sd.query_hostapis()))
     except Exception as e:
         return f"could not list audio devices: {e}"

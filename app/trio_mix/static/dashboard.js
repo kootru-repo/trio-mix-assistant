@@ -1,8 +1,4 @@
 "use strict";
-// Operator dashboard. Compiled by `npm run build` (app/web) to
-// trio_mix/static/dashboard.js, which index.html loads as a classic script.
-// Statement order matters: render() at the bottom relies on everything above
-// being initialised. Types live in types.d.ts (ambient, no imports).
 const JOBS = [
     { key: "feedback", name: "Feedback notch", tier: "reflex", cls: "reflex", icon: "ic-feedback", desc: "Catch a rising, stable ring → park a narrow EQ cut." },
     { key: "clip", name: "Clip protection", tier: "reflex", cls: "reflex", icon: "ic-clip", desc: "Peak near full scale → trim the preamp a touch." },
@@ -12,10 +8,19 @@ const JOBS = [
     { key: "unmask", name: "Vocal unmask", tier: "advisory", cls: "adv", icon: "ic-vocal", desc: "When the vocal is up, duck instruments' ~3 kHz a few dB so it cuts through; release when it pauses." },
 ];
 const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ESCAPES[c]);
+const rendered = new WeakMap();
+function setHTML(el, html) {
+    if (rendered.get(el) === html)
+        return false;
+    rendered.set(el, html);
+    el.innerHTML = html;
+    return true;
+}
 const dbPct = (db) => Math.max(0, Math.min(100, (db + 60) / 60 * 100));
 const zone = (db) => db >= -3 ? 'red' : (db >= -12 ? 'yel' : 'grn');
-const nf = (v, d = 0) => Number.isFinite(v) ? v : d; // tolerate missing/NaN fields
+const nf = (v, d = 0) => Number.isFinite(v) ? v : d;
 const jobEls = {}, chEls = {};
 function buildJobs() {
     const root = $("#jobs");
@@ -62,7 +67,6 @@ function buildChannels(chs) {
             fader: q(".fader"), gain: q(".gain") };
     }
 }
-// ---- render from state ----
 let built = false;
 let curStatus = "live";
 let _lastSongScene = null, _lastSongName = null;
@@ -95,7 +99,6 @@ function renderSong(show) {
     _lastSongScene = show.scene;
     _lastSongName = show.current;
 }
-// notification hierarchy: info/notice -> log; warn -> banner; critical -> overlay (ack)
 let _bannerDismissed = "";
 function renderBanner(alerts) {
     const bn = $("#banner");
@@ -104,7 +107,7 @@ function renderBanner(alerts) {
         bn.hidden = true;
         _bannerDismissed = "";
         return;
-    } // clear -> re-arm
+    }
     const key = "warn|" + top.msg;
     if (_bannerDismissed === key) {
         bn.hidden = true;
@@ -124,7 +127,7 @@ function renderOverlay(alerts) {
         ov.hidden = true;
         _critAcked = "";
         return;
-    } // condition cleared -> re-arm
+    }
     if (_critAcked === top.msg) {
         ov.hidden = true;
         return;
@@ -141,9 +144,11 @@ function renderScenes(scenes) {
         return;
     }
     panel.hidden = false;
-    wrap.innerHTML = scenes.map(sc => `<button class="scenebtn ${sc.current ? 'current' : ''}" data-scene="${sc.index}">`
-        + `<span class="sc">SCENE ${sc.index}${sc.current ? ' · NOW' : ''}</span>`
+    const html = scenes.map(sc => `<button class="scenebtn ${sc.current ? 'current' : ''}" data-scene="${esc(sc.index)}">`
+        + `<span class="sc">SCENE ${esc(sc.index)}${sc.current ? ' · NOW' : ''}</span>`
         + `<span class="sn">${esc(sc.name)}</span></button>`).join("");
+    if (!setHTML(wrap, html))
+        return;
     for (const b of wrap.querySelectorAll(".scenebtn")) {
         b.onclick = () => action({ type: "scene", index: +b.dataset.scene });
     }
@@ -157,19 +162,18 @@ function renderAdvisor(advice, on) {
     panel.hidden = false;
     if (!advice || (!advice.prompt && !advice.assessment)) {
         box.className = "advice";
-        box.innerHTML = `<span class="empty">Listening… an advisory note will appear here.</span>`;
+        setHTML(box, `<span class="empty">Listening… an advisory note will appear here.</span>`);
         return;
     }
-    box.className = "advice sev-" + (advice.severity || "info");
+    box.className = "advice sev-" + esc(advice.severity || "info");
     let h = "";
     if (advice.prompt)
         h += `<div class="prompt">${esc(advice.prompt)}</div>`;
     if (advice.assessment)
         h += `<div class="assess">${esc(advice.assessment)}</div>`;
     h += `<div class="ameta">${esc(advice.time || "")} · Claude suggestion — not an automatic action</div>`;
-    box.innerHTML = h;
+    setHTML(box, h);
 }
-// ---- performer screens: tabs + EQ / FX / Settings ----
 let _lastState = null, activeTab = "mix", eqCh = null, eqDirty = true, fxDirty = true;
 const TABS = ["mix", "eq", "fx", "settings"];
 function selectTab(name, push) {
@@ -188,13 +192,12 @@ function selectTab(name, push) {
     }
 }
 for (const t of document.querySelectorAll(".tab")) {
-    t.onclick = () => selectTab(t.dataset.tab, true); // deep-linkable: updates the URL hash
+    t.onclick = () => selectTab(t.dataset.tab, true);
 }
-// open the tab named in the URL (e.g. /#eq) and follow back/forward hash changes
 function applyHashTab() { const h = (location.hash || "").slice(1); if (TABS.includes(h))
     selectTab(h, false); }
 window.addEventListener("hashchange", applyHashTab);
-const fEQs = (p) => 20 * Math.pow(10, 3 * p); // slider 0..1 -> Hz (log)
+const fEQs = (p) => 20 * Math.pow(10, 3 * p);
 const fEQinv = (f) => Math.log10(Math.max(20, Math.min(20000, f)) / 20) / 3;
 const hzLbl = (f) => f < 1000 ? f.toFixed(0) : (f / 1000).toFixed(1) + "k";
 function chMeta(s, ch) { return (s.channels || []).find(c => c.ch === ch) || {}; }
@@ -279,19 +282,19 @@ function renderSettings(s) {
     const cap = s.capture || {}, con = s.console || {}, lat = s.latency || {}, room = s.room || {}, show = s.show || {};
     const row = (k, v, cls) => `<div class="row"><span class="k">${k}</span><span class="v ${cls || ''}">${v}</span></div>`;
     const audio = cap.kind === "audio" ? (esc(cap.name || "audio") + " — " + (cap.dead ? "DEAD" : cap.silent ? "SILENT" : cap.overload ? "XRUN" : "ok")) : String(cap.kind);
-    $("#setconn").innerHTML = row("Mode", esc(s.mode || "")) +
+    setHTML($("#setconn"), row("Mode", esc(s.mode || "")) +
         row("Audio input", audio, (cap.dead || cap.silent) ? "bad" : "ok") +
-        row("Console feed", con.connected ? ("connected · " + con.meters + " meters") : "no feed", con.connected ? "ok" : "bad");
+        row("Console feed", con.connected ? ("connected · " + con.meters + " meters") : "no feed", con.connected ? "ok" : "bad"));
     const latTxt = Object.keys(lat).length ? Object.entries(lat).map(([k, v]) => esc(k) + " " + v.ema + "ms").join(" · ") : "—";
-    $("#setperf").innerHTML = row("Loop", (s.perf ? s.perf.tick_ms : 0) + " ms · jit " + (s.perf ? s.perf.jitter_ms : 0) + " ms") +
+    setHTML($("#setperf"), row("Loop", (s.perf ? s.perf.tick_ms : 0) + " ms · jit " + (s.perf ? s.perf.jitter_ms : 0) + " ms") +
         row("Detect→actuate", latTxt) +
         row("Block buffer", (s.block_ms || 0) + " ms") +
-        row("Room SNR", room.confidence != null ? (Math.round(room.confidence * 100) + "% · " + room.level_db + " dBFS") : "—", (room.confidence != null && room.confidence < 0.5) ? "bad" : "ok");
+        row("Room SNR", room.confidence != null ? (Math.round(room.confidence * 100) + "% · " + room.level_db + " dBFS") : "—", (room.confidence != null && room.confidence < 0.5) ? "bad" : "ok"));
     const ven = s.venue;
-    $("#setshow").innerHTML = row("Template song", esc(show.current || "—")) +
+    setHTML($("#setshow"), row("Template song", esc(show.current || "—")) +
         row("Scene", show.scene != null ? show.scene : "—") +
         row("Calibration", esc((s.calibration || {}).status || "—")) +
-        row("Venue model", ven ? (ven.shows + " show(s) · " + Math.round((ven.confidence || 0) * 100) + "% · " + (ven.freqs || []).length + " known freqs") : "—");
+        row("Venue model", ven ? (ven.shows + " show(s) · " + Math.round((ven.confidence || 0) * 100) + "% · " + (ven.freqs || []).length + " known freqs") : "—"));
 }
 function renderTabPanels(s) {
     if (activeTab === "settings")
@@ -319,7 +322,6 @@ function render(s) {
         buildMixer(s.channels);
         built = true;
     }
-    // status + mode  (headline pill = AUTO / ALERT / MANUAL / CALIBRATING)
     curStatus = s.status || "live";
     const op = s.op_mode || "auto";
     const st = $("#status");
@@ -349,19 +351,16 @@ function render(s) {
     const tk = $("#takeover");
     tk.classList.toggle("active", curStatus === "takeover");
     $("#tklbl").textContent = curStatus === "takeover" ? "RELEASE" : "TAKEOVER";
-    // song bar + alerts + scenes + advisor
     renderSong(s.show);
     renderBanner(s.alerts);
     renderOverlay(s.alerts);
     renderScenes(s.scenes);
     renderAdvisor(s.advisor, s.advisor_on);
     renderTabPanels(s);
-    // jobs
     for (const j of JOBS) {
         jobEls[j.key].classList.toggle("on", !!(s.enabled || {})[j.key]);
     }
     renderCoach(s.coach);
-    // channels
     for (const c of (s.channels || [])) {
         const e = chEls[c.ch];
         if (!e)
@@ -379,11 +378,10 @@ function render(s) {
             chips += `<span class="chip notch">${esc(f)} Hz cut</span>`;
         if (c.gain_trimmed)
             chips += `<span class="chip trim">preamp ${esc(gn)} dB</span>`;
-        e.chips.innerHTML = chips;
+        setHTML(e.chips, chips);
         e.fader.textContent = (fdr >= 0 ? "+" : "") + fdr.toFixed(1);
         e.gain.textContent = gn.toFixed(0);
     }
-    // mixing surface
     for (const c of (s.channels || [])) {
         const st = stripEls[c.ch];
         if (!st)
@@ -409,18 +407,17 @@ function render(s) {
         }
         masterEl.el.classList.toggle("muted", !!s.main_muted);
     }
-    // calibration
     const cal = s.calibration || {};
     const calbtn = $("#calbtn"), cs = cal.status;
     calbtn.disabled = cs === "running";
     $("#callbl").textContent = cs === "running" ? "Calibrating…" : (cs === "done" ? "Re-run calibration" : "Run calibration");
-    $("#calstatus").innerHTML = cs === "running" ? "Emitting pink noise &amp; measuring the room…" :
-        (cs === "done" ? `Room measured · ${(cal.corrections || []).length} cut(s) applied` : "Not yet run — using raw detection thresholds.");
+    setHTML($("#calstatus"), cs === "running" ? "Emitting pink noise &amp; measuring the room…" :
+        (cs === "done" ? `Room measured · ${(cal.corrections || []).length} cut(s) applied` : "Not yet run — using raw detection thresholds."));
     const bands = $("#bands");
     const bl = cal.baseline || [];
     if (bl.length) {
         bands.style.display = "flex";
-        bands.innerHTML = "";
+        let bandsHtml = "";
         const ds = bl.map(b => b.db);
         const lo = Math.min(...ds) - 2, hi = Math.max(...ds) + 2;
         const watch = (cal.watchlist || []).map(w => w.hz);
@@ -428,8 +425,9 @@ function render(s) {
             const h = Math.max(6, (db - lo) / (hi - lo) * 100);
             const hot = watch.some(w => Math.abs(w - hz) / hz < 0.25);
             const lbl = (hz >= 1000) ? (Math.round(hz / 100) / 10) + "k" : Math.round(hz);
-            bands.innerHTML += `<div class="band"><div class="bar ${hot ? 'hot' : ''}" style="height:${h}%"></div><div class="bl">${lbl}</div></div>`;
+            bandsHtml += `<div class="band"><div class="bar ${hot ? 'hot' : ''}" style="height:${h}%"></div><div class="bl">${lbl}</div></div>`;
         }
+        setHTML(bands, bandsHtml);
     }
     else
         bands.style.display = "none";
@@ -438,8 +436,7 @@ function render(s) {
         wc += `<span class="wchip">▲ ${esc(w.hz)} Hz · +${esc(w.excess)} dB</span>`;
     for (const c of (cal.corrections || []).slice(0, 4))
         wc += `<span class="cchip">▼ ${esc(c.hz)} Hz · ${esc(c.cut)} dB</span>`;
-    $("#watchchips").innerHTML = wc ? `<div class="chips-row">${wc}</div>` : "";
-    // lead ride
+    setHTML($("#watchchips"), wc ? `<div class="chips-row">${wc}</div>` : "");
     const L = s.lead || {};
     $("#leadtgtv").textContent = (L.target != null ? L.target.toFixed(1) : "—");
     $("#leadin").textContent = (L.input != null ? L.input.toFixed(1) : "—");
@@ -451,15 +448,13 @@ function render(s) {
         paintSlider(L.target);
         lastTarget = L.target;
     }
-    // balance targets
     const bt = s.balance_targets || {};
     const btk = Object.keys(bt);
-    $("#baltargets").innerHTML = btk.length
+    setHTML($("#baltargets"), btk.length
         ? "Holding: " + btk.map(k => `<span class="cchip">ch${esc(k)} ${bt[k] >= 0 ? '+' : ''}${esc(bt[k])}</span>`).join(" ")
-        : `<span class="empty">No balance captured yet.</span>`;
-    // log (kind colours the rail; level adds a severity dot)
+        : `<span class="empty">No balance captured yet.</span>`);
     const log = s.log || [];
-    $("#log").innerHTML = log.length ? log.map(e => `<div class="logrow ${e.kind} lv-${e.level || 'info'}"><span class="t mono">${e.time}</span><span class="lvdot"></span><span class="k">${e.kind}</span><span class="m">${esc(e.msg)}</span></div>`).join("") : `<div class="empty">No decisions yet. Toggle jobs or run calibration.</div>`;
+    setHTML($("#log"), log.length ? log.map(e => `<div class="logrow ${esc(e.kind)} lv-${esc(e.level || 'info')}"><span class="t mono">${esc(e.time)}</span><span class="lvdot"></span><span class="k">${esc(e.kind)}</span><span class="m">${esc(e.msg)}</span></div>`).join("") : `<div class="empty">No decisions yet. Toggle jobs or run calibration.</div>`);
 }
 function renderCoach(coach) {
     const on = !!(coach && coach.on);
@@ -469,11 +464,10 @@ function renderCoach(coach) {
     if (!on)
         return;
     const recs = (coach && coach.recs) || [];
-    $("#coachrecs").innerHTML = recs.length
+    setHTML($("#coachrecs"), recs.length
         ? recs.map(r => `<div class="crec ${esc(r.kind)}"><span class="ck">${esc(r.kind)}</span><span class="cm">${esc(r.text)}</span></div>`).join("")
-        : `<div class="empty">No moves needed right now — the mix is within targets.</div>`;
+        : `<div class="empty">No moves needed right now — the mix is within targets.</div>`);
 }
-// ---- control transport: WebSocket first, POST /api/command fallback ----
 async function post(path, body) {
     try {
         const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
@@ -488,8 +482,6 @@ function setConn(ok, txt) {
     c.className = "conn " + (ok ? "ok" : "off");
     $("#conntext").textContent = txt;
     if (!ok) {
-        // disconnected -> stale state can't be trusted; never strand a frozen
-        // critical overlay / banner that there's no fresh telemetry to clear.
         const ov = $("#critoverlay");
         if (ov) {
             ov.hidden = true;
@@ -533,13 +525,12 @@ function setTarget(v, push) {
     if (push && v !== lastTarget) {
         lastTarget = v;
         action({ type: "lead_target", db: v });
-    } // no redundant sends
+    }
 }
 $("#tgt").addEventListener("input", e => { tgtDragging = true; $("#slider").classList.add("drag"); paintSlider(e.target.value); });
 $("#tgt").addEventListener("change", e => { tgtDragging = false; $("#slider").classList.remove("drag"); setTarget(e.target.value, true); });
 $("#tgtdn").onclick = () => setTarget((+$("#tgt").value) - 0.5, true);
 $("#tgtup").onclick = () => setTarget((+$("#tgt").value) + 0.5, true);
-// tactile ripple on press (touch + mouse)
 function addRipple(e) {
     const b = e.currentTarget;
     if (b.disabled)
@@ -596,7 +587,7 @@ function makeStrip(key, label, isMaster) {
     } };
     vf.addEventListener("pointerup", end);
     vf.addEventListener("pointercancel", end);
-    vf.addEventListener("lostpointercapture", () => dragging.delete(key)); // never get stuck mid-drag
+    vf.addEventListener("lostpointercapture", () => dragging.delete(key));
     if (mute) {
         mute.addEventListener("click", () => action({ type: "mute", ch: key, on: !muteOn[key] }));
         mute.addEventListener("pointerdown", addRipple);
@@ -616,7 +607,6 @@ function buildMixer(chs) {
     masterEl = makeStrip("master", "MAIN", true);
     root.appendChild(masterEl.el);
 }
-// ---- live connection: WebSocket primary, SSE fallback (one transport at a time) ----
 function closeWS() { if (ws) {
     ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
     try {
@@ -635,7 +625,7 @@ function closeSSE() { if (es) {
 function useSSE() {
     closeWS();
     if (es)
-        return; // already on SSE (EventSource self-reconnects)
+        return;
     es = new EventSource("/events");
     es.onopen = () => setConn(true, "connected · SSE");
     es.onerror = () => setConn(false, "reconnecting…");
@@ -646,7 +636,7 @@ function useSSE() {
 }
 function connectWS() {
     closeSSE();
-    closeWS(); // never run two transports concurrently
+    closeWS();
     let opened = false;
     let sock;
     try {
@@ -667,7 +657,7 @@ function connectWS() {
         ws = null;
         if (!opened) {
             useSSE();
-        } // never opened -> fall back to SSE for good
+        }
         else {
             setConn(false, "reconnecting…");
             if (!retryT)
@@ -675,11 +665,10 @@ function connectWS() {
         }
     };
 }
-// ---- keep the tablet awake during a show (Screen Wake Lock) ----
 let wakeLock = null;
 async function keepAwake() {
     if (wakeLock || !("wakeLock" in navigator))
-        return; // don't leak a second sentinel
+        return;
     try {
         wakeLock = await navigator.wakeLock.request("screen");
         wakeLock.addEventListener("release", () => { wakeLock = null; });
@@ -694,14 +683,13 @@ document.addEventListener("visibilitychange", () => {
 });
 buildJobs();
 render(window.__INITIAL__ || null);
-applyHashTab(); // open the tab from the URL (#eq, #fx, …)
-// Instant first paint from a REST snapshot, THEN go live — no blank flash on load.
+applyHashTab();
 const _SHOT = new URLSearchParams(location.search).has("shot");
 fetch("/state").then(r => r.json()).then((s) => { render(s); applyHashTab(); }).catch(() => { });
 if (!_SHOT) {
     connectWS();
     keepAwake();
-} // ?shot = static snapshot (for screenshots)
+}
 else {
     setConn(true, "preview");
-} // clean indicator in screenshot mode
+}

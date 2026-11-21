@@ -182,8 +182,8 @@ SimCapture / SoundDevice ─▶ dsp.analyse_block ─▶ MixAssistant ─▶ gua
 | `dsp.py` | Features, ring detection, pink-noise + octave-band math (pure) |
 | `osc.py` | X32/M32 scaling + `ConsoleBase` → `OscConsole` (UDP) / `SimConsole` (records) |
 | `calibration.py` | Pre-show pink-noise pass |
-| `assistant.py` | The four guard-railed decision loops + typed decision log |
-| `engine.py` | Closed-loop simulator + live telemetry + runtime threads |
+| `assistant/` | The guard-railed decision loops + typed decision log: `base` (state, log, coach), `protect` (feedback, clip), `levels` (vocal ride, balance), `clarity` (phase, unmask), `core` (`MixAssistant`) |
+| `engine/` | Runtime threads + live telemetry: `base` (state, events, telemetry), `controls` (operator moves), `show` (scenes, venue, advisor), `calibration`, `core` (`Engine`: lifecycle, loop, command dispatch) |
 | `server.py` | stdlib HTTP + Server-Sent Events + control endpoints |
 | `static/index.html` | The operator dashboard page; its script is `static/dashboard.js`, compiled from TypeScript in `app/web` (see [web/README.md](web/README.md)) |
 
@@ -199,7 +199,7 @@ implements its Phase-4 performer surface: fader strip + EQ/FX/Settings screens.)
 python -m unittest discover -s tests
 ```
 
-305 tests covering OSC scaling round-trips + guardrail clamps, DSP/detection,
+327 tests covering OSC scaling round-trips + guardrail clamps, DSP/detection,
 the four decision loops (incl. that a steady sung note is *not* notched and a
 rising ring *is*), calibration, the HTTP/SSE/WebSocket endpoints, the
 **hardware** path (capture buffering/mapping/meas with an injected stream, meter

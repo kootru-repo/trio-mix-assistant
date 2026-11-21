@@ -12,6 +12,7 @@ Degrades gracefully: with no API key (and no injected caller) it simply doesn't
 start, and the rest of the app is unaffected. The HTTP call uses urllib so there
 is no hard dependency on the anthropic SDK; tests inject a fake `caller`.
 """
+
 from __future__ import annotations
 
 import json
@@ -34,9 +35,15 @@ SYSTEM_PROMPT = (
 
 
 class Advisor:
-    def __init__(self, get_context, on_advice, api_key: str | None = None,
-                 model: str = "claude-haiku-4-5-20251001", interval: float = 30.0,
-                 caller=None) -> None:
+    def __init__(
+        self,
+        get_context,
+        on_advice,
+        api_key: str | None = None,
+        model: str = "claude-haiku-4-5-20251001",
+        interval: float = 30.0,
+        caller=None,
+    ) -> None:
         self.get_context = get_context
         self.on_advice = on_advice
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
@@ -50,7 +57,6 @@ class Advisor:
         self.last_error: str | None = None
         self.calls = 0
 
-    # -- lifecycle ----------------------------------------------------------
     def start(self) -> bool:
         if not self.available or self._thread is not None:
             return False
@@ -65,7 +71,6 @@ class Advisor:
             self._thread = None
 
     def _loop(self) -> None:
-        # wait one interval first so there's some context to assess
         while not self._stop.wait(self.interval):
             self.tick()
 
@@ -78,13 +83,13 @@ class Advisor:
             if isinstance(advice, dict):
                 self.on_advice(advice)
                 return advice
-        except Exception as exc:                  # network / parse / API error
+        except Exception as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"
         return None
 
-    # -- default network caller (Anthropic Messages API via urllib) --------
-    def _http_call(self, ctx: dict) -> dict | None:   # pragma: no cover - needs network
+    def _http_call(self, ctx: dict) -> dict | None:
         import urllib.request
+
         body = {
             "model": self.model,
             "max_tokens": 300,
@@ -94,14 +99,18 @@ class Advisor:
         req = urllib.request.Request(
             "https://api.anthropic.com/v1/messages",
             data=json.dumps(body).encode(),
-            headers={"content-type": "application/json",
-                     "x-api-key": self.api_key or "",
-                     "anthropic-version": "2023-06-01"},
-            method="POST")
+            headers={
+                "content-type": "application/json",
+                "x-api-key": self.api_key or "",
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
         with urllib.request.urlopen(req, timeout=20) as r:
             resp = json.loads(r.read())
-        text = "".join(b.get("text", "") for b in resp.get("content", [])
-                       if b.get("type") == "text")
+        text = "".join(
+            b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text"
+        )
         return self.parse(text)
 
     @staticmethod
@@ -109,7 +118,7 @@ class Advisor:
         """Pull the JSON advisory object out of a model response, defensively."""
         if not text:
             return None
-        text = text[:8000]                       # bound before the regex (hostile input)
+        text = text[:8000]
         m = re.search(r"\{.*\}", text, re.S)
         if not m:
             return None
@@ -122,6 +131,8 @@ class Advisor:
         sev = str(d.get("severity", "info")).strip().lower()
         if sev not in ("info", "notice", "warn"):
             sev = "info"
-        return {"performer_prompt": str(d.get("performer_prompt", "")).strip()[:200],
-                "room_assessment": str(d.get("room_assessment", "")).strip()[:240],
-                "severity": sev}
+        return {
+            "performer_prompt": str(d.get("performer_prompt", "")).strip()[:200],
+            "room_assessment": str(d.get("room_assessment", "")).strip()[:240],
+            "severity": sev,
+        }

@@ -15,12 +15,21 @@ class TestSessionLog(unittest.TestCase):
         sl = SessionLog(":memory:")
         try:
             sl.start_session(venue="The Cellar", template="Trio", mode="simulation")
-            sl.log_event({"kind": "feedback", "level": "notice", "ch": 1,
-                          "role": "lead_vox", "msg": "2500 Hz"})
-            sl.log_event({"kind": "clip", "level": "warn", "ch": 6,
-                          "role": "cajon", "msg": "near clip"})
-            sl.log_event({"kind": "feedback", "level": "notice", "ch": 8,
-                          "role": "meas_mic", "msg": "ring"})
+            sl.log_event(
+                {
+                    "kind": "feedback",
+                    "level": "notice",
+                    "ch": 1,
+                    "role": "lead_vox",
+                    "msg": "2500 Hz",
+                }
+            )
+            sl.log_event(
+                {"kind": "clip", "level": "warn", "ch": 6, "role": "cajon", "msg": "near clip"}
+            )
+            sl.log_event(
+                {"kind": "feedback", "level": "notice", "ch": 8, "role": "meas_mic", "msg": "ring"}
+            )
             sl.flush()
             self.assertEqual(sl.summary(), {"feedback": 2, "clip": 1})
             rec = sl.recent(10)
@@ -32,7 +41,7 @@ class TestSessionLog(unittest.TestCase):
     def test_log_before_session_is_noop(self):
         sl = SessionLog(":memory:")
         try:
-            sl.log_event({"kind": "x", "msg": "y"})    # no session yet -> dropped silently
+            sl.log_event({"kind": "x", "msg": "y"})
             sl.flush()
             self.assertEqual(sl.recent(5), [])
         finally:
@@ -44,7 +53,7 @@ class TestSessionLog(unittest.TestCase):
             sl.start_session(venue="Barn", template="Trio")
             sl.log_event({"kind": "feedback", "msg": "a"})
             sl.flush()
-            sl.start_session(venue="Barn", template="Trio")    # second show, same venue
+            sl.start_session(venue="Barn", template="Trio")
             sl.log_event({"kind": "clip", "msg": "b"})
             sl.flush()
             hist = sl.venue_history("Barn")
@@ -60,8 +69,7 @@ def _fake_caller(advice):
 
 class TestAdvisor(unittest.TestCase):
     def test_unavailable_without_key_or_caller(self):
-        a = Advisor(get_context=lambda: {}, on_advice=lambda x: None, api_key=None)
-        # may be available if the env has a key; force the no-key case:
+        a = Advisor(get_context=dict, on_advice=lambda x: None, api_key=None)
         a.api_key = None
         a.available = a._injected or bool(a.api_key)
         self.assertFalse(a.available)
@@ -69,11 +77,17 @@ class TestAdvisor(unittest.TestCase):
 
     def test_injected_caller_is_available_and_ticks(self):
         got = []
-        a = Advisor(get_context=lambda: {"recent_events": []},
-                    on_advice=lambda adv: got.append(adv),
-                    caller=_fake_caller({"performer_prompt": "Ease the guitar",
-                                         "room_assessment": "2.5 kHz settling",
-                                         "severity": "notice"}))
+        a = Advisor(
+            get_context=lambda: {"recent_events": []},
+            on_advice=lambda adv: got.append(adv),
+            caller=_fake_caller(
+                {
+                    "performer_prompt": "Ease the guitar",
+                    "room_assessment": "2.5 kHz settling",
+                    "severity": "notice",
+                }
+            ),
+        )
         self.assertTrue(a.available)
         out = a.tick()
         self.assertEqual(out["performer_prompt"], "Ease the guitar")
@@ -82,10 +96,12 @@ class TestAdvisor(unittest.TestCase):
 
     def test_background_loop_fires(self):
         got = []
-        a = Advisor(get_context=lambda: {"recent_events": []},
-                    on_advice=lambda adv: got.append(adv),
-                    caller=_fake_caller({"performer_prompt": "ok", "severity": "info"}),
-                    interval=0.2)
+        a = Advisor(
+            get_context=lambda: {"recent_events": []},
+            on_advice=lambda adv: got.append(adv),
+            caller=_fake_caller({"performer_prompt": "ok", "severity": "info"}),
+            interval=0.2,
+        )
         self.assertTrue(a.start())
         try:
             deadline = time.monotonic() + 2.0
@@ -98,19 +114,22 @@ class TestAdvisor(unittest.TestCase):
     def test_caller_error_is_swallowed(self):
         def boom(ctx):
             raise RuntimeError("network down")
-        a = Advisor(get_context=lambda: {}, on_advice=lambda x: None, caller=boom)
-        self.assertIsNone(a.tick())            # no raise
+
+        a = Advisor(get_context=dict, on_advice=lambda x: None, caller=boom)
+        self.assertIsNone(a.tick())
         self.assertIn("network down", a.last_error)
 
     def test_parse_extracts_json(self):
         p = Advisor.parse
-        good = 'Sure! {"performer_prompt":"Lower the cajon","room_assessment":"boomy",'\
-               '"severity":"warn"} done'
+        good = (
+            'Sure! {"performer_prompt":"Lower the cajon","room_assessment":"boomy",'
+            '"severity":"warn"} done'
+        )
         d = p(good)
         self.assertEqual(d["performer_prompt"], "Lower the cajon")
         self.assertEqual(d["severity"], "warn")
         self.assertIsNone(p("no json here"))
-        self.assertEqual(p('{"severity":"bogus"}')["severity"], "info")  # clamped
+        self.assertEqual(p('{"severity":"bogus"}')["severity"], "info")
 
 
 class TestEngineAdvisorIntegration(unittest.TestCase):
@@ -119,15 +138,15 @@ class TestEngineAdvisorIntegration(unittest.TestCase):
         ctx = e.advisor_context()
         self.assertIn("recent_events", ctx)
         self.assertIn("channels", ctx)
-        e.on_advice({"performer_prompt": "Watch the bass", "room_assessment": "ok",
-                     "severity": "notice"})
+        e.on_advice(
+            {"performer_prompt": "Watch the bass", "room_assessment": "ok", "severity": "notice"}
+        )
         self.assertEqual(e.telemetry["advisor"]["prompt"], "Watch the bass")
         self.assertTrue(any(ev["kind"] == "advisor" for ev in list(e.events)))
 
     def test_empty_prompt_does_not_log_event(self):
         e = Engine(sim=True)
-        e.on_advice({"performer_prompt": "", "room_assessment": "all good",
-                     "severity": "info"})
+        e.on_advice({"performer_prompt": "", "room_assessment": "all good", "severity": "info"})
         self.assertFalse(any(ev["kind"] == "advisor" for ev in list(e.events)))
         self.assertEqual(e.telemetry["advisor"]["assessment"], "all good")
 

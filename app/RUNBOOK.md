@@ -252,7 +252,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--advisor-interval <s>` | seconds between advisor checks (default 30) |
 | `--lan` | bind to the LAN so tablets can connect |
 | `--https` | serve TLS (self‑signed) for PWA install + Wake Lock |
-| `--pin "<code>"` | require this PIN to open the dashboard + control the console (recommended on untrusted networks; pair with `--https`). Omit for no auth on a trusted LAN |
+| `--pin "<code>"` | require this PIN to open the dashboard + control the console (recommended on untrusted networks; pair with `--https`). Omit for no auth on a trusted LAN. `PIN=` in `show.conf` sets the same thing for the double-click start |
 | `--trust` | serve a cert signed by a local root CA (implies `--https`). Install the printed root once per device → a fully‑trusted, **warning‑free** https connection |
 | `--host <ip>` / `--port <n>` | bind address / port (default 8770) |
 

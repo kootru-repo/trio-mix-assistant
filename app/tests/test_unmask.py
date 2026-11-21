@@ -5,13 +5,10 @@
 - Coach mode: advises a static dip instead of live ducking; console untouched.
 - Disable / coach / takeover releases the band.
 """
+
 import os
 import sys
-import time
 import unittest
-from unittest import mock
-
-import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,7 +25,8 @@ def vox(rms):
 
 class TestUnmaskAssistant(unittest.TestCase):
     def _a(self, coach=False):
-        con = SimConsole(); a = MixAssistant(con)
+        con = SimConsole()
+        a = MixAssistant(con)
         a.enabled["unmask"] = True
         if coach:
             a.set_coach_mode(True)
@@ -41,31 +39,30 @@ class TestUnmaskAssistant(unittest.TestCase):
         con, a = self._a()
         target = a._unmask_targets()[0]
         for _ in range(20):
-            a.handle_unmask(vox(-15.0), now=0.0)           # loud vocal -> present
-        self.assertLess(a.duck_gain, -2.0)                 # ducked a few dB
+            a.handle_unmask(vox(-15.0), now=0.0)
+        self.assertLess(a.duck_gain, -2.0)
         b = self._band(con, target)
         self.assertIsNotNone(b)
-        self.assertLess(b["gain_db"], -1.0)                # a real cut on the reserved band
+        self.assertLess(b["gain_db"], -1.0)
         self.assertAlmostEqual(b["hz"], C.UNMASK_FREQ, delta=1)
 
     def test_releases_when_vocal_absent(self):
-        con, a = self._a()
+        _con, a = self._a()
         for _ in range(20):
-            a.handle_unmask(vox(-15.0), now=0.0)           # duck in
+            a.handle_unmask(vox(-15.0), now=0.0)
         ducked = a.duck_gain
         for _ in range(40):
-            a.handle_unmask(vox(-80.0), now=0.0)           # silence -> release
-        self.assertGreater(a.duck_gain, ducked)            # moved back toward 0
-        self.assertGreater(a.duck_gain, ducked + 1.0)      # meaningfully released
+            a.handle_unmask(vox(-80.0), now=0.0)
+        self.assertGreater(a.duck_gain, ducked)
+        self.assertGreater(a.duck_gain, ducked + 1.0)
 
     def test_attack_faster_than_release(self):
-        # symmetry check: N blocks of duck-in should move further than N of release
         _, a1 = self._a()
         for _ in range(4):
             a1.handle_unmask(vox(-15.0), now=0.0)
         attack_travel = abs(a1.duck_gain - 0.0)
         _, a2 = self._a()
-        a2.duck_gain = C.UNMASK_DEPTH_DB                    # start fully ducked
+        a2.duck_gain = C.UNMASK_DEPTH_DB
         for _ in range(4):
             a2.handle_unmask(vox(-80.0), now=0.0)
         release_travel = abs(a2.duck_gain - C.UNMASK_DEPTH_DB)
@@ -74,7 +71,7 @@ class TestUnmaskAssistant(unittest.TestCase):
     def test_coach_advises_static_dip_no_actuation(self):
         con, a = self._a(coach=True)
         a.handle_unmask(vox(-15.0), now=0.0)
-        self.assertEqual(con.eq_bands, {})                 # console untouched in coach
+        self.assertEqual(con.eq_bands, {})
         rec = a.coach_recs.get(("unmask", C.LEAD_VOCAL_CH))
         self.assertIsNotNone(rec)
         self.assertIn("unmask the vocal", rec["text"])
@@ -88,10 +85,11 @@ class TestUnmaskAssistant(unittest.TestCase):
         a.release_unmask()
         self.assertEqual(a.duck_gain, 0.0)
         self.assertEqual(a.duck_applied, {})
-        self.assertEqual(self._band(con, a._unmask_targets()[0])["gain_db"], 0.0)  # flat
+        self.assertEqual(self._band(con, a._unmask_targets()[0])["gain_db"], 0.0)
 
     def test_disabled_is_inert(self):
-        con = SimConsole(); a = MixAssistant(con)           # unmask not enabled
+        con = SimConsole()
+        a = MixAssistant(con)
         for _ in range(20):
             a.handle_unmask(vox(-15.0), now=0.0)
         self.assertEqual(con.eq_bands, {})
@@ -101,7 +99,7 @@ class TestUnmaskAssistant(unittest.TestCase):
         t = a._unmask_targets()
         self.assertNotIn(C.LEAD_VOCAL_CH, t)
         self.assertNotIn(C.MEAS_MIC_CH, t)
-        self.assertIn(4, t)                                 # an instrument channel
+        self.assertIn(4, t)
 
 
 class TestUnmaskEngine(unittest.TestCase):
@@ -112,7 +110,7 @@ class TestUnmaskEngine(unittest.TestCase):
         for _ in range(20):
             a.handle_unmask(vox(-15.0), now=0.0)
         self.assertLess(a.duck_gain, -1.0)
-        e.set_enabled("unmask", False)                      # must flatten the duck
+        e.set_enabled("unmask", False)
         self.assertEqual(a.duck_gain, 0.0)
         self.assertEqual(a.duck_applied, {})
         self.assertIn("unmask", e.telemetry)
@@ -124,7 +122,7 @@ class TestUnmaskEngine(unittest.TestCase):
         for _ in range(20):
             e.assistant.handle_unmask(vox(-15.0), now=0.0)
         self.assertLess(e.assistant.duck_gain, -1.0)
-        e.panic(True)                                       # takeover
+        e.panic(True)
         self.assertEqual(e.assistant.duck_gain, 0.0)
 
 

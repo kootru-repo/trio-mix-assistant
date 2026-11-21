@@ -6,6 +6,7 @@ subscription + live push, meter streams, show-file enumeration, and the
 editor->app reconciliation feed. Pure protocol mechanics — identity strings are
 VERIFY-tagged assumptions (see config.X32_*). Mixing Station's full sync was
 validated live against this surface on 2026-07-03."""
+
 import os
 import socket
 import sys
@@ -32,6 +33,7 @@ def _free_port() -> int:
 class _FakeEditor:
     """One bound UDP socket: sends requests to the desk and receives the desk's
     reply-to-sender responses (the desk sees this socket's port as the client)."""
+
     def __init__(self, desk_port: int):
         self.desk = ("127.0.0.1", desk_port)
         self.sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -50,7 +52,7 @@ class _FakeEditor:
             data, _ = self.sk.recvfrom(65535)
             m = OscMessage(data)
             return m.address, list(m.params)
-        except socket.timeout:
+        except TimeoutError:
             return None
 
     def ask(self, addr, *args):
@@ -67,8 +69,9 @@ class X32EditProtocol(unittest.TestCase):
         self.app = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.app.bind(("127.0.0.1", self.app_port))
         self.app.settimeout(0.6)
-        self.desk = EmulatedDesk(listen_port=_free_port(), app_ip="127.0.0.1",
-                                 app_port=self.app_port)
+        self.desk = EmulatedDesk(
+            listen_port=_free_port(), app_ip="127.0.0.1", app_port=self.app_port
+        )
         self.desk.start()
         time.sleep(0.15)
         self.ed = _FakeEditor(self.desk.listen_port)
@@ -82,14 +85,14 @@ class X32EditProtocol(unittest.TestCase):
         try:
             m = OscMessage(self.app.recvfrom(65535)[0])
             return m.address, list(m.params)
-        except socket.timeout:
+        except TimeoutError:
             return None
 
     def test_discovery_handshake(self):
         info = self.ed.ask("/info")
         self.assertEqual(info[0], "/info")
         self.assertEqual(len(info[1]), 4)
-        self.assertEqual(info[1][2], C.X32_MODEL)            # model the editor checks
+        self.assertEqual(info[1][2], C.X32_MODEL)
         xinfo = self.ed.ask("/xinfo")
         self.assertEqual(len(xinfo[1]), 4)
         status = self.ed.ask("/status")
@@ -112,7 +115,7 @@ class X32EditProtocol(unittest.TestCase):
         self.ed.send("/xremote")
         time.sleep(0.1)
         self.assertTrue(any(p == self.ed.port for _ip, p in self.desk._remotes))
-        self.desk.move_fader_externally(2, -6.0)             # 'human' on the desk
+        self.desk.move_fader_externally(2, -6.0)
         pushed = self.ed.recv()
         self.assertIsNotNone(pushed)
         self.assertEqual(pushed[0], "/ch/02/mix/fader")
@@ -120,8 +123,8 @@ class X32EditProtocol(unittest.TestCase):
     def test_editor_move_forwards_to_app_and_updates_model(self):
         self.ed.send("/xremote")
         time.sleep(0.1)
-        self.ed.send("/ch/03/mix/fader", 0.5)                # user drags a fader in the editor
-        fwd = self._app_recv()                               # app hears it -> reconciles
+        self.ed.send("/ch/03/mix/fader", 0.5)
+        fwd = self._app_recv()
         self.assertEqual(fwd, ("/ch/03/mix/fader", [0.5]))
         self.assertEqual(self.ed.ask("/ch/03/mix/fader")[1][0], 0.5)
 
@@ -134,14 +137,14 @@ class X32EditProtocol(unittest.TestCase):
         """Mixing Station full-syncs the whole tree; an unanswered GET stalls it
         until it aborts ("sync failed"). Every zero-arg GET must get a typed
         default reply, and re-reads must stay consistent."""
-        r = self.ed.ask("/headamp/053/phantom")              # unmodeled int leaf
+        r = self.ed.ask("/headamp/053/phantom")
         self.assertEqual(r, ("/headamp/053/phantom", [0]))
-        r = self.ed.ask("/-usb/dir/046/name")                # unmodeled string leaf
+        r = self.ed.ask("/-usb/dir/046/name")
         self.assertEqual(r, ("/-usb/dir/046/name", [""]))
-        r = self.ed.ask("/headamp/053/gain")                 # unmodeled float leaf
+        r = self.ed.ask("/headamp/053/gain")
         self.assertEqual(r[0], "/headamp/053/gain")
         self.assertIsInstance(r[1][0], float)
-        self.assertEqual(self.ed.ask("/headamp/053/gain"), r)  # consistent re-read
+        self.assertEqual(self.ed.ask("/headamp/053/gain"), r)
 
     def test_node_containers_answer_in_desk_format(self):
         """Mixing Station /node-reads every container and parses the positional
@@ -149,14 +152,22 @@ class X32EditProtocol(unittest.TestCase):
         answers come from the bundled default-scene table; outputs/rec+aes are
         synthesized rules; minimum token counts pin each family's field count."""
         for path, min_toks in [
-            ("fxrtn/01/mix/13", 3), ("fxrtn/01/mix/14", 3),    # sends (table)
-            ("outputs/rec/01", 3), ("outputs/aes/02", 4),      # rules
-            ("outputs/main/03/delay", 3),                      # table: ON/OFF + ms
-            ("ch/27/eq/3", 5), ("auxin/04/eq/1", 5),           # type f g q
-            ("ch/10/dyn", 10), ("ch/10/gate", 5),              # dynamics families
-            ("ch/27/dyn/filter", 4), ("ch/01/insert", 4),
-            ("bus/05/mix/01", 3), ("headamp/000", 3),
-            ("-libs/ch/100", 6), ("-libs/fx/001", 6), ("-libs/r/050", 6),
+            ("fxrtn/01/mix/13", 3),
+            ("fxrtn/01/mix/14", 3),
+            ("outputs/rec/01", 3),
+            ("outputs/aes/02", 4),
+            ("outputs/main/03/delay", 3),
+            ("ch/27/eq/3", 5),
+            ("auxin/04/eq/1", 5),
+            ("ch/10/dyn", 10),
+            ("ch/10/gate", 5),
+            ("ch/27/dyn/filter", 4),
+            ("ch/01/insert", 4),
+            ("bus/05/mix/01", 3),
+            ("headamp/000", 3),
+            ("-libs/ch/100", 6),
+            ("-libs/fx/001", 6),
+            ("-libs/r/050", 6),
         ]:
             r = self.ed.ask("/node", path)
             self.assertIsNotNone(r, f"no reply for /node {path}")
@@ -170,7 +181,7 @@ class X32EditProtocol(unittest.TestCase):
     def test_node_mix_and_config_reflect_live_state(self):
         """The channel mix/config node lines must mirror the emulator's live desk
         state (fader/mute/name), not the static scene table."""
-        self.ed.send("/ch/03/mix/fader", 0.5)                  # -10 dB on the wire
+        self.ed.send("/ch/03/mix/fader", 0.5)
         time.sleep(0.1)
         r = self.ed.ask("/node", "ch/03/mix")
         self.assertIn("-10.0", r[1][0])

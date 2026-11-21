@@ -35,6 +35,7 @@ echo ============================================================
 echo   Setup complete.
 echo   1) Open  show.conf  and set CONSOLE_IP and AUDIO_DEVICE
 echo      ^(run  list-devices.bat  to find the audio device^).
+echo      On shared or venue WiFi also set PIN.
 echo   2) Double-click  start.bat
 echo ============================================================
 pause

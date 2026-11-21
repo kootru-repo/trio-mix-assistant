@@ -2,6 +2,7 @@
 
 Pure, side-effect-free numpy. Everything here is deterministic and unit-tested.
 """
+
 from __future__ import annotations
 
 import math
@@ -12,16 +13,13 @@ import numpy as np
 from . import config as C
 
 
-# ---------------------------------------------------------------------------
-# Per-block channel features
-# ---------------------------------------------------------------------------
 @dataclass
 class ChannelFeatures:
     rms_dbfs: float = -90.0
     peak_dbfs: float = -90.0
-    fb_freq: float | None = None          # flagged ringing frequency, if any
-    contrast_db: float = 0.0              # spectral peakiness (max-median); SNR proxy
-    harmonicity: float = 0.0              # 0=pure tone (feedback-like) .. 1=harmonic (musical)
+    fb_freq: float | None = None
+    contrast_db: float = 0.0
+    harmonicity: float = 0.0
     spectrum: np.ndarray = field(default_factory=lambda: np.zeros(0))
 
 
@@ -29,7 +27,7 @@ def analyse_block(samples: np.ndarray, sr: int = C.SAMPLE_RATE) -> ChannelFeatur
     """One channel, one block -> features."""
     if samples.size == 0:
         return ChannelFeatures()
-    rms = math.sqrt(float(np.mean(samples ** 2))) + 1e-12
+    rms = math.sqrt(float(np.mean(samples**2))) + 1e-12
     peak = float(np.max(np.abs(samples))) + 1e-12
     f = ChannelFeatures(
         rms_dbfs=20 * math.log10(rms),
@@ -38,13 +36,10 @@ def analyse_block(samples: np.ndarray, sr: int = C.SAMPLE_RATE) -> ChannelFeatur
     win = samples * np.hanning(samples.size)
     mag = np.abs(np.fft.rfft(win))
     f.spectrum = mag
-    # spectral contrast = how far the hottest bin sits above the typical bin.
-    # High = clear tonal content (a ring is detectable); low = broadband/noisy
-    # (a loud crowd) -> the room mic's feedback SNR is poor.
     if mag.size:
         db = 20 * np.log10(mag + 1e-9)
         f.contrast_db = float(np.max(db) - np.median(db))
-        k = _find_ring_bin(db)            # share one FFT for freq + harmonicity
+        k = _find_ring_bin(db)
         if k is not None:
             f.fb_freq = _bin_to_hz(_parabolic_peak(db, k), mag.size, sr)
             f.harmonicity = _harmonicity(db, k)
@@ -67,9 +62,9 @@ def _parabolic_peak(db: np.ndarray, k: int) -> float:
     a, b, c = float(db[k - 1]), float(db[k]), float(db[k + 1])
     denom = a - 2.0 * b + c
     if denom == 0.0:
-        return float(k)                   # flat top -> no better estimate than k
+        return float(k)
     delta = 0.5 * (a - c) / denom
-    if not -0.5 <= delta <= 0.5:          # ill-conditioned -> fall back to the bin
+    if not -0.5 <= delta <= 0.5:
         return float(k)
     return k + delta
 
@@ -82,10 +77,10 @@ def _find_ring_bin(db: np.ndarray) -> int | None:
         return None
     k = int(np.argmax(db))
     if k == 0:
-        return None                       # DC is never feedback (and guards /0)
+        return None
     lo = max(0, k - 6)
     hi = min(db.size, k + 7)
-    neighbourhood = np.concatenate([db[lo:k], db[k + 1:hi]])
+    neighbourhood = np.concatenate([db[lo:k], db[k + 1 : hi]])
     if neighbourhood.size == 0:
         return None
     if db[k] - float(np.median(neighbourhood)) > C.FB_RING_DB:
@@ -111,7 +106,7 @@ def _harmonicity(db: np.ndarray, k: int) -> float:
         kb = k * h
         if kb < db.size:
             partials.append(max(0.0, float(db[kb]) - floor))
-    if len(partials) < 2:                 # fundamental too high to see 2 harmonics
+    if len(partials) < 2:
         return 0.0
     return float(min(1.0, min(partials) / fund))
 
@@ -157,7 +152,7 @@ class RollingRingDetector:
     def update(self, samples: np.ndarray) -> tuple[float | None, float]:
         """Push a new block; return (fb_freq | None, harmonicity) at high res."""
         if samples.size:
-            self._buf = np.concatenate([self._buf, samples])[-self.n:]
+            self._buf = np.concatenate([self._buf, samples])[-self.n :]
         buf = self._buf
         if buf.size < 16:
             return None, 0.0
@@ -170,9 +165,6 @@ class RollingRingDetector:
         return _bin_to_hz(_parabolic_peak(db, k), mag.size, self.sr), _harmonicity(db, k)
 
 
-# ---------------------------------------------------------------------------
-# Phase / polarity relationship between two channels (comb-filter / phase cancel)
-# ---------------------------------------------------------------------------
 @dataclass
 class PhaseRelation:
     """How two channels that (may) carry the same source relate in time/polarity.
@@ -184,14 +176,16 @@ class PhaseRelation:
     lag_ms    : the arrival-time offset of the best alignment; a non-zero lag with
                 high correlation is the signature of comb filtering.
     """
+
     zero_corr: float = 0.0
     best_corr: float = 0.0
     lag_samples: int = 0
     lag_ms: float = 0.0
 
 
-def phase_relation(a: np.ndarray, b: np.ndarray, sr: int = C.SAMPLE_RATE,
-                   max_lag_ms: float | None = None) -> PhaseRelation:
+def phase_relation(
+    a: np.ndarray, b: np.ndarray, sr: int = C.SAMPLE_RATE, max_lag_ms: float | None = None
+) -> PhaseRelation:
     """Cross-correlate two channel blocks to measure polarity + time offset.
 
     Pure + deterministic. Returns zeros for silence or too-short input. The
@@ -206,28 +200,28 @@ def phase_relation(a: np.ndarray, b: np.ndarray, sr: int = C.SAMPLE_RATE,
     b = b[:n] - b[:n].mean()
     na = float(np.sqrt(np.dot(a, a)))
     nb = float(np.sqrt(np.dot(b, b)))
-    if na < 1e-9 or nb < 1e-9:                       # one side is silent
+    if na < 1e-9 or nb < 1e-9:
         return PhaseRelation()
     denom = na * nb
-    zero = float(np.dot(a, b)) / denom               # sign = polarity (convention-free)
-    max_lag = int((C.PHASE_MAX_LAG_MS if max_lag_ms is None else max_lag_ms)
-                  / 1000.0 * sr)
+    zero = float(np.dot(a, b)) / denom
+    max_lag = int((C.PHASE_MAX_LAG_MS if max_lag_ms is None else max_lag_ms) / 1000.0 * sr)
     max_lag = max(1, min(max_lag, n - 1))
-    full = np.correlate(a, b, mode="full") / denom   # length 2n-1, centre = zero lag
+    full = np.correlate(a, b, mode="full") / denom
     centre = n - 1
-    window = full[centre - max_lag: centre + max_lag + 1]
+    window = full[centre - max_lag : centre + max_lag + 1]
     k = int(np.argmax(np.abs(window)))
-    lag = k - max_lag                                # samples from zero lag
-    return PhaseRelation(zero_corr=zero, best_corr=float(window[k]),
-                         lag_samples=lag, lag_ms=lag / sr * 1000.0)
+    lag = k - max_lag
+    return PhaseRelation(
+        zero_corr=zero, best_corr=float(window[k]), lag_samples=lag, lag_ms=lag / sr * 1000.0
+    )
 
 
-# ---------------------------------------------------------------------------
-# Pink-noise + octave-band analysis (calibration front-end)
-# ---------------------------------------------------------------------------
-def generate_pink_noise(seconds: float, sr: int = C.SAMPLE_RATE,
-                        level_dbfs: float = C.CAL_NOISE_DBFS,
-                        rng: np.random.Generator | None = None) -> np.ndarray:
+def generate_pink_noise(
+    seconds: float,
+    sr: int = C.SAMPLE_RATE,
+    level_dbfs: float = C.CAL_NOISE_DBFS,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
     """Pink noise via 1/sqrt(f) shaping of white noise."""
     n = int(seconds * sr)
     rng = rng or np.random.default_rng()
@@ -237,7 +231,7 @@ def generate_pink_noise(seconds: float, sr: int = C.SAMPLE_RATE,
     freqs[0] = freqs[1]
     spectrum /= np.sqrt(freqs)
     pink = np.fft.irfft(spectrum, n)
-    pink /= (np.max(np.abs(pink)) + 1e-9)
+    pink /= np.max(np.abs(pink)) + 1e-9
     pink *= 10 ** (level_dbfs / 20.0)
     return pink.astype(np.float32)
 
@@ -269,10 +263,10 @@ def find_resonant_peaks(captured: np.ndarray, sr: int = C.SAMPLE_RATE):
     bands = octave_band_levels(captured, sr)
     fcs = list(bands.keys())
     vals = np.array([bands[f] for f in fcs])
-    avg = np.convolve(vals, np.ones(3) / 3, mode="same")  # smoothed house curve
+    avg = np.convolve(vals, np.ones(3) / 3, mode="same")
     corrections, watch = [], []
-    for i, (fc, v, a) in enumerate(zip(fcs, vals, avg)):
-        if i == 0 or i == len(fcs) - 1:      # edge bands: smoothing unreliable
+    for i, (fc, v, a) in enumerate(zip(fcs, vals, avg, strict=False)):
+        if i == 0 or i == len(fcs) - 1:
             continue
         excess = v - a
         if excess > C.CAL_PEAK_THRESH:

@@ -14,17 +14,17 @@ class TestPerformerEQ(unittest.TestCase):
         e.set_eq(2, 1, hz=1000.0, gain=4.0, q=3.0, on=True)
         b = e.eq[2][1]
         self.assertEqual((b["hz"], b["gain"], b["q"], b["on"]), (1000.0, 4.0, 3.0, True))
-        self.assertEqual(e.con.eq_bands[2][1]["gain_db"], 4.0)   # console got it
-        tel = [x for x in e.telemetry["eq"][2] if x["band"] == 1][0]
+        self.assertEqual(e.con.eq_bands[2][1]["gain_db"], 4.0)
+        tel = next(x for x in e.telemetry["eq"][2] if x["band"] == 1)
         self.assertEqual(tel["gain"], 4.0)
 
     def test_eq_clamps(self):
         e = Engine(sim=True)
         e.set_eq(2, 1, hz=50000.0, gain=99.0, q=99.0, on=True)
         b = e.eq[2][1]
-        self.assertEqual(b["hz"], 20000.0)      # clamped to 20k
-        self.assertEqual(b["gain"], 15.0)       # clamped +15
-        self.assertEqual(b["q"], 10.0)          # clamped 10
+        self.assertEqual(b["hz"], 20000.0)
+        self.assertEqual(b["gain"], 15.0)
+        self.assertEqual(b["q"], 10.0)
 
     def test_reset_channel_eq(self):
         e = Engine(sim=True)
@@ -36,16 +36,16 @@ class TestPerformerEQ(unittest.TestCase):
 
     def test_reset_eq_resyncs_feedback_state(self):
         e = Engine(sim=True)
-        e.assistant.used_notch_band[2] = 2          # detector believes a notch is parked
+        e.assistant.used_notch_band[2] = 2
         e.assistant.fb_streak[2] = 3
-        e.reset_channel_eq(2)                        # clears channel EQ (incl. the notch)
-        self.assertEqual(e.assistant.used_notch_band[2], 0)   # resynced, not stuck
+        e.reset_channel_eq(2)
+        self.assertEqual(e.assistant.used_notch_band[2], 0)
         self.assertEqual(e.assistant.fb_streak[2], 0)
 
     def test_meas_mic_excluded(self):
         e = Engine(sim=True)
         self.assertNotIn(C.MEAS_MIC_CH, e.eq)
-        e.set_eq(C.MEAS_MIC_CH, 1, gain=5.0)    # ignored, no raise
+        e.set_eq(C.MEAS_MIC_CH, 1, gain=5.0)
         self.assertNotIn(C.MEAS_MIC_CH, e.eq)
 
 
@@ -70,7 +70,7 @@ class TestPerformerFX(unittest.TestCase):
 
     def test_invalid_fx_ignored(self):
         e = Engine(sim=True)
-        e.set_send(2, 99, -10.0)                # no such FX bus -> ignored
+        e.set_send(2, 99, -10.0)
         e.set_fx_wet(99, -10.0)
         self.assertNotIn(99, e.fx_wet)
 
@@ -86,7 +86,6 @@ class TestEQFXCommands(unittest.TestCase):
         self.assertEqual(e.fx_wet[2], -5.0)
         e.command({"type": "eq_reset", "ch": 2})
         self.assertEqual(e.eq[2][1]["gain"], 0.0)
-        # malformed -> ignored, no raise
         e.command({"type": "eq", "ch": "x", "band": 1})
         e.command({"type": "send", "ch": 2, "fx": 1, "db": "loud"})
 

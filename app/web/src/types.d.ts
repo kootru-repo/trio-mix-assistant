@@ -1,11 +1,3 @@
-// Shapes of the server's JSON, mirrored from the Python side.
-// Snapshot  = Engine._rebuild_telemetry()  (trio_mix/engine.py)
-// Command   = Engine.command()             (trio_mix/engine.py)
-// Python dicts keyed by int arrive as JSON objects with *string* keys.
-//
-// Ambient (no import/export) on purpose: dashboard.ts is a classic <script>,
-// and any module syntax would make tsc emit `export {}`, which a classic
-// script can't parse.
 
 type FbState = "ok" | "building" | "notched";
 type AlertLevel = "info" | "notice" | "warn" | "critical";

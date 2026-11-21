@@ -1,6 +1,4 @@
 "use strict";
-// PIN login page (served by server.py as LOGIN_HTML for unauthenticated GET /).
-// Wrapped in an IIFE so its names don't share the global scope with dashboard.ts.
 (() => {
     const f = document.getElementById("f"), pin = document.getElementById("pin"), err = document.getElementById("err");
     f.onsubmit = async (e) => {
