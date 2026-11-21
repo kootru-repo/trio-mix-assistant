@@ -84,13 +84,18 @@ def sim_state(c):
         "polarity": {str(k): v for k, v in c.polarity.items()},
         "notch_freqs_1": c.notch_freqs(1),
         "predip": c.predip_freqs(),
-        "tamed": [c.is_tamed(1, 900.0), c.is_tamed(1, 1500.0), c.is_tamed(2, 250.0), c.is_tamed(1, 0.0)],
+        "tamed": [
+            c.is_tamed(1, 900.0),
+            c.is_tamed(1, 1500.0),
+            c.is_tamed(2, 250.0),
+            c.is_tamed(1, 0.0),
+        ],
     }
 
 
 def tables():
     dbs = [x * 0.5 for x in range(-200, 25)]
-    fs = [x * 0.01 for x in range(0, 101)]
+    fs = [x * 0.01 for x in range(101)]
     hz = [5.0, 20.0, 31.5, 100.0, 440.0, 1000.0, 2500.5, 8000.0, 20000.0, 50000.0]
     qs = [0.1, 0.3, 1.0, 2.0, 4.0, 8.0, 10.0, 30.0]
     return {
