@@ -183,6 +183,8 @@ SimCapture / SoundDevice ─▶ dsp.analyse_block ─▶ MixAssistant ─▶ gua
 | `osc.py` | X32/M32 scaling + `ConsoleBase` → `OscConsole` (UDP) / `SimConsole` (records) |
 | `calibration.py` | Pre-show pink-noise pass |
 | `assistant/` | The guard-railed decision loops + typed decision log: `base` (state, log, coach), `protect` (feedback, clip), `levels` (vocal ride, balance), `clarity` (phase, unmask), `core` (`MixAssistant`) |
+| `capture/` | The listening half: `base` (the `CaptureSource` interface), `sim` (the built-in simulator), `device` (real multichannel input and device discovery) |
+| `clock.py` | `Clock` interface with `SystemClock` and `ManualClock`, so the engine can be stepped deterministically in tests |
 | `engine/` | Runtime threads + live telemetry: `base` (state, events, telemetry), `controls` (operator moves), `show` (scenes, venue, advisor), `calibration`, `core` (`Engine`: lifecycle, loop, command dispatch) |
 | `server.py` | stdlib HTTP + Server-Sent Events + control endpoints |
 | `static/index.html` | The operator dashboard page; its script is `static/dashboard.js`, compiled from TypeScript in `app/web` (see [web/README.md](web/README.md)) |
@@ -199,7 +201,7 @@ implements its Phase-4 performer surface: fader strip + EQ/FX/Settings screens.)
 python -m unittest discover -s tests
 ```
 
-327 tests covering OSC scaling round-trips + guardrail clamps, DSP/detection,
+330 tests covering OSC scaling round-trips + guardrail clamps, DSP/detection,
 the four decision loops (incl. that a steady sung note is *not* notched and a
 rising ring *is*), calibration, the HTTP/SSE/WebSocket endpoints, the
 **hardware** path (capture buffering/mapping/meas with an injected stream, meter
@@ -255,7 +257,7 @@ body-size limits.
   `input + fader` at the target, which actually converges.
 - **Clip recovery** (creep the preamp back when clean) and **balance hold** are
   implemented here; they were specified but stubbed in the reference.
-- **The listening half is wired** (`capture.py`): a pluggable `CaptureSource`
+- **The listening half is wired** (`capture/`): a pluggable `CaptureSource`
   (`SimCapture` for simulation, or `SoundDeviceCapture` for real PortAudio
   multichannel) feeds the assistant and the pink-noise calibration. The generic
   capture path was smoke-tested against a real input device; the **console-specific

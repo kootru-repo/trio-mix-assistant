@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import threading
-import time
 
 import numpy as np
 
@@ -27,7 +26,7 @@ class EngineCalibration(EngineShow):
         threading.Thread(target=self._calibrate_worker, daemon=True).start()
 
     def _calibrate_worker(self) -> None:
-        time.sleep(1.2)
+        self.clock.sleep(1.2)
         capture = None
         played = True
         if self.source is not None:

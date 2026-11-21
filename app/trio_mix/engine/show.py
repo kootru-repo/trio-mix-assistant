@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import time
 
 from .. import config as C
 from .. import venue as venuemod
@@ -40,7 +39,7 @@ class EngineShow(EngineControls):
                 self._rebuild_telemetry()
                 return
             self._applied_song = norm
-            self._song_start_t = time.monotonic()
+            self._song_start_t = self.clock.monotonic()
             if song is None:
                 self.assistant._emit(
                     "show",
@@ -65,7 +64,7 @@ class EngineShow(EngineControls):
                 self.assistant.lead_target = song.lead_target
             if song.balance:
                 self.assistant.balance_targets.update(dict(song.balance))
-            now2 = time.monotonic()
+            now2 = self.clock.monotonic()
             for gch in C.GUEST_CHANNELS:
                 if gch not in C.CHANNELS or self.status == "takeover":
                     continue
@@ -141,7 +140,7 @@ class EngineShow(EngineControls):
             return None
         try:
             self.session_log.flush()
-            model = venuemod.build_model(self.session_log, self.venue, now=time.time())
+            model = venuemod.build_model(self.session_log, self.venue, now=self.clock.time())
             path = venuemod.save_model(model, self.venue_dir)
             self.venue_model = model
             return path
@@ -190,7 +189,7 @@ class EngineShow(EngineControls):
                 "prompt": prompt,
                 "assessment": str(advice.get("room_assessment", "")).strip()[:240],
                 "severity": sev,
-                "time": time.strftime("%H:%M:%S"),
+                "time": self.clock.hhmmss(),
             }
             if prompt:
                 self.assistant._emit("advisor", prompt)

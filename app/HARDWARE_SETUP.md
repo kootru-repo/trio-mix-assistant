@@ -17,7 +17,7 @@ other phases:
 
 ## 1. Why this shape (what the software requires)
 
-The listening half (`trio_mix/capture.py`) imposes four hard constraints. Every
+The listening half (`trio_mix/capture/`) imposes four hard constraints. Every
 recommendation below follows from them:
 
 | Constraint | Where | Consequence for your rig |

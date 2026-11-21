@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import time
 from collections import deque
 
 from .. import config as C
 from ..calibration import CalibrationResult
+from ..clock import Clock, SystemClock
 from ..osc import ConsoleBase
 
 
@@ -27,7 +27,9 @@ class AssistantBase:
         calib: CalibrationResult | None = None,
         on_event=None,
         on_latency=None,
+        clock: Clock | None = None,
     ) -> None:
+        self.clock: Clock = clock or SystemClock()
         self.con = console
         self.on_event = on_event
         self.on_latency = on_latency
@@ -93,7 +95,7 @@ class AssistantBase:
 
     def _emit(self, kind: str, msg: str, ch: int | None = None) -> None:
         ev = {
-            "time": time.strftime("%H:%M:%S"),
+            "time": self.clock.hhmmss(),
             "kind": kind,
             "ch": ch,
             "role": _role(ch),
@@ -137,9 +139,9 @@ class AssistantBase:
         key = (kind, ch)
         self.coach_recs[key] = {
             "seq": self._coach_seq,
-            "mono": time.monotonic(),
+            "mono": self.clock.monotonic(),
             "persist": persist,
-            "time": time.strftime("%H:%M:%S"),
+            "time": self.clock.hhmmss(),
             "kind": kind,
             "ch": ch,
             "role": _role(ch),
@@ -154,7 +156,7 @@ class AssistantBase:
         """Current recommendations, freshest first, dropping any non-persistent rec
         that hasn't been re-issued within COACH_TTL_S (the problem cleared, or the
         engineer fixed it) — also purges them so they don't linger in state."""
-        now = time.monotonic() if now is None else now
+        now = self.clock.monotonic() if now is None else now
         live = []
         for key in list(self.coach_recs):
             rec = self.coach_recs[key]
@@ -207,7 +209,7 @@ class AssistantBase:
         """Record detect→actuate latency: from when this block's analysis began
         (engine sets block_t0) to the OSC command we just issued."""
         if self.on_latency:
-            self.on_latency(kind, time.perf_counter() - self.block_t0)
+            self.on_latency(kind, self.clock.perf_counter() - self.block_t0)
 
     def note_manual(self, ch: int, now: float, hold: float = 5.0) -> None:
         """Mark a channel as just-touched-by-a-human; auto yields for `hold` s."""

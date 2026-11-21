@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import math
 import threading
-import time
 from collections import deque
 from typing import TYPE_CHECKING, Any
 
@@ -15,6 +14,7 @@ from .. import template as tmpl
 from ..assistant import MixAssistant
 from ..calibration import CalibrationResult, Calibrator
 from ..capture import CaptureSource, SimCapture
+from ..clock import Clock, SystemClock
 from ..osc import ConsoleBase, SimConsole
 
 if TYPE_CHECKING:
@@ -49,7 +49,9 @@ class EngineBase:
         tick: float = 0.05,
         source: CaptureSource | None = None,
         template: tmpl.ShowTemplate | None = None,
+        clock: Clock | None = None,
     ) -> None:
+        self.clock: Clock = clock or SystemClock()
         self.sim = sim
         self.tick = tick
         self.con = console or SimConsole()
@@ -60,14 +62,14 @@ class EngineBase:
         else:
             self.source = None
         self.assistant = MixAssistant(
-            self.con, on_event=self._on_event, on_latency=self._note_latency_ev
+            self.con, on_event=self._on_event, on_latency=self._note_latency_ev, clock=self.clock
         )
         self.calibrator = Calibrator(self.con)
 
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
-        self._t0 = time.monotonic()
+        self._t0 = self.clock.monotonic()
         self._last_err_t = -1e9
 
         self.status = "live"
@@ -157,7 +159,7 @@ class EngineBase:
         """Track loop responsiveness for the spec's latency success criteria:
         compute time per tick + how far the actual period drifts from `tick`
         (jitter). Cheap EMAs; caller holds the lock."""
-        compute_ms = (time.monotonic() - now) * 1000.0
+        compute_ms = (self.clock.monotonic() - now) * 1000.0
         period_ms = (now - last_now) * 1000.0
         jitter_ms = abs(period_ms - self.tick * 1000.0)
         a = 0.1
@@ -166,7 +168,7 @@ class EngineBase:
         self._perf["max_ms"] = round(max(self._perf["max_ms"] * 0.999, compute_ms), 2)
 
     def _note_error(self, exc: Exception) -> None:
-        now = time.monotonic()
+        now = self.clock.monotonic()
         if now - self._last_err_t < 5.0:
             return
         self._last_err_t = now
@@ -198,7 +200,7 @@ class EngineBase:
         return "info"
 
     def _on_event(self, ev: dict) -> None:
-        now = time.monotonic()
+        now = self.clock.monotonic()
         ev["level"] = self._level_for(ev)
         if ev["kind"] == "feedback" and ev["ch"] is not None:
             self._last_notch_t[ev["ch"]] = now
@@ -210,7 +212,7 @@ class EngineBase:
 
     def set_console_meters(self, vals: list[float]) -> None:
         self._meter_count = len(vals)
-        self._last_rx_t = time.monotonic()
+        self._last_rx_t = self.clock.monotonic()
 
     def _output_levels(self) -> dict[int, float]:
         return {ch: f.rms_dbfs for ch, f in self._feat.items()}
@@ -341,7 +343,7 @@ class EngineBase:
         return out
 
     def _rebuild_telemetry(self) -> None:
-        now = time.monotonic()
+        now = self.clock.monotonic()
         lead = C.LEAD_VOCAL_CH
         in_ema = self.assistant.in_ema.get(lead)
         lead_out = (in_ema + self.assistant.fader_db[lead]) if in_ema is not None else None

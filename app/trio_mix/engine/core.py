@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 
 from .. import config as C
 from .. import dsp
@@ -114,36 +113,38 @@ class Engine(EngineCalibration):
         self.con.close()
 
     def _run(self) -> None:
-        next_t = time.monotonic()
-        last_now = time.monotonic()
+        next_t = self.clock.monotonic()
+        last_now = self.clock.monotonic()
         while not self._stop.is_set():
-            now = time.monotonic()
-            try:
-                with self._lock:
-                    if self.source is not None and self.status != "calibrating":
-                        frame = self.source.block()
-                        self.assistant.block_t0 = time.perf_counter()
-                        for ch, samples in frame.items():
-                            feat = dsp.analyse_block(samples)
-                            if ch == C.MEAS_MIC_CH:
-                                feat.fb_freq, feat.harmonicity = self._meas_ring.update(samples)
-                            self._feat[ch] = feat
-                            self.assistant.on_features(ch, feat, now)
-                        if self.assistant.enabled.get("phase"):
-                            for pa, pb in C.PHASE_PAIRS:
-                                sa, sb = frame.get(pa), frame.get(pb)
-                                if sa is not None and sb is not None:
-                                    self.assistant.handle_phase(
-                                        pa, pb, dsp.phase_relation(sa, sb), now
-                                    )
-                    self._note_perf(now, last_now)
-                    self._rebuild_telemetry()
-                self._recover_audio(now)
-            except Exception as exc:
-                self._note_error(exc)
+            now = self.clock.monotonic()
+            self.step(now, last_now)
             last_now = now
             next_t += self.tick
-            time.sleep(max(0.0, next_t - time.monotonic()))
+            self.clock.sleep(max(0.0, next_t - self.clock.monotonic()))
+
+    def step(self, now: float, last_now: float) -> None:
+        """Run one analysis tick. The loop calls this; so can a test with a manual clock."""
+        try:
+            with self._lock:
+                if self.source is not None and self.status != "calibrating":
+                    frame = self.source.block()
+                    self.assistant.block_t0 = self.clock.perf_counter()
+                    for ch, samples in frame.items():
+                        feat = dsp.analyse_block(samples)
+                        if ch == C.MEAS_MIC_CH:
+                            feat.fb_freq, feat.harmonicity = self._meas_ring.update(samples)
+                        self._feat[ch] = feat
+                        self.assistant.on_features(ch, feat, now)
+                    if self.assistant.enabled.get("phase"):
+                        for pa, pb in C.PHASE_PAIRS:
+                            sa, sb = frame.get(pa), frame.get(pb)
+                            if sa is not None and sb is not None:
+                                self.assistant.handle_phase(pa, pb, dsp.phase_relation(sa, sb), now)
+                self._note_perf(now, last_now)
+                self._rebuild_telemetry()
+            self._recover_audio(now)
+        except Exception as exc:
+            self._note_error(exc)
 
     AUDIO_RESTART_S = 3.0
 

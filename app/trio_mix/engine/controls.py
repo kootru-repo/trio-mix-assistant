@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import time
 
 from .. import config as C
 from .base import EngineBase, _clampf, _num
@@ -51,7 +50,7 @@ class EngineControls(EngineBase):
         except (TypeError, ValueError):
             return
         with self._lock:
-            now = time.monotonic()
+            now = self.clock.monotonic()
             db = self.con.set_fader_raw(ch, db)
             self.assistant.fader_db[ch] = db
             self.assistant.note_manual(ch, now)
@@ -153,7 +152,7 @@ class EngineControls(EngineBase):
         with self._lock:
             self.con.set_channel_mute(ch, bool(on))
             self.muted[ch] = bool(on)
-            self.assistant.note_manual(ch, time.monotonic())
+            self.assistant.note_manual(ch, self.clock.monotonic())
             self.assistant._emit("manual", f"{C.CHANNELS[ch]} {'MUTED' if on else 'unmuted'}", ch)
             self._rebuild_telemetry()
 
@@ -180,7 +179,7 @@ class EngineControls(EngineBase):
         if ch not in C.CHANNELS:
             return
         with self._lock:
-            now = time.monotonic()
+            now = self.clock.monotonic()
             self._last_rx_t = now
             if now - self.assistant.last_move_t.get(ch, -1e9) < 0.8:
                 return
