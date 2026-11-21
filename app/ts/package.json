@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
-  "description": "TypeScript port of the Trio Mix-Assistant engine. src/core has no platform APIs.",
+  "description": "Trio Mix-Assistant. src/core has no platform APIs.",
   "scripts": {
     "check": "tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.build.json",

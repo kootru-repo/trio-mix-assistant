@@ -2,7 +2,7 @@ import { CaptureError, CaptureSourceBase } from "./capture.ts";
 import type { CaptureStatus, Frame } from "./capture.ts";
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
-import { pyRound, pyRoundTo } from "./pyfmt.ts";
+import { roundHalfEven, roundTo } from "./numfmt.ts";
 
 export type AudioDeviceId = number | string;
 
@@ -52,14 +52,14 @@ export interface RankedInput {
   hostapi: string;
 }
 
-export class ValueError extends Error {
+export class InvalidValueError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "ValueError";
+    this.name = "InvalidValueError";
   }
 }
 
-export interface SoundDeviceCaptureOptions {
+export interface DeviceCaptureOptions {
   factory: AudioInputFactory;
   clock: Clock;
   device?: AudioDeviceId | null;
@@ -82,15 +82,15 @@ const QUEUE_MAX = 32;
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 const errName = (e: unknown): string => (e instanceof Error ? e.name : typeof e);
 
-const pyRepr = (v: AudioDeviceId | null): string => {
-  if (v === null) return "None";
+const reprText = (v: AudioDeviceId | null): string => {
+  if (v === null) return "(default)";
   if (typeof v === "number") return String(v);
   return `'${v}'`;
 };
 
-const pyStr = (v: AudioDeviceId | null): string => (v === null ? "None" : String(v));
+const strOf = (v: AudioDeviceId | null): string => (v === null ? "default" : String(v));
 
-export class SoundDeviceCapture extends CaptureSourceBase {
+export class DeviceCapture extends CaptureSourceBase {
   readonly SILENCE_AFTER = 4;
   readonly SILENCE_FLOOR = 1e-4;
   readonly SILENCE_HOLD_S = 5.0;
@@ -123,7 +123,7 @@ export class SoundDeviceCapture extends CaptureSourceBase {
   private overloadFlag = false;
   private devName: string | null = null;
 
-  constructor(opts: SoundDeviceCaptureOptions) {
+  constructor(opts: DeviceCaptureOptions) {
     super();
     this.factory = opts.factory;
     this.clock = opts.clock;
@@ -174,7 +174,7 @@ export class SoundDeviceCapture extends CaptureSourceBase {
       const maxin = Math.trunc(info.max_input_channels ?? 0);
       if (maxin < this.ndev) {
         throw new CaptureError(
-          `audio device '${info.name ?? pyStr(this.device)}' has ${maxin} input ` +
+          `audio device '${info.name ?? strOf(this.device)}' has ${maxin} input ` +
             `channel(s) but this setup needs ${this.ndev} ` +
             `(console returns + meas mic). Pick a fuller device or aggregate.`,
         );
@@ -182,7 +182,7 @@ export class SoundDeviceCapture extends CaptureSourceBase {
     } catch (e) {
       if (e instanceof CaptureError) throw e;
       throw new CaptureError(
-        `audio device ${pyRepr(this.device)} could not be opened ` +
+        `audio device ${reprText(this.device)} could not be opened ` +
           `(${errName(e)}: ${errText(e)}). Run --list-devices and check --audio-device.`,
       );
     }
@@ -194,7 +194,7 @@ export class SoundDeviceCapture extends CaptureSourceBase {
     } catch (e) {
       if (e instanceof CaptureError) throw e;
       throw new CaptureError(
-        `could not open audio device ${pyRepr(this.device)} at ${this.samplerate} Hz ` +
+        `could not open audio device ${reprText(this.device)} at ${this.samplerate} Hz ` +
           `(${errName(e)}: ${errText(e)}). It may be in use by another app, or not ` +
           `support ${this.samplerate} Hz.`,
       );
@@ -356,7 +356,7 @@ export class SoundDeviceCapture extends CaptureSourceBase {
     const levelDb = 20.0 * Math.log10(rms);
     this.autoDb = levelDb;
     const boost = Math.max(0.0, Math.min(maxDb, targetDbfs - levelDb));
-    this.gainDb = pyRoundTo(boost, 1);
+    this.gainDb = roundTo(boost, 1);
     this.gain = 10.0 ** (this.gainDb / 20.0);
     return this.gainDb;
   }
@@ -379,9 +379,9 @@ export class SoundDeviceCapture extends CaptureSourceBase {
       dead: this.dead(),
       silent: this.silent(),
       overload: this.overload(),
-      peak: pyRoundTo(this.peak, 5),
+      peak: roundTo(this.peak, 5),
       name: this.devName,
-      device: pyStr(this.device),
+      device: strOf(this.device),
       channels: this.ndev,
     };
   }
@@ -408,7 +408,7 @@ export function rankInputs(
     const name = d.name || "";
     let s = 0.0;
     if (defaultName && name === defaultName) s += 10.0;
-    if (pyRound(d.default_samplerate || 0) === preferSr) s += 5.0;
+    if (roundHalfEven(d.default_samplerate || 0) === preferSr) s += 5.0;
     const api = apiNameOf(d, hostapis);
     if (api.includes("ASIO")) {
       s += 4.0;
@@ -427,7 +427,7 @@ export function rankInputs(
     index: i,
     name: d.name ?? null,
     channels: Math.trunc(d.max_input_channels ?? 1),
-    samplerate: pyRound(d.default_samplerate || preferSr),
+    samplerate: roundHalfEven(d.default_samplerate || preferSr),
     hostapi: apiNameOf(d, hostapis),
   }));
 }
@@ -456,7 +456,7 @@ export function autodetectInputs(factory: AudioInputFactory, preferSr: number = 
 
 const INT_RE = /^[+-]?\d+(_\d+)*$/;
 
-const pyInt = (s: string): number | null => {
+const argInt = (s: string): number | null => {
   const t = s.trim();
   if (!INT_RE.test(t)) return null;
   return Number(t.replace(/_/g, ""));
@@ -468,14 +468,14 @@ export function parseChannelMap(spec: string): Map<number, number> {
     const pair = raw.trim();
     if (pair === "") continue;
     const k = pair.indexOf(":");
-    if (k < 0) throw new ValueError(`entry '${pair}' must be console:device (e.g. 8:9)`);
-    const ch = pyInt(pair.slice(0, k));
-    const dev = pyInt(pair.slice(k + 1));
-    if (ch === null || dev === null) throw new ValueError(`entry '${pair}' has non-integer channel/column`);
-    if (ch < 1 || dev < 0) throw new ValueError(`entry '${pair}': console channel >= 1, device column >= 0`);
+    if (k < 0) throw new InvalidValueError(`entry '${pair}' must be console:device (e.g. 8:9)`);
+    const ch = argInt(pair.slice(0, k));
+    const dev = argInt(pair.slice(k + 1));
+    if (ch === null || dev === null) throw new InvalidValueError(`entry '${pair}' has non-integer channel/column`);
+    if (ch < 1 || dev < 0) throw new InvalidValueError(`entry '${pair}': console channel >= 1, device column >= 0`);
     out.set(ch, dev);
   }
-  if (out.size === 0) throw new ValueError("channel-map is empty");
+  if (out.size === 0) throw new InvalidValueError("channel-map is empty");
   return out;
 }
 

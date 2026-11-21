@@ -1,6 +1,6 @@
 import { C } from "../config.ts";
 import type { ChannelFeatures, PhaseRelation } from "../dsp.ts";
-import { fixed, pyRound, pyRoundTo, signed } from "../pyfmt.ts";
+import { fixed, roundHalfEven, roundTo, signed } from "../numfmt.ts";
 import { coachKey, pairKey } from "./base.ts";
 import { LevelJobs } from "./levels.ts";
 
@@ -50,8 +50,8 @@ export class ClarityJobs extends LevelJobs {
     this.phaseStatus.set(key, {
       a,
       b,
-      corr: pyRoundTo(corr, 2),
-      lag_ms: pyRoundTo(lag, 2),
+      corr: roundTo(corr, 2),
+      lag_ms: roundTo(lag, 2),
       status,
       inv_a: this.polarity.get(a) ?? false,
       inv_b: this.polarity.get(b) ?? false,
@@ -68,7 +68,7 @@ export class ClarityJobs extends LevelJobs {
           a,
           `${ra} & ${rb} are OUT OF POLARITY (corr ${signed(corr, 2)}) → invert phase on ${rb}.`,
           true,
-          { pair: [a, b], status: "inverted", corr: pyRoundTo(corr, 2) },
+          { pair: [a, b], status: "inverted", corr: roundTo(corr, 2) },
         );
       } else if (ready && armed) {
         const newpol = !(this.polarity.get(b) ?? false);
@@ -94,7 +94,7 @@ export class ClarityJobs extends LevelJobs {
     } else if (status === "comb") {
       const msg = `${ra} & ${rb} arrive ~${fixed(Math.abs(lag), 2)} ms apart (comb filtering) → time-align them or move the mic.`;
       if (this.coachMode) {
-        this.recommend("phase", a, msg, true, { pair: [a, b], status: "comb", lag_ms: pyRoundTo(lag, 2) });
+        this.recommend("phase", a, msg, true, { pair: [a, b], status: "comb", lag_ms: roundTo(lag, 2) });
       } else {
         this.phaseWarn(key, a, msg, now);
       }
@@ -116,7 +116,7 @@ export class ClarityJobs extends LevelJobs {
         `To unmask the vocal: dip ~${fixed(C.UNMASK_FREQ, 0)} Hz by ${fixed(Math.abs(C.UNMASK_DEPTH_DB), 0)} dB ` +
           `(Q ${fixed(C.UNMASK_Q, 1)}) on ${roles} while the vocal is up.`,
         true,
-        { freq: pyRound(C.UNMASK_FREQ), depth_db: C.UNMASK_DEPTH_DB, channels: [...targets] },
+        { freq: roundHalfEven(C.UNMASK_FREQ), depth_db: C.UNMASK_DEPTH_DB, channels: [...targets] },
       );
       return;
     }
@@ -126,7 +126,7 @@ export class ClarityJobs extends LevelJobs {
     this.duckGain = (1 - coef) * this.duckGain + coef * target;
     for (const ch of targets) {
       if (Math.abs(this.duckGain - (this.duckApplied.get(ch) ?? 0)) >= C.UNMASK_WRITE_EPS) {
-        const g = pyRoundTo(this.duckGain, 1);
+        const g = roundTo(this.duckGain, 1);
         this.con.setEqBand(ch, C.UNMASK_BAND, C.UNMASK_FREQ, g, C.UNMASK_Q, true);
         this.duckApplied.set(ch, this.duckGain);
       }

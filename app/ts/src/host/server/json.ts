@@ -10,12 +10,12 @@ const ESCAPES: Record<string, string> = {
   "\f": "\\f",
 };
 
-const pyString = (s: string): string =>
+const argString = (s: string): string =>
   '"' +
   s.replace(/[\\"]|[^ -~]/g, (ch) => ESCAPES[ch] ?? "\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0")) +
   '"';
 
-export const pyNumber = (x: number): string => {
+export const coerceNumber = (x: number): string => {
   if (Number.isNaN(x)) return "NaN";
   if (x === Infinity) return "Infinity";
   if (x === -Infinity) return "-Infinity";
@@ -38,20 +38,20 @@ export const pyNumber = (x: number): string => {
   return `${mant}e${sign}${String(Math.abs(exp)).padStart(2, "0")}`;
 };
 
-export const pyJson = (v: unknown): string => {
+export const jsonText = (v: unknown): string => {
   if (v === null || v === undefined) return "null";
-  if (typeof v === "string") return pyString(v);
-  if (typeof v === "number") return pyNumber(v);
+  if (typeof v === "string") return argString(v);
+  if (typeof v === "number") return coerceNumber(v);
   if (typeof v === "boolean") return v ? "true" : "false";
-  if (Array.isArray(v)) return "[" + v.map(pyJson).join(", ") + "]";
+  if (Array.isArray(v)) return "[" + v.map(jsonText).join(", ") + "]";
   if (v instanceof Map) {
-    return "{" + [...v].map(([k, x]) => pyString(String(k)) + ": " + pyJson(x)).join(", ") + "}";
+    return "{" + [...v].map(([k, x]) => argString(String(k)) + ": " + jsonText(x)).join(", ") + "}";
   }
   if (typeof v === "object") {
     return (
       "{" +
       Object.entries(v as Record<string, unknown>)
-        .map(([k, x]) => pyString(k) + ": " + pyJson(x))
+        .map(([k, x]) => argString(k) + ": " + jsonText(x))
         .join(", ") +
       "}"
     );
@@ -60,7 +60,7 @@ export const pyJson = (v: unknown): string => {
 };
 
 export const jsonForHtml = (v: unknown): string =>
-  pyJson(v).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+  jsonText(v).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 
 const checkDepth = (text: string): void => {
   let depth = 0;
@@ -86,11 +86,11 @@ export const strictLoads = (text: string): unknown => {
 export const decodeUtf8 = (data: Uint8Array): string =>
   new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(data);
 
-export const pyStr = (v: unknown): string => {
-  if (v === null || v === undefined) return "None";
-  if (v === true) return "True";
-  if (v === false) return "False";
-  if (typeof v === "number") return pyNumber(v);
+export const strOf = (v: unknown): string => {
+  if (v === null || v === undefined) return "";
+  if (v === true) return "true";
+  if (v === false) return "false";
+  if (typeof v === "number") return coerceNumber(v);
   if (typeof v === "string") return v;
-  return pyJson(v);
+  return jsonText(v);
 };

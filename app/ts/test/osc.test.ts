@@ -55,7 +55,7 @@ function script(c: ConsoleBase): void {
   c.setEqNotch(1, 4, 900.0);
 }
 
-test("scaling helpers match the Python reference", () => {
+test("scaling helpers match the recorded reference", () => {
   const t = fx.tables;
   t.dbs.forEach((d: number, i: number) => close(dbToFader(d), t.db_to_fader[i], 1e-12, 1e-12, `db ${d}`));
   t.fs.forEach((f: number, i: number) => close(faderToDb(f), t.fader_to_db[i], 1e-12, 1e-9, `fader ${f}`));
@@ -66,7 +66,7 @@ test("scaling helpers match the Python reference", () => {
   t.qs.forEach((q: number, i: number) => close(qToParam(q), t.q_param[i], 1e-12, 1e-12, `q ${q}`));
 });
 
-test("every console call puts the same bytes on the wire as python-osc", () => {
+test("every console call puts the recorded bytes on the wire", () => {
   const c = new Capture();
   script(c);
   assert.equal(c.sent.length, fx.wire.length);
@@ -83,7 +83,7 @@ test("every console call puts the same bytes on the wire as python-osc", () => {
   });
 });
 
-test("SimConsole ends in the same state as the Python SimConsole", () => {
+test("SimConsole ends in the recorded state", () => {
   const c = new SimConsole();
   script(c);
   const s = fx.sim;
@@ -160,7 +160,7 @@ test("bundles are unpacked into their messages", () => {
   assert.deepEqual(decodePacket(bundle).map((m) => m.address), ["/a", "/b"]);
 });
 
-test("meter blobs match the Python encoder and decoder, including bad input", () => {
+test("meter blobs match the recorded encoder and decoder, including bad input", () => {
   const b = fx.blobs;
   assert.equal(hex(encodeMeterBlob(b.values)), b.good_hex);
   for (const c of b.cases) {

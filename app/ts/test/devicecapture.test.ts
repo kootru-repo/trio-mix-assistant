@@ -5,7 +5,7 @@ import { ManualClock } from "../src/core/clock.ts";
 import type { Clock } from "../src/core/clock.ts";
 import { C, autoChannelMap, channelMapState, restoreChannelMapState } from "../src/core/config.ts";
 import {
-  SoundDeviceCapture,
+  DeviceCapture,
   autodetectInputs,
   formatDeviceList,
   listAudioDevices,
@@ -19,7 +19,7 @@ import type {
   AudioInputFactory,
   AudioInputOptions,
   AudioInputStream,
-  SoundDeviceCaptureOptions,
+  DeviceCaptureOptions,
 } from "../src/core/devicecapture.ts";
 import { fixture } from "./helpers.ts";
 import { StepClock } from "./stepclock.ts";
@@ -69,12 +69,12 @@ class FakeFactory implements AudioInputFactory {
   }
 }
 
-type Extra = Partial<Omit<SoundDeviceCaptureOptions, "factory" | "clock">>;
+type Extra = Partial<Omit<DeviceCaptureOptions, "factory" | "clock">>;
 
 const mk = (opts: Extra = {}, clock: Clock = new ManualClock(100)) => {
   const factory = new FakeFactory();
   const manual = clock as ManualClock;
-  const cap = new SoundDeviceCapture({ factory, clock, ...opts });
+  const cap = new DeviceCapture({ factory, clock, ...opts });
   return { cap, factory, clock: manual };
 };
 
@@ -273,7 +273,7 @@ test("start opens the stream once with the mapped channel count", () => {
   assert.equal(factory.opens.length, 1);
   assert.deepEqual(factory.opens[0], { device: null, channels: 8, sampleRate: 48000, blockSize: C.BLOCK });
   assert.equal(cap.status()["name"], "Fake");
-  assert.equal(cap.status()["device"], "None");
+  assert.equal(cap.status()["device"], "default");
 });
 
 test("stop closes the stream and restart revives a dead one", async () => {
@@ -483,11 +483,11 @@ test("channel map parsing", () => {
     ],
   );
   for (const bad of ["", "8", "8:x", "0:0", "8:-1", "  "]) {
-    assert.throws(() => parseChannelMap(bad), { name: "ValueError" }, JSON.stringify(bad));
+    assert.throws(() => parseChannelMap(bad), { name: "InvalidValueError" }, JSON.stringify(bad));
   }
 });
 
-test("ranking, picking, formatting and parsing match the Python fixture", () => {
+test("ranking, picking, formatting and parsing match the recorded fixture", () => {
   const fx = fixture<any>("devices");
   assert.equal(fx.sample_rate, C.SAMPLE_RATE);
   for (const row of fx.lists) {
@@ -499,7 +499,7 @@ test("ranking, picking, formatting and parsing match the Python fixture", () => 
     if ("ok" in m) {
       assert.deepEqual([...parseChannelMap(m.spec)], m.ok, JSON.stringify(m.spec));
     } else {
-      assert.throws(() => parseChannelMap(m.spec), { name: "ValueError", message: m.error }, JSON.stringify(m.spec));
+      assert.throws(() => parseChannelMap(m.spec), { name: "InvalidValueError", message: m.error }, JSON.stringify(m.spec));
     }
   }
 });

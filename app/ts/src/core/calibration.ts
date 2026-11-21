@@ -2,7 +2,7 @@ import { C } from "./config.ts";
 import type { ConsoleBase } from "./console.ts";
 import { findResonantPeaks, generatePinkNoise, octaveBandLevels } from "./dsp.ts";
 import type { BandPair, Samples } from "./dsp.ts";
-import { fixed, signed } from "./pyfmt.ts";
+import { fixed, signed } from "./numfmt.ts";
 import type { Rng } from "./rng.ts";
 
 export interface CalibrationResult {

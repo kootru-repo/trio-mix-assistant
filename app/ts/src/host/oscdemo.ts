@@ -1,6 +1,6 @@
 import type { Clock } from "../core/clock.ts";
 import type { ConsoleBase } from "../core/console.ts";
-import { signed } from "../core/pyfmt.ts";
+import { signed } from "../core/numfmt.ts";
 
 export type Print = (line: string) => void;
 

@@ -92,7 +92,7 @@ test("handleMeters only accepts a blob first argument", () => {
   assert.deepEqual(meters, [[0.5, 0.25]]);
 });
 
-test("dispatch routes by pattern like the python dispatcher", async () => {
+test("dispatch routes by pattern", async () => {
   const { faders, meters, net, rx } = rig();
   await rx.start();
   rx.dispatch(msg("/meters/1", oscBlob(encodeMeterBlob([0.5]))));

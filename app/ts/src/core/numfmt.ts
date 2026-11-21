@@ -36,6 +36,6 @@ export const signed = (x: number, digits: number): string => {
 
 export const percent = (x: number, digits: number = 0): string => fixed(x * 100, digits) + "%";
 
-export const pyRound = (x: number): number => Number(fixed(x, 0)) + 0;
+export const roundHalfEven = (x: number): number => Number(fixed(x, 0)) + 0;
 
-export const pyRoundTo = (x: number, digits: number): number => Number(fixed(x, digits));
+export const roundTo = (x: number, digits: number): number => Number(fixed(x, digits));

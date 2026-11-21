@@ -107,7 +107,7 @@ test("load tolerates damaged files and fills defaults", () => {
   }
 });
 
-test("saved files are byte-identical to the Python venue store", () => {
+test("saved files are byte-identical to the recorded files", () => {
   const dir = mkdtempSync(join(tmpdir(), "trio-venue-"));
   try {
     const store = new VenueStore(dir);

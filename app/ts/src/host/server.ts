@@ -10,13 +10,13 @@ import { truthy } from "../core/engine/base.ts";
 import type { Engine } from "../core/engine/index.ts";
 import { ICON_SVG, LOGIN_HTML, MANIFEST } from "./server/assets.ts";
 import { hostAllowed, originAllowed, safeEqual } from "./server/guards.ts";
-import { decodeUtf8, jsonForHtml, pyJson, pyStr, strictLoads } from "./server/json.ts";
+import { decodeUtf8, jsonForHtml, jsonText, strOf, strictLoads } from "./server/json.ts";
 import { LoginLimiter } from "./server/limiter.ts";
 import { WS_MAX_FRAME, WsParser, wsAccept, wsFrame } from "./server/ws.ts";
 
 export { hostAllowed, originAllowed } from "./server/guards.ts";
 export { LoginLimiter } from "./server/limiter.ts";
-export { jsonForHtml, pyJson, strictLoads } from "./server/json.ts";
+export { jsonForHtml, jsonText, strictLoads } from "./server/json.ts";
 
 const MAX_BODY = 1 << 16;
 const MAX_DRAIN = 1 << 18;
@@ -81,7 +81,7 @@ const sendText = (res: ServerResponse, text: string, ctype: string, extra: Recor
 };
 
 const sendJson = (res: ServerResponse, obj: unknown, code: number = 200, extra: Record<string, string> = {}): void => {
-  const body = Buffer.from(pyJson(obj), "utf8");
+  const body = Buffer.from(jsonText(obj), "utf8");
   res.writeHead(code, { "Content-Type": "application/json", "Content-Length": String(body.length), ...extra });
   res.end(body);
 };
@@ -195,7 +195,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
         socket.destroy();
         return;
       }
-      res.write(`data: ${pyJson(engine.snapshot())}\n\n`);
+      res.write(`data: ${jsonText(engine.snapshot())}\n\n`);
     };
     push();
     timer = setInterval(push, STREAM_INTERVAL_MS);
@@ -290,8 +290,8 @@ export function createServer(opts: ServerOptions): DashboardServer {
       }
     };
     socket.on("data", onData);
-    send(pyJson(engine.snapshot()));
-    timer = setInterval(() => send(pyJson(engine.snapshot())), STREAM_INTERVAL_MS);
+    send(jsonText(engine.snapshot()));
+    timer = setInterval(() => send(jsonText(engine.snapshot())), STREAM_INTERVAL_MS);
     if (head.length > 0) onData(head);
   };
 
@@ -303,7 +303,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
     }
     readBody(req).then(
       async (body) => {
-        const ok = pin !== null && safeEqual(pyStr(body["pin"] ?? ""), pin);
+        const ok = pin !== null && safeEqual(strOf(body["pin"] ?? ""), pin);
         if (!ok) {
           await new Promise((r) => setTimeout(r, limiter.delayS * 1000));
           sendJson(res, { ok: false }, 401);
@@ -349,7 +349,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
   };
 
   const control = (url: string, body: Body): boolean => {
-    if (url === "/api/toggle") engine.setEnabled(pyStr(body["job"]), truthy(body["on"]));
+    if (url === "/api/toggle") engine.setEnabled(strOf(body["job"]), truthy(body["on"]));
     else if (url === "/api/panic") engine.panic(truthy(body["on"]));
     else if (url === "/api/calibrate") engine.runCalibration();
     else if (url === "/api/lead_target") {

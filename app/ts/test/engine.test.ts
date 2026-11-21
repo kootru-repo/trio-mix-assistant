@@ -36,7 +36,7 @@ function sameValue(actual: unknown, expected: unknown, path: string): void {
 
 const json = (v: unknown): any => JSON.parse(JSON.stringify(v));
 
-test("the engine, stepped on a manual clock, publishes the same telemetry as the Python engine", async () => {
+test("the engine, stepped on a manual clock, publishes the recorded telemetry", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
   const e = new Engine({ clock, sim: true, tick: 0.05 });
   let last = clock.monotonic();

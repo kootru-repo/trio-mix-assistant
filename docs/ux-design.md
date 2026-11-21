@@ -1,7 +1,5 @@
 # UX Design: Operating with Mixing Station (no X32‑Edit)
 
-> **Obsolete implementation notes:** this design was written for the original Python build, which was archived on 2026-11-21 (see `archive/`). The application is now the TypeScript port in `app/ts`; file and module names below that end in `.py` refer to code that no longer exists.
->
 > **Status:** design · supersedes the X32‑Edit‑centric rehearsal story in the README.
 > **Scope:** the operator/performer experience across all three modes (simulation,
 > emulation, production) with **Mixing Station** as the manual mixer surface and the
@@ -153,8 +151,8 @@ Guardrails (non‑negotiable):
 
 1. **Emulator fidelity vs Mixing Station**: point Mixing Station at
    `--emulate` with request tracing on, extend `_seed_params()`/handlers from
-   `req_log`, add `tests/test_mixingstation.py` pinning its sync flow (twin of
-   `test_x32edit.py`).
+   `req_log`, add `ts/test/mixingstation.test.ts` pinning its sync flow (twin of
+   the emulator tests).
 2. **Discovery + identity**: verify broadcast `/info` discovery from a real pad on
    the LAN; add `--model X32|M32`.
 3. **Launch banner**: the two‑line “Dashboard / Mixer app” connect story + firewall

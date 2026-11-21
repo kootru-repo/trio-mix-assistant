@@ -1,11 +1,7 @@
-# Trio Mix-Assistant in TypeScript
+# Trio Mix-Assistant
 
-This is the application. It began as a Python program; that original is **obsolete**, was removed from
-the working tree on 2026-11-21 and survives only as the zip in [`../../archive`](../../archive/README.md)
-(also in git history at commit `4094d6c`). Do not build on it.
-
-Node 22 or newer is the only requirement. The runtime has no npm dependencies; `typescript` and
-`@types/node` are needed only to build and check.
+The application: Node 22 or newer is the only requirement. The runtime has no npm dependencies;
+`typescript` and `@types/node` are needed only to build and check.
 
 ## Layout
 
@@ -14,7 +10,7 @@ Node 22 or newer is the only requirement. The runtime has no npm dependencies; `
 | `src/core` | Signal processing, console protocol, the four jobs, coach mode, calibration, show flow, the engine and its telemetry, the desk emulator, the QR encoder, device-capture logic | No platform APIs. `tsconfig.core.json` compiles it with no DOM and no Node types, so `setTimeout`, `Buffer` or `node:*` fail the build. Time, randomness and networking arrive through `Clock`, `Rng` and `UdpFactory`. |
 | `src/host` | Node bindings: UDP, HTTP/WebSocket server, TLS certificates, SQLite session log, advisor, command line | Everything that touches the operating system |
 | `test` | Tests, run directly by Node | |
-| `fixtures` | JSON recorded from the archived Python original | Committed; the tests need no Python |
+| `fixtures` | Recorded reference data the tests compare against | Committed |
 | `tools` | The packager (`package.ts`) | |
 
 The point of the split is a later phone app: `core` can run unchanged inside a React Native or
@@ -26,23 +22,24 @@ Capacitor shell, with a new host in place of `src/host`.
 npm install
 npm run check      # type-check core, then everything
 npm test           # all tests
-npm run build      # emit JavaScript to dist/
+npm run build      # emit JavaScript to dist/js
+npm run start      # reads show.conf, like start.bat
+npm run run        # the command line (see --help)
+npm run package    # build dist/package/TrioMixAssistant.zip
 ```
 
-## How behaviour is kept identical
+## How behaviour is checked
 
-Every module was checked against fixtures recorded from the Python original, not against hand-written
-expectations. The fixtures in `fixtures/` are committed, so the tests need no Python:
+Tests compare against recorded reference data in `fixtures/` rather than hand-written expectations:
 
-- Signal processing, scaling tables and OSC datagrams are compared number for number and byte for
-  byte (including against `python-osc`).
-- `SeededRng` reproduces numpy's `default_rng` stream exactly (PCG64 with numpy's seeding and
-  ziggurat tables), so the simulator generates the same audio as Python for the same seed.
-- The assistant and the engine are replayed through scripted runs recorded from Python on a manual
-  clock: every event, coach recommendation and telemetry value must match.
+- Signal processing, scaling tables and OSC datagrams are compared number for number and byte for byte.
+- `SeededRng` is a PCG64 generator with a published seeding and ziggurat scheme, so a fixed seed gives
+  the same simulated audio every run, and the same audio as the recorded runs.
+- The assistant and the engine are replayed through scripted runs on a manual clock: every event,
+  coach recommendation and telemetry value must match the recording.
 
-The recorder scripts (`record_*.py`) are in the archive with the Python they import. A fixture should
-only change if the intended behaviour changes; then edit the expected value deliberately, with the reason in the commit.
+A fixture should only change when the intended behaviour changes; edit the expected value
+deliberately and give the reason in the commit.
 
 ## What is not verified
 

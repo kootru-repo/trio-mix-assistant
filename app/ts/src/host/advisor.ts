@@ -40,10 +40,10 @@ export interface AdvisorOptions {
   env?: Record<string, string | undefined>;
 }
 
-function pyStr(v: unknown): string {
-  if (v === null) return "None";
-  if (v === true) return "True";
-  if (v === false) return "False";
+function strOf(v: unknown): string {
+  if (v === null) return "";
+  if (v === true) return "true";
+  if (v === false) return "false";
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
@@ -57,7 +57,7 @@ function jsonString(s: string): string {
   return JSON.stringify(s).replace(/[\u007f-￿]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
 }
 
-export function pyJsonDumps(v: unknown): string {
+export function jsonDumps(v: unknown): string {
   if (v === null || v === undefined) return "null";
   if (typeof v === "boolean") return v ? "true" : "false";
   if (typeof v === "number") {
@@ -66,10 +66,10 @@ export function pyJsonDumps(v: unknown): string {
     return String(v);
   }
   if (typeof v === "string") return jsonString(v);
-  if (Array.isArray(v)) return "[" + v.map(pyJsonDumps).join(", ") + "]";
+  if (Array.isArray(v)) return "[" + v.map(jsonDumps).join(", ") + "]";
   if (typeof v === "object") {
     const parts: string[] = [];
-    for (const [k, x] of Object.entries(v)) parts.push(jsonString(k) + ": " + pyJsonDumps(x));
+    for (const [k, x] of Object.entries(v)) parts.push(jsonString(k) + ": " + jsonDumps(x));
     return "{" + parts.join(", ") + "}";
   }
   return "null";
@@ -143,7 +143,7 @@ export class Advisor implements AdvisorPort {
       model: this.model,
       max_tokens: MAX_TOKENS,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: clip(pyJsonDumps(ctx), CONTEXT_CAP) }],
+      messages: [{ role: "user", content: clip(jsonDumps(ctx), CONTEXT_CAP) }],
     };
     const res = await this.fetchFn(API_URL, {
       method: "POST",
@@ -152,7 +152,7 @@ export class Advisor implements AdvisorPort {
         "x-api-key": this.apiKey || "",
         "anthropic-version": API_VERSION,
       },
-      body: pyJsonDumps(body),
+      body: jsonDumps(body),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
@@ -164,7 +164,7 @@ export class Advisor implements AdvisorPort {
     for (const b of content) {
       if (typeof b !== "object" || b === null) throw new TypeError("bad block");
       const blk = b as Record<string, unknown>;
-      if (blk["type"] === "text") text += pyStr("text" in blk ? blk["text"] : "");
+      if (blk["type"] === "text") text += strOf("text" in blk ? blk["text"] : "");
     }
     return Advisor.parse(text);
   }
@@ -182,11 +182,11 @@ export class Advisor implements AdvisorPort {
     }
     if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
     const o = d as Record<string, unknown>;
-    let sev = pyStr("severity" in o ? o["severity"] : "info").trim().toLowerCase();
+    let sev = strOf("severity" in o ? o["severity"] : "info").trim().toLowerCase();
     if (sev !== "info" && sev !== "notice" && sev !== "warn") sev = "info";
     return {
-      performer_prompt: clip(pyStr("performer_prompt" in o ? o["performer_prompt"] : "").trim(), 200),
-      room_assessment: clip(pyStr("room_assessment" in o ? o["room_assessment"] : "").trim(), 240),
+      performer_prompt: clip(strOf("performer_prompt" in o ? o["performer_prompt"] : "").trim(), 200),
+      room_assessment: clip(strOf("room_assessment" in o ? o["room_assessment"] : "").trim(), 240),
       severity: sev,
     };
   }

@@ -16,7 +16,7 @@ const fixture = JSON.parse(
 
 const rows = (m: boolean[][]): string[] => m.map((r) => r.map((v) => (v ? "1" : "0")).join(""));
 
-test("matrix matches the Python qrcode library for every input", () => {
+test("matrix matches the recorded reference for every input", () => {
   assert.ok(fixture.cases.length >= 30);
   for (const c of fixture.cases) {
     const qr = qrEncode(c.text);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Advisor, API_URL, DEFAULT_MODEL, pyJsonDumps, SYSTEM_PROMPT } from "../src/host/advisor.ts";
+import { Advisor, API_URL, DEFAULT_MODEL, jsonDumps, SYSTEM_PROMPT } from "../src/host/advisor.ts";
 import type { AdvisorAdvice, FetchFn } from "../src/host/advisor.ts";
 import { fixture } from "./helpers.ts";
 
@@ -97,19 +97,19 @@ test("parse extracts JSON", () => {
   assert.equal(p('{"severity":"bogus"}')!.severity, "info");
 });
 
-test("parse matches the Python parser on recorded inputs", () => {
+test("parse matches the recorded parser on recorded inputs", () => {
   for (const c of fx.parse as { in: string; out: AdvisorAdvice | null }[]) {
     assert.deepEqual(Advisor.parse(c.in), c.out, c.in.slice(0, 40));
   }
 });
 
-test("the request context serialises like Python json.dumps and is capped", () => {
+test("the request context serialises as recorded and is capped", () => {
   const ctxs = [
     { recent_events: [], mode: "simulation" },
     { a: 1, b: [1, 2, { c: "café — “q”" }], d: null, e: true, f: 0.5 },
     { big: "x".repeat(7000) },
   ];
-  ctxs.forEach((c, i) => assert.equal(pyJsonDumps(c).slice(0, 6000), fx.contexts[i]));
+  ctxs.forEach((c, i) => assert.equal(jsonDumps(c).slice(0, 6000), fx.contexts[i]));
 });
 
 test("the HTTP call posts the documented request and parses the reply", async () => {
@@ -150,7 +150,7 @@ test("the HTTP call posts the documented request and parses the reply", async ()
   assert.equal(body.model, DEFAULT_MODEL);
   assert.equal(body.max_tokens, 300);
   assert.equal(body.system, SYSTEM_PROMPT);
-  assert.deepEqual(body.messages, [{ role: "user", content: pyJsonDumps(ctx) }]);
+  assert.deepEqual(body.messages, [{ role: "user", content: jsonDumps(ctx) }]);
   assert.ok(!/[^\x00-\x7f]/.test(raw));
 });
 

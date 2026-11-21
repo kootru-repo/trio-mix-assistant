@@ -9,7 +9,7 @@ function asciiEscape(s: string): string {
   return s.replace(/[\u007f-￿]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
 }
 
-function pyFloatText(x: number): string {
+function floatText(x: number): string {
   if (Number.isInteger(x) && Math.abs(x) < 1e16) return x.toFixed(1);
   return String(x);
 }
@@ -20,8 +20,8 @@ export function serializeModel(model: VenueModel): string {
       venue: model.venue,
       shows: model.shows,
       feedback_freqs: model.feedback_freqs,
-      confidence: FLOAT_MARK + pyFloatText(model.confidence),
-      updated: FLOAT_MARK + pyFloatText(model.updated),
+      confidence: FLOAT_MARK + floatText(model.confidence),
+      updated: FLOAT_MARK + floatText(model.updated),
     },
     null,
     2,
@@ -29,7 +29,7 @@ export function serializeModel(model: VenueModel): string {
   return asciiEscape(text.replace(new RegExp(`"${FLOAT_MARK}([^"]*)"`, "g"), "$1"));
 }
 
-function pyInt(v: unknown): number {
+function argInt(v: unknown): number {
   if (typeof v === "boolean") return v ? 1 : 0;
   if (typeof v === "number") {
     if (!Number.isFinite(v)) throw new TypeError("not finite");
@@ -42,7 +42,7 @@ function pyInt(v: unknown): number {
   throw new TypeError("bad int");
 }
 
-function pyFloat(v: unknown): number {
+function argFloat(v: unknown): number {
   if (typeof v === "boolean") return v ? 1 : 0;
   if (typeof v === "number") return v;
   if (typeof v === "string") {
@@ -85,10 +85,10 @@ export class VenueStore implements VenueStorePort {
       if (!Array.isArray(freqs)) return null;
       return {
         venue: "venue" in d ? (d["venue"] as string) : venue,
-        shows: pyInt("shows" in d ? d["shows"] : 0),
+        shows: argInt("shows" in d ? d["shows"] : 0),
         feedback_freqs: [...freqs] as FeedbackFreq[],
-        confidence: pyFloat("confidence" in d ? d["confidence"] : 0),
-        updated: pyFloat("updated" in d ? d["updated"] : 0),
+        confidence: argFloat("confidence" in d ? d["confidence"] : 0),
+        updated: argFloat("updated" in d ? d["updated"] : 0),
       };
     } catch {
       return null;

@@ -1,6 +1,6 @@
-import { pyJson } from "./json.ts";
+import { jsonText } from "./json.ts";
 
-export const MANIFEST = pyJson({
+export const MANIFEST = jsonText({
   name: "Trio Mix-Assistant",
   short_name: "Mix-Assistant",
   description: "Live operator dashboard for the Acoustic Trio Mix-Assistant.",

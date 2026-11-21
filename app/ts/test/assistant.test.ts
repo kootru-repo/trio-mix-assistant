@@ -178,7 +178,7 @@ class Replay {
 }
 
 for (const sc of scenarios) {
-  test(`assistant scenario "${sc.name}" makes the same decisions as the Python reference`, () => {
+  test(`assistant scenario "${sc.name}" makes the same decisions as the recorded reference`, () => {
     const r = new Replay(sc.config);
     try {
       for (const op of sc.ops) {
@@ -187,7 +187,7 @@ for (const sc of scenarios) {
         } catch (e) {
           const m = /unknown channel (\d+)/.exec(String((e as Error).message));
           if (!m) throw e;
-          r.errors.push(`KeyError:${m[1]}`);
+          r.errors.push(`UnknownChannel:${m[1]}`);
         }
       }
       assert.deepEqual(r.errors, sc.errors);

@@ -43,5 +43,5 @@ jobs:
         run: npm ci
       - name: Type-check (core must stay free of platform APIs)
         run: npm run check
-      - name: Test against the Python reference fixtures
+      - name: Test against the recorded reference fixtures
         run: npm test

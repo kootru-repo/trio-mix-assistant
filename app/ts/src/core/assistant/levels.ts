@@ -1,6 +1,6 @@
 import { C } from "../config.ts";
 import type { ChannelFeatures } from "../dsp.ts";
-import { fixed, pyRoundTo, signed } from "../pyfmt.ts";
+import { fixed, roundTo, signed } from "../numfmt.ts";
 import { chan, clamp, need } from "./base.ts";
 import { ProtectJobs } from "./protect.ts";
 
@@ -29,10 +29,10 @@ export class LevelJobs extends ProtectJobs {
           `move the fader ${direction} ${fixed(Math.abs(newf - start), 1)} dB (to ${signed(newf, 1)}).`,
         false,
         {
-          output_db: pyRoundTo(outputEst, 1),
-          target_db: pyRoundTo(targetOut, 1),
-          delta_db: pyRoundTo(newf - start, 2),
-          to_db: pyRoundTo(newf, 1),
+          output_db: roundTo(outputEst, 1),
+          target_db: roundTo(targetOut, 1),
+          delta_db: roundTo(newf - start, 2),
+          to_db: roundTo(newf, 1),
         },
       );
       return;

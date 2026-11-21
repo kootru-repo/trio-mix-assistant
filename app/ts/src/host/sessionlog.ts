@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import type { StatementSync } from "node:sqlite";
 import type { AssistantEvent } from "../core/assistant/index.ts";
-import { pyRoundTo } from "../core/pyfmt.ts";
+import { roundTo } from "../core/numfmt.ts";
 import type { SessionLogPort } from "../core/ports.ts";
 
 export interface EventRow {
@@ -101,7 +101,7 @@ export class SessionLog implements SessionLogPort {
     }
     this.queue.push([
       this.sessionId,
-      pyRoundTo(this.monotonic() - this.t0, 2),
+      roundTo(this.monotonic() - this.t0, 2),
       orNull(ev.kind),
       orNull(ev.level),
       orNull(ev.ch),

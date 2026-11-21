@@ -1,5 +1,5 @@
 import { C } from "../config.ts";
-import { fixed, signed } from "../pyfmt.ts";
+import { fixed, signed } from "../numfmt.ts";
 import { chan } from "../assistant/base.ts";
 import { clampf, EngineBase, numOf, truthy } from "./base.ts";
 

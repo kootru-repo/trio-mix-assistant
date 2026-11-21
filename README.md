@@ -229,7 +229,6 @@ trio-mix-assistant/
 │   ├── README.md             ← developer docs (architecture, internals)
 │   ├── RUNBOOK.md            ← show-day guide (Windows & macOS)
 │   └── HARDWARE_BRINGUP.md   ← one-time OSC validation against the real desk
-├── archive/                  ← the obsolete Python original, zipped (see its README)
 └── docs/
     ├── screenshots/          ← the images above
     └── mix-assistant-design.html  ← design infographic
@@ -246,9 +245,7 @@ npm run check      # type-check; src/core must stay free of platform APIs
 npm test           # 226 tests, run directly by Node
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same two commands, and builds the dashboard to check the committed JavaScript matches its TypeScript source.
-
-The tests compare behaviour against fixtures that were recorded from the original Python implementation. That implementation is now **obsolete** and kept only as a zip in [archive/](archive/README.md).
+CI (`.github/workflows/ci.yml`) runs the same two commands, and builds the dashboard to check the committed JavaScript matches its TypeScript source. The recorded fixtures the tests compare against are in `app/ts/fixtures`.
 
 ## Credits
 

@@ -5,7 +5,7 @@ import { closeArray, f64, fixture } from "./helpers.ts";
 
 const fx = fixture<{ seed: string; random: string; normal: string; grid: string }[]>("rng");
 
-test("SeededRng reproduces numpy's default_rng stream for every recorded seed", () => {
+test("SeededRng reproduces the recorded stream for every seed", () => {
   for (const c of fx) {
     const seed = BigInt(c.seed);
     const doubles = f64(c.random);

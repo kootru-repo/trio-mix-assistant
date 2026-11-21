@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ManualClock } from "../src/core/clock.ts";
 import { Engine } from "../src/core/engine/index.ts";
-import { LoginLimiter, createServer, hostAllowed, jsonForHtml, originAllowed, pyJson, strictLoads } from "../src/host/server.ts";
+import { LoginLimiter, createServer, hostAllowed, jsonForHtml, originAllowed, jsonText, strictLoads } from "../src/host/server.ts";
 import type { DashboardServer } from "../src/host/server.ts";
 
 const staticDir = join(import.meta.dirname, "..", "..", "static");
@@ -230,7 +230,7 @@ test("compiled scripts are served as plain scripts", async () => {
 test("static scripts are an allowlist", async () => {
   const r = await rig();
   try {
-    for (const path of ["/server.py", "/../server.py", "/static/dashboard.js", "/dashboard.ts"]) {
+    for (const path of ["/server.ts", "/../server.ts", "/static/dashboard.js", "/dashboard.ts"]) {
       assert.equal((await request(r.port, "GET", path)).status, 404, path);
     }
   } finally {
@@ -696,13 +696,13 @@ test("host rules", () => {
   for (const h of ["evil.example.com", "evil.example.com:8770", "10.0.0.2.evil.com"]) assert.ok(!hostAllowed(h), h);
 });
 
-test("strict JSON and python-style serialisation", () => {
+test("strict JSON and serialisation", () => {
   assert.throws(() => strictLoads('{"a":NaN}'));
   assert.throws(() => strictLoads('{"a":Infinity}'));
   assert.throws(() => strictLoads("[".repeat(5000) + "]".repeat(5000)));
   assert.deepEqual(strictLoads('{"a":[1,2,{"b":"]["}]}'), { a: [1, 2, { b: "][" }] });
-  assert.equal(pyJson({ a: [1, 2.5, "x", null, true], b: { c: "é" } }), '{"a": [1, 2.5, "x", null, true], "b": {"c": "\\u00e9"}}');
-  assert.equal(pyJson([1e-7, 1.5e20, 0.0001, NaN]), "[1e-07, 1.5e+20, 0.0001, NaN]");
+  assert.equal(jsonText({ a: [1, 2.5, "x", null, true], b: { c: "é" } }), '{"a": [1, 2.5, "x", null, true], "b": {"c": "\\u00e9"}}');
+  assert.equal(jsonText([1e-7, 1.5e20, 0.0001, NaN]), "[1e-07, 1.5e+20, 0.0001, NaN]");
   assert.equal(jsonForHtml({ s: "</script>&" }), '{"s": "\\u003c/script\\u003e\\u0026"}');
 });
 

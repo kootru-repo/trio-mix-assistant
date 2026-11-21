@@ -265,7 +265,7 @@ body-size limits.
 - **Clip recovery** (creep the preamp back when clean) and **balance hold** are
   implemented here; they were specified but stubbed in the reference.
 - **The listening half is wired** (`capture/`): a pluggable `CaptureSource`
-  (`SimCapture` for simulation, or `SoundDeviceCapture` for real
+  (`SimCapture` for simulation, or `DeviceCapture` for real
   multichannel audio) feeds the assistant and the pink-noise calibration. The generic
   capture path was smoke-tested against a real input device; the **console-specific
   routing/channel map is not yet hardware-validated** (see `HARDWARE_BRINGUP.md`).

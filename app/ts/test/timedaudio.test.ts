@@ -7,7 +7,7 @@ import { closeArray, f32, fixture } from "./helpers.ts";
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-test("the default content matches the Python frames, including the meas-mic ring column", () => {
+test("the default content matches the recorded frames, including the meas-mic ring column", () => {
   for (const c of fixture<{ channels: number; indexes: number[]; frames: string[]; block: number }[]>("timedaudio")) {
     const ts = new TimedAudioStream(() => undefined, c.channels, new SystemClock());
     c.indexes.forEach((idx, k) => {

@@ -4,7 +4,7 @@ import type { Clock } from "../clock.ts";
 import { C } from "../config.ts";
 import type { ConsoleBase } from "../console.ts";
 import type { ChannelFeatures } from "../dsp.ts";
-import { fixed, percent, pyRoundTo, signed } from "../pyfmt.ts";
+import { fixed, percent, roundTo, signed } from "../numfmt.ts";
 
 export interface AssistantEvent {
   time: string;
@@ -239,7 +239,7 @@ export class AssistantBase {
     );
     const text = "Room calibration → set MAIN-BUS PEQ: " + parts.join("; ") + ".";
     this.recommend("calibration", null, text, true, {
-      steps: steps.map((s) => ({ band: s.band, hz: pyRoundTo(s.hz, 1), gain: s.gain, q: s.q, kind: s.kind })),
+      steps: steps.map((s) => ({ band: s.band, hz: roundTo(s.hz, 1), gain: s.gain, q: s.q, kind: s.kind })),
     });
   }
 
@@ -268,7 +268,7 @@ export class AssistantBase {
   static roomConf(levelDb: number, contrastDb: number): number {
     const loud = levelDb <= -45 ? 1 : levelDb >= -15 ? 0.3 : 1 - (0.7 * (levelDb + 45)) / 30;
     const flat = contrastDb >= C.FB_RING_DB ? 1 : Math.max(0.5, contrastDb / C.FB_RING_DB);
-    return pyRoundTo(loud * flat, 3);
+    return roundTo(loud * flat, 3);
   }
 
   updateRoom(feat: ChannelFeatures, now: number): void {
@@ -288,7 +288,7 @@ export class AssistantBase {
 
   snapshot(): Record<string, unknown> {
     const round1 = (m: Map<number, number>): Record<string, number> =>
-      Object.fromEntries([...m].map(([c, v]) => [String(c), pyRoundTo(v, 1)]));
+      Object.fromEntries([...m].map(([c, v]) => [String(c), roundTo(v, 1)]));
     return {
       enabled: { ...this.enabled },
       coach_mode: this.coachMode,

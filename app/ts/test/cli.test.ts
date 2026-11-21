@@ -14,7 +14,7 @@ interface BannerFx {
 
 const fx = fixture<BannerFx>("banner");
 
-test("the startup banner matches the Python text for every argument combination", () => {
+test("the startup banner matches the recorded text for every argument combination", () => {
   for (const c of fx.cases) {
     const args = parseCliArgs(c.argv);
     const url = `${c.scheme}://${c.ip}:${args.port}/`;
@@ -23,14 +23,14 @@ test("the startup banner matches the Python text for every argument combination"
   }
 });
 
-test("the emulator hint matches the Python text, and shows a usable address when none is known", () => {
+test("the emulator hint matches the recorded text, and shows a usable address when none is known", () => {
   for (const c of fx.emulator) {
     const text = emulatorLines(c.ip, 10023, c.trace).join("\n") + "\n";
-    assert.equal(text, c.text.replace(/\r\n/g, "\n").replace("None:", "127.0.0.1:"));
+    assert.equal(text, c.text.replace(/\r\n/g, "\n"));
   }
 });
 
-test("defaults match the Python parser", () => {
+test("defaults match the recorded parser", () => {
   const a = parseCliArgs([]);
   assert.deepEqual(
     [a.host, a.port, a.inputGain, a.venue, a.advisorInterval, a.pin, a.template, a.sessionDb],

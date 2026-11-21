@@ -1,6 +1,6 @@
 import { C } from "../config.ts";
 import type { ChannelFeatures } from "../dsp.ts";
-import { fixed, pyRound, pyRoundTo, signed } from "../pyfmt.ts";
+import { fixed, roundHalfEven, roundTo, signed } from "../numfmt.ts";
 import { AssistantBase, chan, need } from "./base.ts";
 
 export class ProtectJobs extends AssistantBase {
@@ -25,9 +25,9 @@ export class ProtectJobs extends AssistantBase {
       const near = this.isNearWatch(feat.fbFreq);
       let needed = Math.max(1, C.FB_SUSTAIN_BLOCKS - (near ? 1 : 0));
       const harm = feat.harmonicity ?? 0;
-      if (harm > 0) needed += pyRound(harm * C.FB_HARMONIC_SUSTAIN);
+      if (harm > 0) needed += roundHalfEven(harm * C.FB_HARMONIC_SUSTAIN);
       if (ch === C.MEAS_MIC_CH && this.roomConfidence < 0.7) {
-        needed = Math.max(needed, pyRound(needed / Math.max(0.3, this.roomConfidence)));
+        needed = Math.max(needed, roundHalfEven(needed / Math.max(0.3, this.roomConfidence)));
       }
 
       if (stable && rising) this.fbStreak.set(ch, need(this.fbStreak, ch) + 1);
@@ -46,7 +46,7 @@ export class ProtectJobs extends AssistantBase {
                 `(Q ${fixed(C.FB_NOTCH_Q, 0)}); e.g. main PEQ band ${band}.${flag}`,
               false,
               {
-                freq: pyRoundTo(feat.fbFreq, 1),
+                freq: roundTo(feat.fbFreq, 1),
                 gain_db: C.FB_NOTCH_GAIN_DB,
                 q: C.FB_NOTCH_Q,
                 target: "main-bus",
@@ -71,7 +71,7 @@ export class ProtectJobs extends AssistantBase {
                 `${fixed(C.FB_NOTCH_GAIN_DB, 0)} dB (Q ${fixed(C.FB_NOTCH_Q, 0)}).${flag}`,
               false,
               {
-                freq: pyRoundTo(feat.fbFreq, 1),
+                freq: roundTo(feat.fbFreq, 1),
                 gain_db: C.FB_NOTCH_GAIN_DB,
                 q: C.FB_NOTCH_Q,
                 target: `ch${ch}`,
@@ -105,7 +105,7 @@ export class ProtectJobs extends AssistantBase {
           ch,
           `${chan(ch)} near clip (${signed(feat.peakDbfs, 1)} dBFS) → trim its preamp/gain ${signed(C.CLIP_TRIM_DB, 0)} dB.`,
           false,
-          { peak: pyRoundTo(feat.peakDbfs, 1), trim_db: C.CLIP_TRIM_DB },
+          { peak: roundTo(feat.peakDbfs, 1), trim_db: C.CLIP_TRIM_DB },
         );
         return;
       }
@@ -130,7 +130,7 @@ export class ProtectJobs extends AssistantBase {
           `${chan(ch)} is clean but its preamp is still trimmed (${fixed(need(this.gainDb, ch), 0)} dB) → ` +
             `you can restore it toward ${fixed(need(this.nominalGain, ch), 0)} dB.`,
           false,
-          { gain_db: pyRoundTo(need(this.gainDb, ch), 1), nominal_db: need(this.nominalGain, ch) },
+          { gain_db: roundTo(need(this.gainDb, ch), 1), nominal_db: need(this.nominalGain, ch) },
         );
         return;
       }

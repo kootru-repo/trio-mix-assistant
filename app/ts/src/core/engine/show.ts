@@ -1,5 +1,5 @@
 import { C } from "../config.ts";
-import { percent, pyRoundTo, signed } from "../pyfmt.ts";
+import { percent, roundTo, signed } from "../numfmt.ts";
 import { chan } from "../assistant/base.ts";
 import type { ShowState } from "../showclock.ts";
 import { songByName } from "../template.ts";
@@ -131,7 +131,7 @@ export class EngineShow extends EngineControls {
       const feat = this.feat.get(ch);
       chans.push({
         role: roleName,
-        rms_db: feat ? pyRoundTo(feat.rmsDbfs, 1) : null,
+        rms_db: feat ? roundTo(feat.rmsDbfs, 1) : null,
         notched: Boolean(this.assistant.usedNotchBand.get(ch)),
       });
     }

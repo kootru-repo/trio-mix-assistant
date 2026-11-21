@@ -160,7 +160,7 @@ test("the first write failure warns once and the log keeps going", async () => {
   }
 });
 
-test("a database recorded by the Python SessionLog reads identically", () => {
+test("a recorded database reads identically", () => {
   const dir = tempDir();
   try {
     const path = join(dir, "py.db");
@@ -188,7 +188,7 @@ test("a database recorded by the Python SessionLog reads identically", () => {
   }
 });
 
-test("a database written by TypeScript has the Python schema", async () => {
+test("a database written by TypeScript has the recorded schema", async () => {
   const dir = tempDir();
   try {
     const path = join(dir, "ts.db");

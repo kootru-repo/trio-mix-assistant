@@ -5,11 +5,11 @@ import { C, applyChannelMap, autoChannelMap } from "../core/config.ts";
 import type { Clock } from "../core/clock.ts";
 import { ConsoleBase, OscConsole } from "../core/console.ts";
 import type { AudioInputFactory } from "../core/devicecapture.ts";
-import { SoundDeviceCapture, autodetectInputs, listAudioDevices, parseChannelMap, ValueError } from "../core/devicecapture.ts";
+import { DeviceCapture, autodetectInputs, listAudioDevices, parseChannelMap, InvalidValueError } from "../core/devicecapture.ts";
 import { EmulatedDesk } from "../core/emulator.ts";
 import { Engine } from "../core/engine/index.ts";
 import { MeterReceiver } from "../core/metersrv.ts";
-import { fixed } from "../core/pyfmt.ts";
+import { fixed } from "../core/numfmt.ts";
 import { qrAscii, qrEncode } from "../core/qr.ts";
 import { AbleSetReceiver, SimShowClock } from "../core/showclock.ts";
 import { TemplateError, defaultTemplate, fromObject } from "../core/template.ts";
@@ -87,7 +87,7 @@ function loadChannelMap(args: Args, io: Io): Map<number, number> | null {
   try {
     map = parseChannelMap(args.channelMap);
   } catch (exc) {
-    if (exc instanceof ValueError) return fail(io, `  [!] --channel-map: ${exc.message}`);
+    if (exc instanceof InvalidValueError) return fail(io, `  [!] --channel-map: ${exc.message}`);
     throw exc;
   }
   const missing = [...C.CHANNELS.keys()].filter((ch) => !map.has(ch));
@@ -100,7 +100,7 @@ function loadChannelMap(args: Args, io: Io): Map<number, number> | null {
   return map;
 }
 
-function quietStop(source: SoundDeviceCapture): void {
+function quietStop(source: DeviceCapture): void {
   try {
     source.stop();
   } catch {
@@ -108,7 +108,7 @@ function quietStop(source: SoundDeviceCapture): void {
   }
 }
 
-async function autodetectSource(io: Io): Promise<SoundDeviceCapture | null> {
+async function autodetectSource(io: Io): Promise<DeviceCapture | null> {
   const factory = audioFactory(io);
   let cands;
   try {
@@ -124,7 +124,7 @@ async function autodetectSource(io: Io): Promise<SoundDeviceCapture | null> {
   for (const cand of cands.slice(0, AUTO_CANDIDATES)) {
     const label = `[${cand.index}] ${cand.name} (${cand.hostapi}`;
     autoChannelMap(cand.channels);
-    const source = new SoundDeviceCapture({ factory, clock: io.clock, device: cand.index });
+    const source = new DeviceCapture({ factory, clock: io.clock, device: cand.index });
     try {
       source.start();
       await source.autoGain();
@@ -145,8 +145,8 @@ async function autodetectSource(io: Io): Promise<SoundDeviceCapture | null> {
   return null;
 }
 
-function deviceSource(args: Args, chanMap: Map<number, number> | null, io: Io): SoundDeviceCapture {
-  return new SoundDeviceCapture({
+function deviceSource(args: Args, chanMap: Map<number, number> | null, io: Io): DeviceCapture {
+  return new DeviceCapture({
     factory: audioFactory(io),
     clock: io.clock,
     device: parseDevice(args.audioDevice),
@@ -169,7 +169,7 @@ function buildEmulated(
   args: Args,
   template: ShowTemplate,
   chanMap: Map<number, number> | null,
-  auto: SoundDeviceCapture | null,
+  auto: DeviceCapture | null,
   io: Io,
 ): { engine: Engine; emu: EmulatedDesk } {
   const emu = new EmulatedDesk(io.udp, io.clock, {
@@ -179,14 +179,14 @@ function buildEmulated(
   });
   for (const s of template.songs) if (s.scene !== null) emu.sceneNames.set(s.scene, s.name);
   const con = new OscConsole(new UdpSink("127.0.0.1", C.CONSOLE_PORT), { clock: io.clock, ip: "127.0.0.1" });
-  let source: SoundDeviceCapture;
+  let source: DeviceCapture;
   if (auto !== null) {
     source = auto;
   } else if (args.audioDevice !== null) {
     source = deviceSource(args, chanMap, io);
     io.out("  Listening on a REAL audio device against the emulated desk." + (args.inputGain ? `  (+${fixed(args.inputGain, 0)} dB input)` : ""));
   } else {
-    source = new SoundDeviceCapture({ factory: new TimedAudioFactory(io.clock), clock: io.clock });
+    source = new DeviceCapture({ factory: new TimedAudioFactory(io.clock), clock: io.clock });
   }
   const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
   wireMeters(engine, io);
@@ -206,12 +206,12 @@ function buildHardware(
   args: Args,
   template: ShowTemplate,
   chanMap: Map<number, number> | null,
-  auto: SoundDeviceCapture | null,
+  auto: DeviceCapture | null,
   io: Io,
 ): Engine {
   const ip = args.consoleIp || C.CONSOLE_IP;
   const con: ConsoleBase = new OscConsole(new UdpSink(ip, C.CONSOLE_PORT), { clock: io.clock, ip });
-  let source: SoundDeviceCapture | null = auto;
+  let source: DeviceCapture | null = auto;
   if (source === null && args.audioDevice !== null) source = deviceSource(args, chanMap, io);
   const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
   wireMeters(engine, io);

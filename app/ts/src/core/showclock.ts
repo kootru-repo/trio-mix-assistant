@@ -94,14 +94,14 @@ export class SimShowClock extends ShowClock {
   }
 }
 
-const pyStr = (a: OscArg | undefined): string => {
+const strOf = (a: OscArg | undefined): string => {
   if (!a) return "";
   if (a.t === "f") return Number.isInteger(a.v) ? `${a.v}.0` : String(a.v);
   if (a.t === "b") return `b'${[...a.v].map((x) => String.fromCharCode(x)).join("")}'`;
   return String(a.v);
 };
 
-const asStr = (args: OscArg[]): string => (args.length ? pyStr(args[0]).trim() : "");
+const asStr = (args: OscArg[]): string => (args.length ? strOf(args[0]).trim() : "");
 
 const asFloat = (args: OscArg[]): number | null => (args.length ? argNumber(args[0]) : null);
 

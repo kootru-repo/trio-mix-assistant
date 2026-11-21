@@ -1,14 +1,4 @@
-# --- Python ---
-**/__pycache__/
-*.py[cod]
-.venv/
-**/.venv/
-venv/
-env/
-wheels/
-*.egg-info/
-
-# --- Build artifacts (regenerate with app/package.py) ---
+# --- Build artifacts (regenerate with npm run package in app/ts) ---
 /dist/
 
 # --- Runtime / generated ---

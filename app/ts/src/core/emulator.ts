@@ -4,7 +4,7 @@ import { dbToFader, faderToDb } from "./console.ts";
 import { argFloat, argInt, argText } from "./oscargs.ts";
 import { encodeMeterBlob, encodeMessage, decodePacket, oscBlob, oscFloat, oscInt, oscStr } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
-import { fixed, signed } from "./pyfmt.ts";
+import { fixed, signed } from "./numfmt.ts";
 import type { Peer, UdpEndpoint, UdpFactory } from "./transport.ts";
 
 export type AppSender = (addr: string, args: OscArg[]) => void;

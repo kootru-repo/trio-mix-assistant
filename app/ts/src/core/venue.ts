@@ -1,4 +1,4 @@
-import { pyRound, pyRoundTo } from "./pyfmt.ts";
+import { roundHalfEven, roundTo } from "./numfmt.ts";
 
 export interface FeedbackFreq {
   hz: number;
@@ -46,7 +46,7 @@ export function buildModel(log: VenueLogSource, venue: string, now: number | nul
     if (!mm || mm[1]!.length > 6) continue;
     const hz = Number(mm[1]);
     if (hz < 20 || hz > 24000) continue;
-    const b = pyRound(Math.log2(hz) * 6);
+    const b = roundHalfEven(Math.log2(hz) * 6);
     bins.set(b, (bins.get(b) ?? 0) + 1);
     const list = members.get(b);
     if (list) list.push(hz);
@@ -57,6 +57,6 @@ export function buildModel(log: VenueLogSource, venue: string, now: number | nul
     const hzs = [...members.get(b)!].sort((x, y) => x - y);
     return { hz: hzs[Math.floor(hzs.length / 2)]!, count };
   });
-  const confidence = pyRoundTo(Math.min(1, shows / 3), 2);
+  const confidence = roundTo(Math.min(1, shows / 3), 2);
   return { venue, shows, feedback_freqs, confidence, updated: now || 0 };
 }

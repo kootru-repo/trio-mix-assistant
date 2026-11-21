@@ -10,7 +10,7 @@ import { ConsoleBase, SimConsole } from "../console.ts";
 import { RollingRingDetector } from "../dsp.ts";
 import type { ChannelFeatures } from "../dsp.ts";
 import type { AdvisorPort, MeterReceiverPort, SessionLogPort } from "../ports.ts";
-import { fixed, pyRound, pyRoundTo } from "../pyfmt.ts";
+import { fixed, roundHalfEven, roundTo } from "../numfmt.ts";
 import { SeededRng } from "../rng.ts";
 import type { Rng } from "../rng.ts";
 import type { ShowClockPort } from "../showclock.ts";
@@ -188,12 +188,12 @@ export class EngineBase {
     const ms = seconds * 1000;
     const e = this.latency.get(kind);
     if (e === undefined) {
-      this.latency.set(kind, { last: pyRoundTo(ms, 2), ema: pyRoundTo(ms, 2), max: pyRoundTo(ms, 2), n: 1 });
+      this.latency.set(kind, { last: roundTo(ms, 2), ema: roundTo(ms, 2), max: roundTo(ms, 2), n: 1 });
     } else {
       const a = 0.2;
-      e.last = pyRoundTo(ms, 2);
-      e.ema = pyRoundTo((1 - a) * e.ema + a * ms, 2);
-      e.max = pyRoundTo(Math.max(e.max, ms), 2);
+      e.last = roundTo(ms, 2);
+      e.ema = roundTo((1 - a) * e.ema + a * ms, 2);
+      e.max = roundTo(Math.max(e.max, ms), 2);
       e.n += 1;
     }
   }
@@ -203,9 +203,9 @@ export class EngineBase {
     const periodMs = (now - lastNow) * 1000;
     const jitterMs = Math.abs(periodMs - this.tick * 1000);
     const a = 0.1;
-    this.perf.tick_ms = pyRoundTo((1 - a) * this.perf.tick_ms + a * computeMs, 2);
-    this.perf.jitter_ms = pyRoundTo((1 - a) * this.perf.jitter_ms + a * jitterMs, 2);
-    this.perf.max_ms = pyRoundTo(Math.max(this.perf.max_ms * 0.999, computeMs), 2);
+    this.perf.tick_ms = roundTo((1 - a) * this.perf.tick_ms + a * computeMs, 2);
+    this.perf.jitter_ms = roundTo((1 - a) * this.perf.jitter_ms + a * jitterMs, 2);
+    this.perf.max_ms = roundTo(Math.max(this.perf.max_ms * 0.999, computeMs), 2);
   }
 
   protected noteError(exc: unknown): void {
@@ -274,13 +274,13 @@ export class EngineBase {
         ch,
         role: roleName,
         label,
-        rms: pyRoundTo(rms, 1),
-        peak: pyRoundTo(peak, 1),
-        fader: pyRoundTo(fader, 1),
-        gain: pyRoundTo(gain, 1),
+        rms: roundTo(rms, 1),
+        peak: roundTo(peak, 1),
+        fader: roundTo(fader, 1),
+        gain: roundTo(gain, 1),
         fb_state: fbState,
         fb_streak: streak,
-        notch_freqs: notchFreqs.map((f) => pyRound(f)),
+        notch_freqs: notchFreqs.map((f) => roundHalfEven(f)),
         clip_recent: clipRecent,
         gain_trimmed: gain < nominal - 0.1,
         muted: this.muted.get(ch) ?? false,
@@ -366,12 +366,12 @@ export class EngineBase {
     const connected = now - this.lastRxT < 5.0;
     const [alerts, opMode] = this.alertsAndMode(now, connected);
     const a = this.assistant;
-    const r1 = (v: number): number => pyRoundTo(v, 1);
+    const r1 = (v: number): number => roundTo(v, 1);
     const eqOut: Record<string, unknown> = {};
     for (const [c, bands] of this.eq) {
       eqOut[String(c)] = [...bands.entries()]
         .sort((x, y) => x[0] - y[0])
-        .map(([b, bd]) => ({ band: b, hz: pyRound(bd.hz), gain: r1(bd.gain), q: r1(bd.q), on: bd.on }));
+        .map(([b, bd]) => ({ band: b, hz: roundHalfEven(bd.hz), gain: r1(bd.gain), q: r1(bd.q), on: bd.on }));
     }
     const sendsOut: Record<string, Record<string, number>> = {};
     for (const [c, m] of this.sends) sendsOut[String(c)] = Object.fromEntries([...m].map(([fx, v]) => [String(fx), r1(v)]));
@@ -401,7 +401,7 @@ export class EngineBase {
       unmask: {
         enabled: a.enabled["unmask"] ?? false,
         duck_db: r1(a.duckGain),
-        freq: pyRound(C.UNMASK_FREQ),
+        freq: roundHalfEven(C.UNMASK_FREQ),
         channels: [...a.unmaskTargets()],
       },
       main_muted: this.con instanceof SimConsole ? this.con.mainMuted : false,
@@ -432,8 +432,8 @@ export class EngineBase {
       calibration: {
         status: this.calibStatus,
         baseline: this.calib ? [...this.calib.baseline].map(([k, v]) => ({ hz: k, db: r1(v) })) : [],
-        watchlist: this.calib ? this.calib.watchlist.map(([f, e]) => ({ hz: pyRound(f), excess: e })) : [],
-        corrections: this.calib ? this.calib.corrections.map(([f, c]) => ({ hz: pyRound(f), cut: c })) : [],
+        watchlist: this.calib ? this.calib.watchlist.map(([f, e]) => ({ hz: roundHalfEven(f), excess: e })) : [],
+        corrections: this.calib ? this.calib.corrections.map(([f, c]) => ({ hz: roundHalfEven(f), cut: c })) : [],
       },
       channels: this.channelTelemetry(now),
       log: this.events.slice(-40).reverse(),

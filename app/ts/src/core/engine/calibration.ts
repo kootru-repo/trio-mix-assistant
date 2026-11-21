@@ -3,7 +3,7 @@ import { generatePinkNoise } from "../dsp.ts";
 import type { Samples } from "../dsp.ts";
 import type { CalibrationResult } from "../calibration.ts";
 import { watchFreqs } from "../calibration.ts";
-import { fixed } from "../pyfmt.ts";
+import { fixed } from "../numfmt.ts";
 import { EngineShow } from "./show.ts";
 
 export class EngineCalibration extends EngineShow {

@@ -158,7 +158,7 @@ test("fixture replay: every reply to the recorded request script is byte-exact",
   }
 });
 
-test("fixture: first meter packet per subscription matches the python stream", async () => {
+test("fixture: first meter packet per subscription matches the recorded stream", async () => {
   const fx = fixture("emulator");
   const cases: [string, string, OscArg[]][] = [
     ["meters2", "/meters", [oscStr("/meters/2"), oscInt(2)]],

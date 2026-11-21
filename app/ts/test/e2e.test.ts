@@ -26,7 +26,7 @@ interface Running {
 
 function launch(args: string[]): Promise<Running> {
   const child = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", main, ...args], {
-    env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+    env: { ...process.env },
   });
   let text = "";
   const collect = (b: Buffer): void => {
