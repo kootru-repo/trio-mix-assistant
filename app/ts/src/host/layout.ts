@@ -11,17 +11,8 @@ export interface Layout {
 export function findLayout(startDir: string = dirname(fileURLToPath(import.meta.url))): Layout {
   let dir = resolve(startDir);
   for (let i = 0; i < 8; i++) {
-    const packaged = join(dir, "static", "index.html");
-    if (existsSync(packaged)) {
+    if (existsSync(join(dir, "static", "index.html"))) {
       return { appDir: dir, staticDir: join(dir, "static"), scnPath: join(dir, "x32_default_nodes.scn") };
-    }
-    const dev = join(dir, "trio_mix", "static", "index.html");
-    if (existsSync(dev)) {
-      return {
-        appDir: dir,
-        staticDir: join(dir, "trio_mix", "static"),
-        scnPath: join(dir, "trio_mix", "x32_default_nodes.scn"),
-      };
     }
     const parent = dirname(dir);
     if (parent === dir) break;

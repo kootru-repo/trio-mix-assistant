@@ -37,8 +37,9 @@ See the repo **[README](../README.md)** (overview, screenshots, setup), the
 ## Quick start
 
 ```bash
-pip install numpy            # python-osc only needed for real hardware
-python run.py                # simulation mode (no hardware)
+cd ts
+npm install                  # only to build and test; the app has no runtime dependencies
+npm run run                  # simulation mode (no hardware)
 # open http://127.0.0.1:8770/
 ```
 
@@ -50,12 +51,13 @@ compensates. Toggle the jobs and watch the behaviour change.
 ### Real hardware
 
 ```bash
-pip install numpy python-osc sounddevice          # sounddevice = the listening half
-python run.py --hardware --console-ip 192.168.1.50 --list-devices   # find your interface
-python run.py --hardware --console-ip 192.168.1.50 --audio-device 2 --lan
+npm run run -- --hardware --console-ip 192.168.1.50 --list-devices   # find your interface
+npm run run -- --hardware --console-ip 192.168.1.50 --audio-device 2 --lan
 ```
 
-The **listening half** is wired: `--audio-device` opens a multichannel PortAudio
+Live audio input needs the optional native module `naudiodon2`, which is not bundled and has not yet been run against real hardware.
+
+The **listening half** is wired: `--audio-device` opens a multichannel native audio
 (ASIO/WASAPI) stream carrying the console's USB/card feed + the FOH measurement
 mic, and drives the assistant (feedback FFT, clip, vocal ride) and the pink-noise
 calibration for real. Omit `--audio-device` to run hardware mode with **manual
@@ -75,8 +77,7 @@ and surfaced.
 ### Emulated hardware (full stack, no gear)
 
 ```bash
-pip install python-osc
-python run.py --emulate          # real OSC over localhost vs. a desk emulator
+npm run run -- --emulate          # real OSC over localhost vs. a desk emulator
 ```
 
 `--emulate` runs the **production** path: the real `OscConsole` sends OSC over a
@@ -84,7 +85,7 @@ UDP socket to an in-process **protocol-faithful M32C emulator** that streams
 `/meters`, echoes `/xremote` fader pushes, and answers scene recalls; a timed audio
 stream feeds the real capture queue so the assistant catches feedback over the live
 loop. It exercises framing, the subscribe/renew handshake, reconciliation timing,
-and the capture/dead-stream paths with no hardware. `tests/test_contract.py` pins
+and the capture/dead-stream paths with no hardware. `ts/test/emulator.test.ts` pins
 the exact wire layout. **Caveat:** the emulator encodes the same protocol
 *assumptions* the app does, so it proves mechanical correctness, not that the
 formats match your firmware. That last step is `HARDWARE_BRINGUP.md`.
@@ -93,11 +94,11 @@ formats match your firmware. That last step is `HARDWARE_BRINGUP.md`.
 
 ```bash
 # automatic scene recall from AbleSet (per-song scenes + reference levels)
-python run.py --hardware --console-ip <ip> --template myset.json --ableset-port 39051
+npm run run -- --hardware --console-ip <ip> --template myset.json --ableset-port 39051
 
 # optional Claude advisory layer (advisory notes only — never controls the mix)
 export ANTHROPIC_API_KEY=sk-...    # PowerShell: $env:ANTHROPIC_API_KEY="sk-..."
-python run.py --advisor --venue "The Cellar"
+npm run run -- --advisor --venue "The Cellar"
 ```
 
 - **Show template** (`--template file.json`): a validated setlist mapping each song
@@ -116,7 +117,7 @@ python run.py --advisor --venue "The Cellar"
 ### Larger bands & extensions
 
 The trio (8-channel) map is the default; the config is the single place to grow it.
-In `trio_mix/config.py`: extend `CHANNELS`/`ROLE_LABELS`, then set `GUEST_CHANNELS`
+In `ts/src/core/config.ts`: extend `CHANNELS`/`ROLE_LABELS`, then set `GUEST_CHANNELS`
 (unmuted on `guest` songs), `STEREO_LINKS` (e.g. `((2, 3),)` so harmony L/R move
 together), and `STAGE_MIC_CH` (a second ambient mic that flags a sustained rise in
 stage loudness). All default to empty/None, so the trio is unaffected.
@@ -128,8 +129,8 @@ Safari (iPad) and Chrome (Android), with no native app and no App Store. The eng
 runs on the FOH laptop; the tablet is a thin client over the LAN.
 
 ```bash
-python run.py --lan            # bind to the LAN; prints the tablet URL + QR code
-python run.py --lan --https    # + TLS, so Wake Lock & PWA install work
+npm run run -- --lan            # bind to the LAN; prints the tablet URL + QR code
+npm run run -- --lan --https    # + TLS, so Wake Lock & PWA install work
 # on the tablet (same WiFi): scan the printed QR (or open the URL) -> Add to Home Screen
 ```
 
@@ -168,29 +169,33 @@ button mutes the main and holds all jobs so a human always wins.
 ## Architecture
 
 ```
-SimCapture / SoundDevice ─▶ dsp.analyse_block ─▶ MixAssistant ─▶ guardrails ─▶ Console(OSC)
-      (audio in)               (features)          (4 jobs)        (clamp)       (control out)
-                                                       │
-              engine telemetry ◀───────────────────────┘
+SimCapture / DeviceCapture ─▶ dsp.analyseBlock ─▶ MixAssistant ─▶ guardrails ─▶ Console(OSC)
+      (audio in)                 (features)          (4 jobs)        (clamp)       (control out)
+                                                         │
+              engine telemetry ◀─────────────────────────┘
                       │  (WebSocket / SSE)
-                  server.py ──▶ static/index.html  (the dashboard)
+                  host/server ──▶ static/index.html  (the dashboard)
 ```
 
-| Module | Responsibility |
+Everything under `ts/src/core` is platform-free; `ts/src/host` holds the Node bindings.
+
+| Module (`ts/src/core` unless noted) | Responsibility |
 |--------|----------------|
-| `config.py` | Rig map + all tunable constants |
-| `dsp.py` | Features, ring detection, pink-noise + octave-band math (pure) |
-| `osc.py` | X32/M32 scaling + `ConsoleBase` → `OscConsole` (UDP) / `SimConsole` (records) |
-| `calibration.py` | Pre-show pink-noise pass |
+| `config.ts` | Rig map + all tunable constants |
+| `dsp.ts`, `fft.ts` | Features, ring detection, pink-noise + octave-band math (pure) |
+| `console.ts`, `oscwire.ts` | X32/M32 scaling + `ConsoleBase` → `OscConsole` (UDP) / `SimConsole` (records); OSC encode and decode |
+| `calibration.ts` | Pre-show pink-noise pass |
 | `assistant/` | The guard-railed decision loops + typed decision log: `base` (state, log, coach), `protect` (feedback, clip), `levels` (vocal ride, balance), `clarity` (phase, unmask), `core` (`MixAssistant`) |
-| `capture/` | The listening half: `base` (the `CaptureSource` interface), `sim` (the built-in simulator), `device` (real multichannel input and device discovery) |
-| `clock.py` | `Clock` interface with `SystemClock` and `ManualClock`, so the engine can be stepped deterministically in tests |
-| `engine/` | Runtime threads + live telemetry: `base` (state, events, telemetry), `controls` (operator moves), `show` (scenes, venue, advisor), `calibration`, `core` (`Engine`: lifecycle, loop, command dispatch) |
-| `server.py` | stdlib HTTP + Server-Sent Events + control endpoints |
-| `static/index.html` | The operator dashboard page; its script is `static/dashboard.js`, compiled from TypeScript in `app/web` (see [web/README.md](web/README.md)) |
+| `capture.ts`, `devicecapture.ts`, `timedaudio.ts` | The listening half: the `CaptureSource` interface and simulator, real multichannel input behind an injected stream, and the emulator's timed stream |
+| `clock.ts`, `rng.ts`, `transport.ts` | Injected time, seeded randomness and UDP, so the engine can be stepped deterministically in tests |
+| `engine/` | Live telemetry and control: `base` (state, events, telemetry), `controls` (operator moves), `show` (scenes, venue, advisor), `calibration`, `core` (`Engine`: lifecycle, loop, command dispatch) |
+| `emulator.ts`, `metersrv.ts` | The desk emulator and the meter / fader receiver |
+| `host/server.ts` | HTTP + Server-Sent Events + WebSocket + control endpoints, PIN limiter, Origin and Host guards |
+| `host/tls.ts`, `host/sessionlog.ts`, `host/advisor.ts` | Certificates, SQLite session log, Claude advisor |
+| `../static/index.html` | The operator dashboard page; its script is `static/dashboard.js`, compiled from TypeScript in `app/web` (see [web/README.md](web/README.md)) |
 
 Transport is a **WebSocket** (`/ws`) for the bidirectional mixing surface
-(telemetry out, fader/mute/control in), implemented on the stdlib (no FastAPI),
+(telemetry out, fader/mute/control in), implemented on Node's built-in modules (no web framework),
 with **SSE + POST** as automatic fallback. Same-origin, zero web framework.
 (This realigns the transport with the AutoFOH pilot's WebSocket spec and
 implements its Phase-4 performer surface: fader strip + EQ/FX/Settings screens.)
@@ -198,10 +203,12 @@ implements its Phase-4 performer surface: fader strip + EQ/FX/Settings screens.)
 ## Tests
 
 ```bash
-python -m unittest discover -s tests
+cd ts
+npm run check    # type-check; core must stay free of platform APIs
+npm test
 ```
 
-330 tests covering OSC scaling round-trips + guardrail clamps, DSP/detection,
+226 tests covering OSC scaling round-trips + guardrail clamps, DSP/detection,
 the four decision loops (incl. that a steady sung note is *not* notched and a
 rising ring *is*), calibration, the HTTP/SSE/WebSocket endpoints, the
 **hardware** path (capture buffering/mapping/meas with an injected stream, meter
@@ -258,11 +265,11 @@ body-size limits.
 - **Clip recovery** (creep the preamp back when clean) and **balance hold** are
   implemented here; they were specified but stubbed in the reference.
 - **The listening half is wired** (`capture/`): a pluggable `CaptureSource`
-  (`SimCapture` for simulation, or `SoundDeviceCapture` for real PortAudio
-  multichannel) feeds the assistant and the pink-noise calibration. The generic
+  (`SimCapture` for simulation, or `SoundDeviceCapture` for real
+  multichannel audio) feeds the assistant and the pink-noise calibration. The generic
   capture path was smoke-tested against a real input device; the **console-specific
   routing/channel map is not yet hardware-validated** (see `HARDWARE_BRINGUP.md`).
-- **State reconciliation is wired** (`metersrv.py`): the app subscribes to
+- **State reconciliation is wired** (`metersrv.ts`): the app subscribes to
   `/meters` + `/xremote`, decodes the meter blob, and adopts a human's console
   fader move (auto-ride yields), suppressing the echo of its own moves. The one
   firmware-specific detail to verify with a sniffer is the exact `/meters` blob

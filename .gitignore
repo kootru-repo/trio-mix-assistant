@@ -48,7 +48,7 @@ Thumbs.db
 .idea/
 *.swp
 
-# --- Dashboard TypeScript toolchain (compiled JS in app/trio_mix/static is committed) ---
+# --- Dashboard TypeScript toolchain (compiled JS in app/static is committed) ---
 node_modules/
 
 # --- TypeScript port ---

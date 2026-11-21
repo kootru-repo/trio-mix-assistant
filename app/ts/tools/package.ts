@@ -41,44 +41,6 @@ export const SCRIPTS: Record<string, string> = {
   "list-devices.command": sh("node js/host/launch.js --list-devices\n"),
 };
 
-export const START_HERE = `============================================================
-  TRIO MIX-ASSISTANT  -  QUICK START
-============================================================
-
-WHAT THIS IS
-  A live-sound safety-net + dashboard for our M32C. It listens and gently
-  nudges the desk within hard limits. The console is always the source of
-  truth and a human can take over instantly.
-
-WHAT YOU NEED
-  - This folder (copy it to the FOH laptop, or run it from the shared drive).
-  - Node.js 22 or newer:  https://nodejs.org/
-  - Nothing else to install: there is no setup step.
-
-WINDOWS
-  1. Double-click   list-devices.bat (note the audio device number)
-  2. Open           show.conf        in Notepad, set CONSOLE_IP and AUDIO_DEVICE
-  3. Double-click   start.bat        (the dashboard opens in your browser)
-
-MAC
-  Open Terminal, drag this folder onto it (or 'cd' into it), then:
-  1.  bash list-devices.command  (note the audio device number)
-  2.  open show.conf             (set CONSOLE_IP and AUDIO_DEVICE, save)
-  3.  bash start.command
-
-TABLET (iPad / Android)
-  With LAN=yes in show.conf, the start window prints a URL and a QR code.
-  On shared or venue WiFi set PIN in show.conf first.
-
-NO HARDWARE YET
-  Windows: double-click rehearse.bat      Mac: bash rehearse.command
-
-LIVE AUDIO INPUT
-  Listening to the console's USB audio needs an optional native module that
-  is not bundled. Without it the app still runs for rehearsal, simulation
-  and manual mixing. See README.md.
-`;
-
 function crcOf(buf: Buffer): number {
   return crc32(buf);
 }
@@ -168,12 +130,12 @@ export function buildPackage(outDir: string): PackageResult {
   });
   if (build.status !== 0) throw new Error("build failed:\n" + build.stdout + build.stderr);
   writeFileSync(join(dest, "package.json"), '{\n  "name": "trio-mix-assistant",\n  "private": true,\n  "type": "module"\n}\n');
-  cpSync(join(appDir, "trio_mix", "static"), join(dest, "static"), { recursive: true });
-  cpSync(join(appDir, "trio_mix", "x32_default_nodes.scn"), join(dest, "x32_default_nodes.scn"));
+  cpSync(join(appDir, "static"), join(dest, "static"), { recursive: true });
+  cpSync(join(appDir, "x32_default_nodes.scn"), join(dest, "x32_default_nodes.scn"));
   if (existsSync(join(appDir, "templates"))) cpSync(join(appDir, "templates"), join(dest, "templates"), { recursive: true });
   for (const f of DOCS) if (existsSync(join(appDir, f))) cpSync(join(appDir, f), join(dest, f));
   for (const [name, text] of Object.entries(SCRIPTS)) writeFileSync(join(dest, name), text, { mode: name.endsWith(".command") ? 0o755 : 0o644 });
-  writeFileSync(join(dest, "START-HERE.txt"), START_HERE);
+  cpSync(join(appDir, "START-HERE.txt"), join(dest, "START-HERE.txt"));
   const zip = join(outDir, NAME + ".zip");
   rmSync(zip, { force: true });
   const files = zipFolder(dest, zip, NAME);

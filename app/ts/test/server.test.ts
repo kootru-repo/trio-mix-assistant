@@ -9,7 +9,7 @@ import { Engine } from "../src/core/engine/index.ts";
 import { LoginLimiter, createServer, hostAllowed, jsonForHtml, originAllowed, pyJson, strictLoads } from "../src/host/server.ts";
 import type { DashboardServer } from "../src/host/server.ts";
 
-const staticDir = join(import.meta.dirname, "..", "..", "trio_mix", "static");
+const staticDir = join(import.meta.dirname, "..", "..", "static");
 
 interface Reply {
   status: number;

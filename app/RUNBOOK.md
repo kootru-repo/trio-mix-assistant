@@ -1,7 +1,7 @@
 # Runbook: Acoustic Trio Mix‑Assistant (Windows & macOS)
 
 A practical, show‑day operating guide for the FOH laptop. The app is the same on
-both OSes (pure Python + numpy + python‑osc + sounddevice); only the shell syntax
+both OSes (Node.js, no extra packages); only the shell syntax
 and a few OS permissions differ. Where a step is identical, it's written once;
 where it differs, there's a **Windows** and a **macOS** version side by side.
 
@@ -26,26 +26,15 @@ where it differs, there's a **Windows** and a **macOS** version side by side.
 
 ## 1. Install (one time per laptop)
 
-You need Python 3.10+.
+You need Node.js 22+ (https://nodejs.org/; macOS: `brew install node`).
 
-### Windows
-```powershell
-PS> python --version            # if missing, install from python.org and re-open the terminal
-PS> python -m pip install numpy python-osc sounddevice cryptography qrcode
 ```
-If `python` isn't found but `py` is, use `py -m pip ...` and `py run.py ...`.
-
-### macOS
-```bash
-$ python3 --version             # if missing: brew install python  (or python.org)
-$ pip3 install numpy python-osc sounddevice cryptography qrcode
+$ node --version        # 22 or higher
 ```
-If `import sounddevice` later fails, install PortAudio and reinstall:
-`brew install portaudio && pip3 install --force-reinstall sounddevice`.
 
-> `numpy` alone is enough for **simulation/rehearsal**. `python-osc` + `sounddevice`
-> are only needed to drive real hardware. `cryptography`/`qrcode` are optional niceties
-> (`--https` and the scan‑to‑open QR).
+> Live audio input (the console's USB feed and the measurement mic) needs the optional native
+> audio module `naudiodon2`, which is not bundled and is not yet verified on real hardware.
+> Simulation, rehearsal and manual mixing need nothing extra.
 
 ---
 
@@ -59,10 +48,10 @@ Do this with the **PA off or at low volume**, hand on the console.
 
 ### 2.2 Find the audio interface
 ```powershell
-PS> python run.py --hardware --console-ip 192.168.1.50 --list-devices
+PS> npm run run -- --hardware --console-ip 192.168.1.50 --list-devices
 ```
 ```bash
-$ python3 run.py --hardware --console-ip 192.168.1.50 --list-devices
+$ npm run run -- --hardware --console-ip 192.168.1.50 --list-devices
 ```
 Note the **index** of the input device carrying the console's USB/card return **and**
 your measurement mic.
@@ -89,7 +78,7 @@ confirm fader/gain/EQ scalings, the `/meters` decode, scene recall, and the chan
 map. Speak into the lead mic; the **lead** meter (not another) must move. This is the
 one step the emulator can't do for you. Done once per firmware.
 
-> Want to rehearse the whole flow *before* the gear arrives? `python run.py --emulate`
+> Want to rehearse the whole flow *before* the gear arrives? `npm run run -- --emulate`
 > runs the identical stack against a built‑in desk emulator (see §8).
 
 ---
@@ -98,7 +87,7 @@ one step the emulator can't do for you. Done once per firmware.
 
 ### Windows
 ```powershell
-PS> python run.py --hardware `
+PS> npm run run -- --hardware `
       --console-ip 192.168.1.50 `
       --audio-device 2 `
       --template myset.json `
@@ -108,7 +97,7 @@ PS> python run.py --hardware `
 
 ### macOS
 ```bash
-$ python3 run.py --hardware \
+$ npm run run -- --hardware \
       --console-ip 192.168.1.50 \
       --audio-device 2 \
       --template myset.json \
@@ -218,10 +207,10 @@ Launched with `--lan` (and ideally `--https`):
 
 Practice the exact launch + dashboard with zero risk:
 ```powershell
-PS> python run.py --emulate --lan --https
+PS> npm run run -- --emulate --lan --https
 ```
 ```bash
-$ python3 run.py --emulate --lan --https
+$ npm run run -- --emulate --lan --https
 ```
 This runs the **full real stack** (OSC over localhost) against a built‑in
 protocol‑faithful desk emulator + a timed audio feed: meters stream, feedback gets
@@ -266,7 +255,7 @@ The dashboard now names most of these in an **ALERT banner**; this table gives t
 
 | Symptom (banner / message) | Likely cause → fix |
 |---|---|
-| **"no console feed … check the console IP, network, and firewall"** | Wrong `--console-ip`, console on a different subnet, or firewall blocking UDP. Ping the console; allow Python through the firewall (Win §2.3); confirm `/xremote` with a sniffer. Recovers automatically when the feed returns. |
+| **"no console feed … check the console IP, network, and firewall"** | Wrong `--console-ip`, console on a different subnet, or firewall blocking UDP. Ping the console; allow Node.js through the firewall (Win §2.3); confirm `/xremote` with a sniffer. Recovers automatically when the feed returns. |
 | **"inputs are silent" / footer chip = SILENT** | **macOS Microphone permission denied** (System Settings → Privacy → Microphone → enable Terminal) is the #1 cause. Also: input gain too low, wrong device, or input muted at the desk. |
 | **"audio capture stopped — the assistant is deaf" / chip = DEAD** | Interface unplugged or driver wedged. Re‑connect it; the app **auto‑retries every 3 s** and clears the banner ("audio capture recovered"). |
 | **"audio … dropping samples (xruns)" / chip = XRUN** | Device buffer too small / CPU contention. Raise the interface buffer size; close other audio apps. |
@@ -277,10 +266,10 @@ The dashboard now names most of these in an **ALERT banner**; this table gives t
 | **calibration "heard near‑silence … the test tone could not be played"** | No/locked **output** device for the pink noise. Check the PA feed/output selection. |
 | **Tablet can't open the page** | Not launched with `--lan`; firewall blocking inbound; different Wi‑Fi/VLAN; AP "client isolation" on. Use the exact printed URL/QR. |
 | **HTTPS cert warning on tablet** | Expected with self‑signed. Tap **Advanced → proceed**, then Add to Home Screen. **To remove the warning entirely,** launch with `--trust`: it prints steps to install a local root CA once per device (`…/ca.pem`), after which https is fully trusted (no warning). If a browser won't let you proceed *and* you're not using `--trust`, you're on an old build's 10‑year cert; delete `app/.certs` and relaunch. Always open via the exact **IP** URL the app prints. |
-| **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `trio_mix/osc.py`. |
+| **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `ts/src/core/console.ts`. |
 | **Wrong meter moves when you play an input** | Channel‑map mismatch. The startup log shows `listening on '<device>'`; verify the patch order (§2.2) and the `channel_map`. |
-| **`python` not found** | Windows: `py run.py …`. macOS: `python3 run.py …`. |
-| **`import sounddevice` fails** | macOS: `brew install portaudio` then reinstall sounddevice. Windows: reinstall `sounddevice`. |
+| **`node` not found** | Install Node.js 22+ from nodejs.org, then open a new terminal. |
+| **"live audio input needs the optional native module"** | Install `naudiodon2` next to the app, or run without `--audio-device`. |
 | **Audio device index changed between shows** | Indexes shift when devices are added/removed. The startup log prints the resolved name; prefer the device **name** in `show.conf` over the index. |
 
 ---

@@ -6,7 +6,7 @@
     "noUnusedLocals": true,
     "noImplicitReturns": true,
     "rootDir": "src",
-    "outDir": "../trio_mix/static",
+    "outDir": "../static",
     "sourceMap": false,
     "declaration": false,
     "removeComments": true,

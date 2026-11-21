@@ -17,7 +17,7 @@ other phases:
 
 ## 1. Why this shape (what the software requires)
 
-The listening half (`trio_mix/capture/`) imposes four hard constraints. Every
+The listening half (`ts/src/core/devicecapture.ts`) imposes four hard constraints. Every
 recommendation below follows from them:
 
 | Constraint | Where | Consequence for your rig |
@@ -86,7 +86,7 @@ capsule is fine: `--auto` sets digital input gain automatically, or use `--input
 - **CPU/RAM:** any modern quad-core, 8 GB+, SSD. The DSP is trivially light (a handful
   of 1024-pt FFTs per tick). The real constraints are **USB and driver stability**, not CPU.
 - **Windows:** install the **Midas/Behringer X-USB driver**; run on the **WASAPI** (or
-  ASIO, if present) device. The stock `sounddevice` wheel ships PortAudio **without**
+  ASIO, if present) device. The stock PortAudio build ships **without**
   ASIO, so plan on **WASAPI exclusive** unless you build PortAudio with the ASIO SDK.
 - **macOS:** **Core Audio** (class-compliant). Grant the Microphone permission on first
   launch (a denial makes capture *silent*; the app detects and banners it).
@@ -119,9 +119,8 @@ round-trip and hardware for no benefit over the desk's own USB, so prefer X-USB.
 ## 5. System requirements (summary)
 
 - **OS:** Windows 10/11 or macOS 12+.
-- **Python:** 3.10+.
-- **Packages:** `numpy` (always); `python-osc` + `sounddevice` (real hardware);
-  `cryptography` + `qrcode` (optional: `--https` + scan-to-open QR).
+- **Node.js:** 22+.
+- **Packages:** none. Live audio input needs the optional native module `naudiodon2` (not bundled, not yet verified on hardware).
 - **Audio:** one input device exposing all channels at **48 kHz** (console X-USB).
 - **Control:** IP reachability to the console on **UDP 10023/10024** (wired).
 

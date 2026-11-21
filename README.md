@@ -52,23 +52,15 @@ This runs in pure **simulation**, with no console, mic, or audio interface. A cl
 
 Get the code first: on this repository's page choose **Code → Download ZIP** and unzip it (or `git clone` the address shown there). Then open a terminal in the project folder.
 
-**Windows**
-```powershell
-cd app
-python -m pip install numpy
-python run.py
-```
-
-**macOS**
 ```bash
-cd app
-python3 -m pip install numpy
-python3 run.py
+cd app/ts
+npm install
+npm run start
 ```
 
 Then open **http://127.0.0.1:8770/**, toggle the jobs, and watch the behaviour change.
 
-> **Without a terminal:** see **[Setup](#setup)** for the double‑click installers (`setup.bat` / `setup.command`).
+> **Without a terminal:** build the double‑click package with `npm run package` (it writes `app/ts/dist/package/TrioMixAssistant.zip`). See **[Setup](#setup)**.
 
 ## Requirements
 
@@ -78,9 +70,13 @@ The app has three modes, and each needs different things. Simulation needs almos
 
 | | Simulation | Emulation (rehearse the full rig) | Production (live show) |
 |---|---|---|---|
-| **Python** | 3.10+ | 3.10+ | 3.10+ |
-| **Packages** | `numpy` | `numpy`, `python-osc` (+ `sounddevice` for a real mic) | `numpy python-osc sounddevice cryptography qrcode` |
-| **Install** | `pip install numpy` | one‑time `setup` | one‑time `setup` (bundles all of the above) |
+| **Node.js** | 22+ | 22+ | 22+ |
+| **Packages** | none | none | none (live audio input needs one optional native module, see below) |
+| **Install** | nothing (`npm install` only to build or test) | nothing | nothing |
+
+The app is written in TypeScript and runs on Node.js. It has no runtime dependencies, so there is no setup step.
+
+> **Live audio input** (listening to the console's USB feed or a measurement mic) goes through an optional native module, `naudiodon2`, that is not bundled. It has not yet been run against real hardware. Without it the app still runs in simulation and emulation, and for manual mixing and scene recall.
 
 ### Hardware
 
@@ -100,26 +96,23 @@ The app has three modes, and each needs different things. Simulation needs almos
 
 ## Setup
 
-> Copy the `app/` folder to the FOH laptop (or run it from the clone). The one‑time setup builds a local Python environment so nothing else on the machine is touched.
+> Build the package once with `npm run package` in `app/ts`, then copy the unzipped `TrioMixAssistant` folder to the FOH laptop. Nothing else on the machine is touched.
 
 ### Windows
-1. Install **Python 3.10+** from [python.org](https://www.python.org/downloads/) and tick **“Add Python to PATH”**.
-2. In `app/`, double‑click **`setup.bat`** (one time).
-3. Double‑click **`list-devices.bat`** and note your audio device number.
-4. Open **`show.conf`** in Notepad and set `CONSOLE_IP` and `AUDIO_DEVICE` (or set `AUTO=yes` to auto‑detect). On shared or venue WiFi also set `PIN`.
-5. Double‑click **`start.bat`**. The dashboard opens in your browser.
+1. Install **Node.js 22+** from [nodejs.org](https://nodejs.org/).
+2. Double‑click **`list-devices.bat`** and note your audio device number.
+3. Open **`show.conf`** in Notepad and set `CONSOLE_IP` and `AUDIO_DEVICE` (or set `AUTO=yes` to auto‑detect). On shared or venue WiFi also set `PIN`.
+4. Double‑click **`start.bat`**. The dashboard opens in your browser.
 
 ### macOS
-1. Install **Python 3.10+** from [python.org](https://www.python.org/downloads/).
-2. Open Terminal, `cd` into `app/`, then `bash setup.command` (one time).
-3. `bash list-devices.command` and note your audio device number.
-4. `open show.conf`, set `CONSOLE_IP` and `AUDIO_DEVICE` (or `AUTO=yes`), and save. On shared or venue WiFi also set `PIN`.
-5. `bash start.command`.
+1. Install **Node.js 22+** from [nodejs.org](https://nodejs.org/) (or `brew install node`).
+2. Open Terminal, `cd` into the folder, then `bash list-devices.command` and note your audio device number.
+3. `open show.conf`, set `CONSOLE_IP` and `AUDIO_DEVICE` (or `AUTO=yes`), and save. On shared or venue WiFi also set `PIN`.
+4. `bash start.command`.
    - On the first run, macOS asks for **Microphone** and **Network** permission. **Allow both** (System Settings → Privacy & Security → Microphone), or capture stays silent.
 
 > **No hardware:** double‑click **`rehearse.bat`** (Windows) / `bash rehearse.command` (macOS) to run the whole app against the built‑in emulator.
 > **Tablet:** keep `LAN=yes`/`HTTPS=yes` in `show.conf` (the defaults); the start window prints a **scan‑to‑open QR code**. See [Operating it → On a tablet](#operating-it) for the connect example.
-> **Offline install:** on a same‑OS machine with internet, run `fetch-wheels` to fill a `wheels/` folder, copy the folder over, then `setup` installs with no internet.
 
 <a id="operating-it"></a>
 
@@ -131,10 +124,10 @@ All commands run from the **`app/`** folder. The double‑click scripts above wr
 
 | Mode | Command | What it does |
 |---|---|---|
-| **Simulation** | `python run.py` | Closed‑loop synthetic stage. Learn the UI, demo, no gear. |
-| **Emulate (no console)** | `python run.py --emulate --lan` | Real production stack vs. a built‑in M32C emulator. |
-| **Emulate + real mic** | `python run.py --emulate --lan --auto` | Same, but listens on your real USB mic, so you can run a true room calibration & feedback test. |
-| **Production** | `python run.py --hardware --console-ip 192.168.1.50 --auto --lan` | Drive the real M32C. `--auto` detects the mic; or use `--audio-device N`. |
+| **Simulation** | `npm run run` | Closed‑loop synthetic stage. Learn the UI, demo, no gear. |
+| **Emulate (no console)** | `npm run run -- --emulate --lan` | Real production stack vs. a built‑in M32C emulator. |
+| **Emulate + real mic** | `npm run run -- --emulate --lan --auto` | Same, but listens on your real USB mic, so you can run a true room calibration & feedback test. |
+| **Production** | `npm run run -- --hardware --console-ip 192.168.1.50 --auto --lan` | Drive the real M32C. `--auto` detects the mic; or use `--audio-device N`. |
 
 Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets + print a QR), `--https` (TLS, enables the tablet PWA + screen wake‑lock), `--pin "1234"` (require a PIN to open the dashboard + control the console; recommended on untrusted WiFi, paired with `--https`), `--template set.json` (per‑song scenes), `--venue "The Cellar"` (session log + learning), `--advisor` (optional Claude notes; needs `ANTHROPIC_API_KEY`).
 
@@ -153,7 +146,7 @@ Run with `--lan --https`. At startup the terminal prints the dashboard's **LAN U
 
 <img src="docs/screenshots/tablet-qr.png" width="170" align="right" alt="Example connect QR for https://192.168.1.50:8770/">
 
-1. **FOH laptop:** `python run.py --emulate --lan --https` (or your production command). The start window prints the URL + QR (this is what `--lan` does; `--https` enables the PWA + wake‑lock).
+1. **FOH laptop:** `npm run run -- --emulate --lan --https` (or your production command). The start window prints the URL + QR (this is what `--lan` does; `--https` enables the PWA + wake‑lock).
 2. **Tablet:** join the **same WiFi** as the laptop.
 3. **Scan the QR** in the terminal with the tablet camera, or open the printed `https://<laptop‑ip>:8770/` URL.
 4. Accept the **self‑signed certificate** warning once, then **Add to Home Screen** for a full‑screen app.
@@ -188,9 +181,9 @@ The M32C has no faders or screen of its own. It is a stage box, controlled entir
 
 The emulator answers Mixing Station's full discovery + sync + metering protocol, so you can rehearse the exact show‑day setup on a couch:
 
-1. `python run.py --emulate --lan` on the laptop.
+1. `npm run run -- --emulate --lan` on the laptop.
 2. Phone/tablet on the same WiFi → Mixing Station → **Behringer X32** → the emulated desk appears as **MixAssist** in the search list (or enter the laptop's IP manually) → **Connect**, access **Full**.
-3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list (recall one and the app follows). The assistant's moves mirror live; your fader moves win instantly. Push test moves: `python osc_demo.py --animate`.
+3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list (recall one and the app follows). The assistant's moves mirror live; your fader moves win instantly. Push test moves: `npm run osc-demo -- --animate`.
 
 **Split screen on the operator's Android device**, with the assistant's dashboard (top, song bar + COACH + TAKEOVER) and Mixing Station (bottom, the setlist's channels with live meters) both connected to the emulator at once:
 
@@ -229,16 +222,14 @@ Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp);
 trio-mix-assistant/
 ├── README.md                 ← you are here (overview + setup)
 ├── app/                      ← the application
-│   ├── run.py                ← entry point (sim / emulate / hardware)
-│   ├── osc_demo.py           ← push moves so Mixing Station mirrors the app
-│   ├── trio_mix/             ← package: dsp, osc, assistant, engine, server…
-│   │   └── static/           ← dashboard page + compiled JS (committed)
+│   ├── ts/                   ← the application: core (no platform APIs), host, tests, fixtures
+│   ├── static/               ← dashboard page + compiled JS (committed)
 │   ├── web/                  ← TypeScript source for the dashboard (npm run build)
-│   ├── tests/                ← 330 unit + integration tests
-│   ├── setup/start/list-devices/rehearse  (.bat + .command)
+│   ├── show.conf             ← the file partners edit
 │   ├── README.md             ← developer docs (architecture, internals)
 │   ├── RUNBOOK.md            ← show-day guide (Windows & macOS)
 │   └── HARDWARE_BRINGUP.md   ← one-time OSC validation against the real desk
+├── archive/                  ← the obsolete Python original, zipped (see its README)
 └── docs/
     ├── screenshots/          ← the images above
     └── mix-assistant-design.html  ← design infographic
@@ -249,29 +240,15 @@ trio-mix-assistant/
 ## Tests
 
 ```bash
-cd app
-python -m unittest discover -s tests
-```
-
-For development, install the pinned toolchain and run the same checks as CI (`.github/workflows/ci.yml`):
-
-```bash
-cd app
-python -m pip install -r requirements-dev.txt -c requirements-lock.txt
-python -m ruff check . && python -m ruff format --check . && python -m mypy && python -m pytest -q
-```
-
-## TypeScript port
-
-A full TypeScript port lives in **[app/ts](app/ts/README.md)**. It needs only Node 22 or newer and has no runtime dependencies, so there is no setup step. Its core has no platform APIs, which is the base for a future phone app. Every module is checked against fixtures recorded from the Python code, and the Python stays the reference until a real show has run on the TypeScript build.
-
-```bash
 cd app/ts
 npm install
-npm test            # checked against the Python reference
-npm run start       # reads show.conf, like start.bat
-npm run package     # build dist/package/TrioMixAssistant.zip
+npm run check      # type-check; src/core must stay free of platform APIs
+npm test           # 226 tests, run directly by Node
 ```
+
+CI (`.github/workflows/ci.yml`) runs the same two commands, and builds the dashboard to check the committed JavaScript matches its TypeScript source.
+
+The tests compare behaviour against fixtures that were recorded from the original Python implementation. That implementation is now **obsolete** and kept only as a zip in [archive/](archive/README.md).
 
 ## Credits
 

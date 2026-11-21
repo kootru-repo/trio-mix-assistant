@@ -12,8 +12,8 @@ engineer. Players, sound people and programmers are all welcome.
   sketch helps.
 - **Report a bug** or **send a pull request.**
 
-You do not need a console to take part. `python run.py` runs a full simulation,
-and `python run.py --emulate --lan` runs the real stack against a built-in desk
+You do not need a console to take part. `npm run run` (in `app/ts`) runs a full simulation,
+and `npm run run -- --emulate --lan` runs the real stack against a built-in desk
 emulator (see the [README](README.md)).
 
 ## Seeing the feedback
@@ -29,7 +29,7 @@ issue yourself and put their name in *Whose feedback is this?*.
 ## Pull requests
 
 1. Work from `main` on a branch of your own.
-2. From `app/`, run the tests: `python -m unittest discover -s tests`.
+2. From `app/ts/`, run `npm run check` and `npm test`.
 3. If you change `app/web/src`, rebuild with `npm run build` in `app/web` and
    commit the generated JavaScript with it.
 4. Describe what you changed and how you checked it.

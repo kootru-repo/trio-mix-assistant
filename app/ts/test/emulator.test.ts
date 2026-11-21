@@ -15,7 +15,7 @@ import { NodeUdpFactory } from "../src/host/udp.ts";
 import { fixture } from "./helpers.ts";
 import { StepClock } from "./stepclock.ts";
 
-const scn = readFileSync(fileURLToPath(new URL("../../trio_mix/x32_default_nodes.scn", import.meta.url)), "utf8");
+const scn = readFileSync(fileURLToPath(new URL("../../x32_default_nodes.scn", import.meta.url)), "utf8");
 const hex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 const LOCAL: Peer = { host: "127.0.0.1", port: 0 };
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));

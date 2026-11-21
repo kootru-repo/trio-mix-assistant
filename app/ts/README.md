@@ -1,7 +1,8 @@
 # Trio Mix-Assistant in TypeScript
 
-A TypeScript port of the Python application in [`../trio_mix`](../trio_mix). The Python stays the
-reference until a real show has run on the TypeScript build.
+This is the application. It began as a Python program; that original is **obsolete**, was removed from
+the working tree on 2026-11-21 and survives only as the zip in [`../../archive`](../../archive/README.md)
+(also in git history at commit `4094d6c`). Do not build on it.
 
 Node 22 or newer is the only requirement. The runtime has no npm dependencies; `typescript` and
 `@types/node` are needed only to build and check.
@@ -13,8 +14,8 @@ Node 22 or newer is the only requirement. The runtime has no npm dependencies; `
 | `src/core` | Signal processing, console protocol, the four jobs, coach mode, calibration, show flow, the engine and its telemetry, the desk emulator, the QR encoder, device-capture logic | No platform APIs. `tsconfig.core.json` compiles it with no DOM and no Node types, so `setTimeout`, `Buffer` or `node:*` fail the build. Time, randomness and networking arrive through `Clock`, `Rng` and `UdpFactory`. |
 | `src/host` | Node bindings: UDP, HTTP/WebSocket server, TLS certificates, SQLite session log, advisor, command line | Everything that touches the operating system |
 | `test` | Tests, run directly by Node | |
-| `fixtures` | JSON recorded from the Python reference | Regenerate with the scripts in `tools` |
-| `tools` | Python recorders | They import the reference and write `fixtures/` |
+| `fixtures` | JSON recorded from the archived Python original | Committed; the tests need no Python |
+| `tools` | The packager (`package.ts`) | |
 
 The point of the split is a later phone app: `core` can run unchanged inside a React Native or
 Capacitor shell, with a new host in place of `src/host`.
@@ -30,8 +31,8 @@ npm run build      # emit JavaScript to dist/
 
 ## How behaviour is kept identical
 
-Every module is checked against fixtures recorded from the Python code, not against hand-written
-expectations:
+Every module was checked against fixtures recorded from the Python original, not against hand-written
+expectations. The fixtures in `fixtures/` are committed, so the tests need no Python:
 
 - Signal processing, scaling tables and OSC datagrams are compared number for number and byte for
   byte (including against `python-osc`).
@@ -40,8 +41,8 @@ expectations:
 - The assistant and the engine are replayed through scripted runs recorded from Python on a manual
   clock: every event, coach recommendation and telemetry value must match.
 
-To refresh the fixtures after changing the Python reference, run each `tools/record_*.py` from
-`app/ts/tools`, then `npm test`.
+The recorder scripts (`record_*.py`) are in the archive with the Python they import. A fixture should
+only change if the intended behaviour changes; then edit the expected value deliberately, with the reason in the commit.
 
 ## What is not verified
 

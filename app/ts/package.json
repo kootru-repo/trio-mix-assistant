@@ -10,7 +10,8 @@
     "test": "node --experimental-strip-types --no-warnings --test \"test/**/*.test.ts\"",
     "package": "node --experimental-strip-types --no-warnings tools/package.ts",
     "start": "node --experimental-strip-types --no-warnings src/host/launch.ts",
-    "run": "node --experimental-strip-types --no-warnings src/host/main.ts"
+    "run": "node --experimental-strip-types --no-warnings src/host/main.ts",
+    "osc-demo": "node --experimental-strip-types --no-warnings src/host/oscdemo-cli.ts"
   },
   "devDependencies": {
     "@types/node": "22.19.1",

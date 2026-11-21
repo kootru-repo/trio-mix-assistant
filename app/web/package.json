@@ -2,7 +2,7 @@
   "name": "trio-mix-dashboard",
   "private": true,
   "license": "AGPL-3.0-only",
-  "description": "TypeScript source for the dashboard and PIN login page; compiles into ../trio_mix/static.",
+  "description": "TypeScript source for the dashboard and PIN login page; compiles into ../static.",
   "scripts": {
     "build": "tsc -p .",
     "check": "tsc -p . --noEmit",

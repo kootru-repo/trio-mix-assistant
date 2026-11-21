@@ -14,10 +14,10 @@ takeover always wins.
 
 ## What the emulator already covers (and what it can't)
 
-Before you touch hardware, `python run.py --emulate` runs the **entire** real stack:
+Before you touch hardware, `npm run run -- --emulate` (in `app/ts`) runs the **entire** real stack:
 `OscConsole` → UDP socket → a protocol-faithful desk emulator → `/meters` stream +
 `/xremote` echoes → `MeterReceiver` → reconciliation, plus the real capture queue fed
-by a timed audio stream. `python -m unittest discover -s tests -p test_contract.py`
+by a timed audio stream. `npm test` (the emulator and protocol tests)
 then asserts the exact wire layout. Together these validate the **mechanics**: OSC
 framing/encode/decode, the subscribe→renew handshake, self-move-echo vs.
 reconciliation timing, scene-recall round-trips, meter-blob parsing, and the
@@ -27,13 +27,13 @@ What the emulator **cannot** tell you: whether those formats are *correct for yo
 firmware*. The emulator encodes the same assumptions the app does, so it can only
 prove self-consistency. The checklist below (especially section 1) is exactly the
 set of assumptions to confirm against the real desk. Each is also a `VERIFY:` line in
-`tests/test_contract.py`; once you have a capture, pin those expected values to the
+`ts/test/emulator.test.ts` and `ts/test/osc.test.ts`; once you have a capture, pin those expected values to the
 real bytes and the test suite becomes a true regression gate.
 
 ---
 
 ## 0. Prep
-- [ ] `pip install numpy python-osc sounddevice` (+ `cryptography qrcode` for tablet/TLS)
+- [ ] Node.js 22+ installed, and the optional native audio module `naudiodon2` if you want live audio input (not bundled, not yet verified on hardware)
 - [ ] Console and laptop on the same wired/Wi-Fi LAN; note the console IP.
 - [ ] A sniffer ready: Wireshark (UDP 10023/10024) or the X32 OSC monitor / `OSC` debug.
 
@@ -43,7 +43,7 @@ move it on the console and confirm the value the app reports matches.
 - [x] **Fader**: VALIDATED against **X32-Edit** (2026-06-30). The emulated desk now
       serves X32-Edit's discovery + sync, so X32-Edit renders what the app sends.
       Pushed 0/+5/−10/−20/−40 dB via `db_to_fader` → X32-Edit displayed exactly those
-      dB. The linear 0..1 ↔ dB law in `osc.py` matches Behringer's. (Re-confirm on the
+      dB. The linear 0..1 ↔ dB law in `ts/src/core/console.ts` matches Behringer's. (Re-confirm on the
       real M32C, but the scaling itself is no longer an assumption.)
       **Also (2026-07-03): Mixing Station (Android) fully syncs the emulated desk**,
       including discovery, whole-tree sync, /node bulk reads, show/scene list, and live
@@ -56,8 +56,8 @@ move it on the console and confirm the value the app reports matches.
       it in the app toggles the channel Φ on the desk. **Also confirm the card/USB tap
       point is POST-invert**: the phase job's auto-flip only closes the loop if the
       signal the app captures reflects the polarity flip (else it correctly falls back
-      to advisory after one flip). If the address differs, fix it in `osc.py`.
-> If any mapping is off, fix the scaling in `trio_mix/osc.py` (or `config.py`); the
+      to advisory after one flip). If the address differs, fix it in `console.ts`.
+> If any mapping is off, fix the scaling in `ts/src/core/console.ts` (or `config.ts`); the
 > code centralises every conversion so there's one place to correct per parameter.
 
 > **Validate the app→console direction NOW, without the desk:** run `--emulate` and
@@ -78,7 +78,7 @@ move it on the console and confirm the value the app reports matches.
       (self-move suppression is working).
 
 ## 3. Audio capture (the listening half)
-- [ ] `python run.py --hardware --console-ip <ip> --list-devices` → find the interface
+- [ ] `npm run run -- --hardware --console-ip <ip> --list-devices` → find the interface
       (the console's USB/card return + the FOH measurement mic).
 - [ ] Launch with `--audio-device <n>`; confirm `capture: {kind: audio, dead: false}`
       and that channel meters move with real input.
