@@ -14,7 +14,7 @@
     "osc-demo": "node --experimental-strip-types --no-warnings src/host/oscdemo-cli.ts"
   },
   "devDependencies": {
-    "@types/node": "22.19.1",
+    "@types/node": "26.6.6",
     "typescript": "7.0.2"
   }
 }
