@@ -1,6 +1,6 @@
 # Everything needed to run the dashboard on real hardware over the LAN.
 numpy>=1.24,<3
-python-osc>=1.8,<2
+python-osc>=1.10.3,<2
 sounddevice>=0.4,<0.6
 cryptography>=41,<47
 qrcode>=7,<9
