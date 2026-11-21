@@ -19,7 +19,9 @@ class TestLatencyInstrumentation(unittest.TestCase):
             self.assertIn(k, e.telemetry["perf"])
         e.start()
         try:
-            time.sleep(0.3)
+            deadline = time.monotonic() + 5.0
+            while e.telemetry["perf"]["tick_ms"] <= 0.0 and time.monotonic() < deadline:
+                time.sleep(0.05)
             perf = e.telemetry["perf"]
             self.assertGreater(perf["tick_ms"], 0.0)
             self.assertLess(perf["tick_ms"], 100.0)

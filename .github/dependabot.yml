@@ -4,6 +4,10 @@ updates:
     directory: /app
     schedule:
       interval: weekly
+    versioning-strategy: increase-if-necessary
+    ignore:
+      - dependency-name: numpy
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     open-pull-requests-limit: 5
   - package-ecosystem: npm
     directory: /app/web
