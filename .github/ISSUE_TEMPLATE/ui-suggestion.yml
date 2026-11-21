@@ -1,0 +1,36 @@
+name: UI suggestion
+description: "A change to what is on the screen: layout, size, wording, colour."
+title: "UI suggestion: "
+labels: ["ui"]
+body:
+  - type: textarea
+    id: q1
+    attributes:
+      label: "Which screen or control?"
+      description: "Mix, EQ, FX, Settings, the PIN page, a button..."
+    validations:
+      required: true
+  - type: textarea
+    id: q2
+    attributes:
+      label: "What would you change?"
+      description: "A photo, screenshot or sketch helps. Drag it in here."
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: "What were you using?"
+      options:
+        - Phone
+        - Tablet
+        - Laptop
+        - Not sure
+  - type: dropdown
+    id: setting
+    attributes:
+      label: "Where?"
+      options:
+        - Trying it at home (simulation or emulator)
+        - Rehearsal
+        - Live show

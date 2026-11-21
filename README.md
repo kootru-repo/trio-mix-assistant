@@ -253,13 +253,19 @@ cd app
 python -m unittest discover -s tests
 ```
 
-## Owner
+## Credits
 
-**the Trio Mix-Assistant authors**
+- **Concept and requirements:** Chris Beulow and Eric Craton. The idea is theirs, and the tool is built to their requirements for playing a real stage with no sound engineer.
+- **Programming:** Andrew Craton.
+
+See **[AUTHORS.md](AUTHORS.md)**. To cite the project, use **[CITATION.cff](CITATION.cff)** (GitHub shows it as *Cite this repository*).
+
+## Contributing
+
+This is a community project and musicians' feedback is as welcome as code. See **[CONTRIBUTING.md](CONTRIBUTING.md)**, or open an issue and pick *Preference*, *Flow* or *UI suggestion*.
 
 ## License & disclaimer
 
-**Proprietary. © 2026 the Trio Mix-Assistant authors. All rights reserved.**
-This software is private and **not licensed for use, copying, modification, or distribution**. No rights are granted without the owner's prior written consent. See **[LICENSE](LICENSE)**.
+Released under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**. You may use, copy, change and share it for any noncommercial purpose, as long as you pass on the license terms and the copyright notice. Commercial use needs permission from the authors.
 
-Not affiliated with or endorsed by Music Tribe, Behringer, or Midas. *X32‑Edit*, *M32‑Edit*, *X32*, and *M32* are trademarks of their respective owners. Download their software only from the official links above. **OSC scalings vary across firmware; validate against your console before trusting it live** (see [HARDWARE_BRINGUP.md](app/HARDWARE_BRINGUP.md)).
+Not affiliated with or endorsed by Music Tribe, Behringer, or Midas. *X32‑Edit*, *M32‑Edit*, *X32*, and *M32* are trademarks of their respective owners. Download their software only from the official links above. **OSC scalings vary across firmware; validate against your console before trusting it live** (see [HARDWARE_BRINGUP.md](app/HARDWARE_BRINGUP.md)). *Mixing Station* is a product of dev-core.org.

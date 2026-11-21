@@ -1,0 +1,40 @@
+name: Flow
+description: "A place where the steps were confusing, slow, or got you stuck."
+title: "Flow: "
+labels: ["flow"]
+body:
+  - type: textarea
+    id: q1
+    attributes:
+      label: "What were you trying to do?"
+    validations:
+      required: true
+  - type: textarea
+    id: q2
+    attributes:
+      label: "What did you do, step by step, and where did it go wrong?"
+    validations:
+      required: true
+  - type: textarea
+    id: q3
+    attributes:
+      label: "What did you expect to happen?"
+    validations:
+      required: false
+  - type: dropdown
+    id: device
+    attributes:
+      label: "What were you using?"
+      options:
+        - Phone
+        - Tablet
+        - Laptop
+        - Not sure
+  - type: dropdown
+    id: setting
+    attributes:
+      label: "Where?"
+      options:
+        - Trying it at home (simulation or emulator)
+        - Rehearsal
+        - Live show

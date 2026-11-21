@@ -1,0 +1,35 @@
+name: Preference
+description: "How you like to work on stage, and what the tool should respect."
+title: "Preference: "
+labels: ["preference"]
+body:
+  - type: textarea
+    id: q1
+    attributes:
+      label: "What do you want the tool to do, or leave alone?"
+      description: "For example: never ride my vocal during the first song."
+    validations:
+      required: true
+  - type: textarea
+    id: q2
+    attributes:
+      label: "Why does it matter on a gig?"
+    validations:
+      required: false
+  - type: dropdown
+    id: device
+    attributes:
+      label: "What were you using?"
+      options:
+        - Phone
+        - Tablet
+        - Laptop
+        - Not sure
+  - type: dropdown
+    id: setting
+    attributes:
+      label: "Where?"
+      options:
+        - Trying it at home (simulation or emulator)
+        - Rehearsal
+        - Live show

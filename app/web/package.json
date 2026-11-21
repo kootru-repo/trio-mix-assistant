@@ -1,6 +1,7 @@
 {
   "name": "trio-mix-dashboard",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "description": "TypeScript source for the dashboard and PIN login page; compiles into ../trio_mix/static.",
   "scripts": {
     "build": "tsc -p .",

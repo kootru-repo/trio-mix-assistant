@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use or build on this software, please cite it as below."
+title: "Trio Mix-Assistant"
+type: software
+abstract: >-
+  A live-sound safety net and operator dashboard for a Midas M32C / Behringer X32,
+  for the gig with no sound engineer. Concept and requirements by Chris Beulow and
+  Eric Craton; programming by Andrew Craton.
+authors:
+  - family-names: Craton
+    given-names: Andrew
+license: PolyForm-Noncommercial-1.0.0
+repository-code: "https://github.com/kootru-repo/trio-mix-assistant"
+keywords:
+  - live sound
+  - mixing console
+  - OSC
+  - feedback suppression
