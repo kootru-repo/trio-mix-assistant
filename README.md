@@ -221,7 +221,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 
 **Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends every automatic move, covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
-Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is logged and reversible. 327 automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
+Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is logged and reversible. 330 automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 
 ## Project layout
 
@@ -234,7 +234,7 @@ trio-mix-assistant/
 │   ├── trio_mix/             ← package: dsp, osc, assistant, engine, server…
 │   │   └── static/           ← dashboard page + compiled JS (committed)
 │   ├── web/                  ← TypeScript source for the dashboard (npm run build)
-│   ├── tests/                ← 327 unit + integration tests
+│   ├── tests/                ← 330 unit + integration tests
 │   ├── setup/start/list-devices/rehearse  (.bat + .command)
 │   ├── README.md             ← developer docs (architecture, internals)
 │   ├── RUNBOOK.md            ← show-day guide (Windows & macOS)
