@@ -134,6 +134,7 @@ class TestTLS(unittest.TestCase):
         try:
             cert, key, ca = ensure_trusted_cert(d, ["127.0.0.1"])
             sctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            sctx.minimum_version = ssl.TLSVersion.TLSv1_2
             sctx.load_cert_chain(cert, key)
             srv = socket.socket()
             srv.bind(("127.0.0.1", 0))
@@ -155,6 +156,7 @@ class TestTLS(unittest.TestCase):
             acceptor = threading.Thread(target=_acc, daemon=True)
             acceptor.start()
             cctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            cctx.minimum_version = ssl.TLSVersion.TLSv1_2
             cctx.load_verify_locations(ca)
             cctx.check_hostname = True
             with (

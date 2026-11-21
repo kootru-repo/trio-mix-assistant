@@ -486,6 +486,7 @@ def wrap_tls(httpd: ThreadingHTTPServer, tls_files: tuple[str, str] | None) -> s
         return "http"
     try:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         ctx.load_cert_chain(*tls_files)
         httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
     except (OSError, ssl.SSLError, ValueError) as exc:

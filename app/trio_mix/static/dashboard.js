@@ -208,16 +208,16 @@ function renderEQ(s) {
     if (eqCh == null || !chans.includes(eqCh))
         eqCh = chans[0];
     const cur = eqCh;
-    $("#eqchsel").innerHTML = chans.map(ch => `<span class="chip ${ch === eqCh ? 'on' : ''}" data-ch="${ch}">${esc(chMeta(s, ch).label || ('ch' + ch))}</span>`).join("");
+    $("#eqchsel").innerHTML = chans.map(ch => `<span class="chip ${ch === eqCh ? 'on' : ''}" data-ch="${esc(ch)}">${esc(chMeta(s, ch).label || ('ch' + ch))}</span>`).join("");
     for (const c of $("#eqchsel").querySelectorAll(".chip"))
         c.onclick = () => { eqCh = +c.dataset.ch; eqDirty = true; renderTabPanels(_lastState); };
     const bands = (s.eq && s.eq[cur]) || [];
     $("#eqbands").innerHTML = bands.map(b => `
-    <div class="eqband" data-band="${b.band}">
-      <h4>BAND ${b.band}<span class="togg ${b.on ? 'on' : ''}" data-act="on">${b.on ? 'ON' : 'OFF'}</span></h4>
-      <div class="eqrow"><span>Freq</span><input type="range" min="0" max="1" step="0.001" value="${fEQinv(b.hz)}" data-act="hz"><b>${hzLbl(b.hz)}</b></div>
-      <div class="eqrow"><span>Gain</span><input type="range" min="-15" max="15" step="0.5" value="${b.gain}" data-act="gain"><b>${b.gain > 0 ? '+' : ''}${b.gain.toFixed(1)}</b></div>
-      <div class="eqrow"><span>Q</span><input type="range" min="0.3" max="10" step="0.1" value="${b.q}" data-act="q"><b>${b.q.toFixed(1)}</b></div>
+    <div class="eqband" data-band="${esc(b.band)}">
+      <h4>BAND ${esc(b.band)}<span class="togg ${b.on ? 'on' : ''}" data-act="on">${b.on ? 'ON' : 'OFF'}</span></h4>
+      <div class="eqrow"><span>Freq</span><input type="range" min="0" max="1" step="0.001" value="${esc(fEQinv(b.hz))}" data-act="hz"><b>${esc(hzLbl(b.hz))}</b></div>
+      <div class="eqrow"><span>Gain</span><input type="range" min="-15" max="15" step="0.5" value="${esc(b.gain)}" data-act="gain"><b>${b.gain > 0 ? '+' : ''}${esc(b.gain.toFixed(1))}</b></div>
+      <div class="eqrow"><span>Q</span><input type="range" min="0.3" max="10" step="0.1" value="${esc(b.q)}" data-act="q"><b>${esc(b.q.toFixed(1))}</b></div>
     </div>`).join("");
     for (const card of $("#eqbands").querySelectorAll(".eqband")) {
         const band = +card.dataset.band;
@@ -264,10 +264,10 @@ function renderFX(s) {
         const sends = chans.map(c => {
             const lvl = ((s.sends || {})[c.ch] || {})[fx];
             const v = (lvl == null ? -90 : lvl);
-            return `<div class="fxsend" data-ch="${c.ch}" data-fx="${fx}"><span>${esc(c.label)}</span><input type="range" min="-90" max="10" step="1" value="${v}"><b>${v <= -90 ? '-∞' : v.toFixed(0)}</b></div>`;
+            return `<div class="fxsend" data-ch="${esc(c.ch)}" data-fx="${esc(fx)}"><span>${esc(c.label)}</span><input type="range" min="-90" max="10" step="1" value="${esc(v)}"><b>${v <= -90 ? '-∞' : esc(v.toFixed(0))}</b></div>`;
         }).join("");
         return `<div class="fxbus"><h3>${esc(buses[fx])}</h3>
-      <div class="fxwet" data-fx="${fx}"><span>WET</span><input type="range" min="-90" max="10" step="1" value="${wv}"><b>${wv <= -90 ? '-∞' : wv.toFixed(0)}</b></div>${sends}</div>`;
+      <div class="fxwet" data-fx="${esc(fx)}"><span>WET</span><input type="range" min="-90" max="10" step="1" value="${esc(wv)}"><b>${wv <= -90 ? '-∞' : esc(wv.toFixed(0))}</b></div>${sends}</div>`;
     }).join("");
     for (const w of $("#fxwrap").querySelectorAll(".fxwet")) {
         const fx = +w.dataset.fx;
@@ -280,20 +280,20 @@ function renderFX(s) {
 }
 function renderSettings(s) {
     const cap = s.capture || {}, con = s.console || {}, lat = s.latency || {}, room = s.room || {}, show = s.show || {};
-    const row = (k, v, cls) => `<div class="row"><span class="k">${k}</span><span class="v ${cls || ''}">${v}</span></div>`;
-    const audio = cap.kind === "audio" ? (esc(cap.name || "audio") + " — " + (cap.dead ? "DEAD" : cap.silent ? "SILENT" : cap.overload ? "XRUN" : "ok")) : String(cap.kind);
-    setHTML($("#setconn"), row("Mode", esc(s.mode || "")) +
+    const row = (k, v, cls) => `<div class="row"><span class="k">${esc(k)}</span><span class="v ${cls || ''}">${esc(v)}</span></div>`;
+    const audio = cap.kind === "audio" ? ((cap.name || "audio") + " — " + (cap.dead ? "DEAD" : cap.silent ? "SILENT" : cap.overload ? "XRUN" : "ok")) : String(cap.kind);
+    setHTML($("#setconn"), row("Mode", s.mode || "") +
         row("Audio input", audio, (cap.dead || cap.silent) ? "bad" : "ok") +
         row("Console feed", con.connected ? ("connected · " + con.meters + " meters") : "no feed", con.connected ? "ok" : "bad"));
-    const latTxt = Object.keys(lat).length ? Object.entries(lat).map(([k, v]) => esc(k) + " " + v.ema + "ms").join(" · ") : "—";
+    const latTxt = Object.keys(lat).length ? Object.entries(lat).map(([k, v]) => k + " " + v.ema + "ms").join(" · ") : "—";
     setHTML($("#setperf"), row("Loop", (s.perf ? s.perf.tick_ms : 0) + " ms · jit " + (s.perf ? s.perf.jitter_ms : 0) + " ms") +
         row("Detect→actuate", latTxt) +
         row("Block buffer", (s.block_ms || 0) + " ms") +
         row("Room SNR", room.confidence != null ? (Math.round(room.confidence * 100) + "% · " + room.level_db + " dBFS") : "—", (room.confidence != null && room.confidence < 0.5) ? "bad" : "ok"));
     const ven = s.venue;
-    setHTML($("#setshow"), row("Template song", esc(show.current || "—")) +
+    setHTML($("#setshow"), row("Template song", show.current || "—") +
         row("Scene", show.scene != null ? show.scene : "—") +
-        row("Calibration", esc((s.calibration || {}).status || "—")) +
+        row("Calibration", (s.calibration || {}).status || "—") +
         row("Venue model", ven ? (ven.shows + " show(s) · " + Math.round((ven.confidence || 0) * 100) + "% · " + (ven.freqs || []).length + " known freqs") : "—"));
 }
 function renderTabPanels(s) {
@@ -412,7 +412,7 @@ function render(s) {
     calbtn.disabled = cs === "running";
     $("#callbl").textContent = cs === "running" ? "Calibrating…" : (cs === "done" ? "Re-run calibration" : "Run calibration");
     setHTML($("#calstatus"), cs === "running" ? "Emitting pink noise &amp; measuring the room…" :
-        (cs === "done" ? `Room measured · ${(cal.corrections || []).length} cut(s) applied` : "Not yet run — using raw detection thresholds."));
+        (cs === "done" ? `Room measured · ${esc((cal.corrections || []).length)} cut(s) applied` : "Not yet run — using raw detection thresholds."));
     const bands = $("#bands");
     const bl = cal.baseline || [];
     if (bl.length) {
@@ -425,7 +425,7 @@ function render(s) {
             const h = Math.max(6, (db - lo) / (hi - lo) * 100);
             const hot = watch.some(w => Math.abs(w - hz) / hz < 0.25);
             const lbl = (hz >= 1000) ? (Math.round(hz / 100) / 10) + "k" : Math.round(hz);
-            bandsHtml += `<div class="band"><div class="bar ${hot ? 'hot' : ''}" style="height:${h}%"></div><div class="bl">${lbl}</div></div>`;
+            bandsHtml += `<div class="band"><div class="bar ${hot ? 'hot' : ''}" style="height:${esc(h)}%"></div><div class="bl">${esc(lbl)}</div></div>`;
         }
         setHTML(bands, bandsHtml);
     }
@@ -559,7 +559,7 @@ function yToDb(vf, clientY) { const r = vf.getBoundingClientRect(); let t = (cli
 function makeStrip(key, label, isMaster) {
     const el = document.createElement("div");
     el.className = "strip" + (isMaster ? " master" : "");
-    el.innerHTML = `<div class="slabel">${label}</div>
+    el.innerHTML = `<div class="slabel">${esc(label)}</div>
     <div class="vfader"><div class="vmeter"><span class="vfill"></span></div><div class="vcap"></div></div>
     <div class="vdb mono">0.0</div>
     ${isMaster ? '<div style="height:30px"></div>' : '<button class="mute">M</button>'}`;
