@@ -1,35 +1,136 @@
+import { ZIG_FI, ZIG_KI, ZIG_WI } from "./ziggurat.ts";
+
 export interface Rng {
   next(): number;
   standardNormal(): number;
 }
 
-export class SeededRng implements Rng {
-  private state: number;
-  private spare: number | null = null;
+const M32 = 0xffffffffn;
+const M64 = (1n << 64n) - 1n;
+const M128 = (1n << 128n) - 1n;
+const PCG_MULT = 0x2360ed051fc65da44385df649fccf645n;
 
-  constructor(seed: number = 7) {
-    this.state = seed >>> 0;
+const INIT_A = 0x43b0d7e5;
+const MULT_A = 0x931e8875;
+const INIT_B = 0x8b51f9dd;
+const MULT_B = 0x58f38ded;
+const MIX_MULT_L = 0xca01f9dd;
+const MIX_MULT_R = 0x4973f715;
+
+const mul32 = (a: number, b: number): number => Math.imul(a, b) >>> 0;
+
+function hashmix(value: number, hc: { v: number }): number {
+  let x = (value ^ hc.v) >>> 0;
+  hc.v = mul32(hc.v, MULT_A);
+  x = mul32(x, hc.v);
+  return (x ^ (x >>> 16)) >>> 0;
+}
+
+function mix(x: number, y: number): number {
+  const r = (mul32(MIX_MULT_L, x) - mul32(MIX_MULT_R, y)) >>> 0;
+  return (r ^ (r >>> 16)) >>> 0;
+}
+
+function entropyWords(seed: bigint): number[] {
+  if (seed === 0n) return [0];
+  const words: number[] = [];
+  let s = seed;
+  while (s > 0n) {
+    words.push(Number(s & M32));
+    s >>= 32n;
+  }
+  return words;
+}
+
+function seedState(seed: bigint): bigint[] {
+  const entropy = entropyWords(seed);
+  const pool = [0, 0, 0, 0];
+  const hc = { v: INIT_A };
+  for (let i = 0; i < 4; i++) pool[i] = hashmix(i < entropy.length ? entropy[i]! : 0, hc);
+  for (let src = 0; src < 4; src++) {
+    for (let dst = 0; dst < 4; dst++) {
+      if (src !== dst) pool[dst] = mix(pool[dst]!, hashmix(pool[src]!, hc));
+    }
+  }
+  for (let src = 4; src < entropy.length; src++) {
+    for (let dst = 0; dst < 4; dst++) pool[dst] = mix(pool[dst]!, hashmix(entropy[src]!, hc));
+  }
+  const words: number[] = [];
+  const hb = { v: INIT_B };
+  for (let i = 0; i < 8; i++) {
+    let d = (pool[i % 4]! ^ hb.v) >>> 0;
+    hb.v = mul32(hb.v, MULT_B);
+    d = mul32(d, hb.v);
+    words.push((d ^ (d >>> 16)) >>> 0);
+  }
+  const out: bigint[] = [];
+  for (let k = 0; k < 4; k++) out.push(BigInt(words[2 * k]!) | (BigInt(words[2 * k + 1]!) << 32n));
+  return out;
+}
+
+class Pcg64 {
+  private state: bigint;
+  private readonly inc: bigint;
+
+  constructor(seed: bigint) {
+    const [s0, s1, i0, i1] = seedState(seed) as [bigint, bigint, bigint, bigint];
+    const initstate = (s0 << 64n) | s1;
+    const initseq = (i0 << 64n) | i1;
+    this.state = 0n;
+    this.inc = ((initseq << 1n) | 1n) & M128;
+    this.step();
+    this.state = (this.state + initstate) & M128;
+    this.step();
+  }
+
+  private step(): void {
+    this.state = (this.state * PCG_MULT + this.inc) & M128;
+  }
+
+  nextU64(): bigint {
+    this.step();
+    const s = this.state;
+    const x = (s >> 64n) ^ (s & M64);
+    const rot = s >> 122n;
+    return ((x >> rot) | (x << ((64n - rot) & 63n))) & M64;
+  }
+}
+
+const NOR_R = 3.6541528853610088;
+const NOR_INV_R = 0.2736612373297583;
+const TWO_NEG_53 = 1 / 9007199254740992;
+
+export class SeededRng implements Rng {
+  private readonly bits: Pcg64;
+
+  constructor(seed: number | bigint = 7) {
+    this.bits = new Pcg64(BigInt(seed));
   }
 
   next(): number {
-    this.state = (this.state + 0x6d2b79f5) >>> 0;
-    let t = this.state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    return Number(this.bits.nextU64() >> 11n) * TWO_NEG_53;
   }
 
   standardNormal(): number {
-    if (this.spare !== null) {
-      const s = this.spare;
-      this.spare = null;
-      return s;
+    for (;;) {
+      let r = this.bits.nextU64();
+      const idx = Number(r & 0xffn);
+      r >>= 8n;
+      const sign = Number(r & 1n);
+      const rabs = (r >> 1n) & 0xfffffffffffffn;
+      const rabsN = Number(rabs);
+      let x = rabsN * ZIG_WI[idx]!;
+      if (sign) x = -x;
+      if (rabsN < ZIG_KI[idx]!) return x;
+      if (idx === 0) {
+        for (;;) {
+          const xx = -NOR_INV_R * Math.log1p(-this.next());
+          const yy = -Math.log1p(-this.next());
+          if (yy + yy > xx * xx) return Number((rabs >> 8n) & 1n) ? -(NOR_R + xx) : NOR_R + xx;
+        }
+      } else if ((ZIG_FI[idx - 1]! - ZIG_FI[idx]!) * this.next() + ZIG_FI[idx]! < Math.exp(-0.5 * x * x)) {
+        return x;
+      }
     }
-    let u = 0;
-    while (u === 0) u = this.next();
-    const v = this.next();
-    const r = Math.sqrt(-2 * Math.log(u));
-    this.spare = r * Math.sin(2 * Math.PI * v);
-    return r * Math.cos(2 * Math.PI * v);
   }
 }

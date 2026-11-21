@@ -53,3 +53,22 @@ jobs:
         run: npm run build
       - name: Committed JavaScript matches the TypeScript source
         run: git diff --exit-code -- ../trio_mix/static
+
+  typescript:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app/ts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/ts/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Type-check (core must stay free of platform APIs)
+        run: npm run check
+      - name: Test against the Python reference fixtures
+        run: npm test

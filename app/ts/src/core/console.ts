@@ -64,15 +64,18 @@ interface RampJob {
 
 export interface ConsoleOptions {
   clock?: Clock | null;
+  ip?: string | null;
 }
 
 export abstract class ConsoleBase {
   protected readonly rampClock: Clock | null;
+  readonly ip: string | null;
   private rampChain: Promise<void> = Promise.resolve();
   private closed = false;
 
   constructor(opts: ConsoleOptions = {}) {
     this.rampClock = opts.clock ?? null;
+    this.ip = opts.ip ?? null;
   }
 
   protected abstract send(addr: string, ...args: OscArg[]): void;
