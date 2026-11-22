@@ -1,6 +1,6 @@
 # UX Design: Operating with Mixing Station (no X32‑Edit)
 
-> **Status:** design. Sections 1 to 3 and 6 describe the intended experience. The production launch-banner line, the firewall check, the `--model` flag, the runbook's mixer-app step and the Q-app story (section 4) and the Signal job (section 5) are proposals and are not built. Section 7 lists status.
+> **Status:** design. Sections 1 to 3 and 6 describe the intended experience. The production launch-banner line, the firewall check, the `--model` flag, the runbook's mixer-app step (section 4), the Q-app story (section 2) and the Signal job (section 5) are proposals and are not built. Section 7 lists status.
 > **Scope:** the operator/performer experience across all three modes (simulation,
 > emulation, production) with **Mixing Station** as the manual mixer surface and the
 > **dashboard PWA** as the assistant surface. X32-Edit also works as a
@@ -82,7 +82,7 @@ The inverted experience, and the pairing that shows both apps at their best.
   3. operator dials the move into Mixing Station;
   4. detector stops firing → card **self‑clears after ~8 s**. The card
      disappearing *is* the confirmation.
-  5. `persist` cards (room‑calibration EQ, for example) stay until their cause clears or coach is toggled off.
+  5. `persist` cards (room‑calibration EQ, for example) stay until coach is toggled off or a newer card replaces them (a phase card also clears when the pair realigns).
 - **Design rule:** a card must name the move in console vocabulary (channel,
   band, Hz, dB, Q) exactly as Mixing Station labels it, so the operator never
   translates.

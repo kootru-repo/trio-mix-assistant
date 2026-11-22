@@ -54,7 +54,7 @@ PS> .\TrioMixAssistant.exe --list-devices
 ### 1.1 Let the app check the setup
 
 Once the rig is set up (§2), run the built-in checks. They listen for about
-eight seconds when a real input is set, change nothing on the console and play no sound. With no other flags
+eight seconds when there is a real input or a console (real or emulated) to check, change nothing on the console and play no sound. With no other flags
 they check the setup saved in `show.conf`:
 ```bash
 $ ./TrioMixAssistant --diagnose

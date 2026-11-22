@@ -48,7 +48,7 @@ Fixes go into the latest version on `main`.
 ## Data that leaves the computer
 
 Nothing is sent anywhere unless you turn on `--advisor` (or `ADVISOR=yes` in `show.conf`). With
-the advisor on, every 30 seconds (change it with `--advisor-interval`) the app sends a short summary
+the advisor on, every 30 seconds (the `--advisor-interval` command-line flag changes it) the app sends a short summary
 to `api.anthropic.com`: recent event text, each channel's role, level and whether it is notched, the current and
 next song names with section, tempo and scene number, the lead-vocal status, the run mode,
 and any alerts. Event and alert text can name the audio device and the console's IP address. It does not send the PIN or audio, and the venue name is not part of the summary. The API key is read

@@ -404,7 +404,7 @@ const modeLabel = (args: Args): string =>
     ? "emulated console (this does not prove anything about a real console)"
     : args.hardware
       ? `hardware, console at ${args.consoleIp || C.CONSOLE_IP}`
-      : args.audioDevice || args.auto
+      : args.diagnose && (args.audioDevice || args.auto)
         ? "simulation, checking one real audio input (no console)"
         : "simulation (nothing real is checked except the audio module)";
 

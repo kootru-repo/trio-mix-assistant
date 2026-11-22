@@ -16,12 +16,12 @@ takeover always wins.
 
 Before you touch hardware, `./TrioMixAssistant --emulate` (`.\TrioMixAssistant.exe` on Windows, here and in every command below) runs the **entire** real stack:
 `OscConsole` → UDP socket → a protocol-faithful desk emulator → `/meters` stream +
-`/xremote` echoes → `MeterReceiver` → reconciliation, plus the real capture queue fed
+`/xremote` echoes → `MeterReceiver` → reconciliation, plus the real capture path fed
 by a timed audio stream. `npm test`, run in `app/ts` of a source checkout (the emulator and protocol tests),
 then asserts the exact wire layout. Together these validate the **mechanics**: OSC
 framing/encode/decode, the subscribe→renew handshake, self-move-echo vs.
 reconciliation timing, scene-recall round-trips, meter-blob parsing, and the
-capture/underrun/dead paths, all without gear.
+capture and dead-stream paths, all without gear.
 
 What the emulator **cannot** tell you: whether those formats are *correct for your
 firmware*. The emulator encodes the same assumptions the app does, so it can only
@@ -118,8 +118,8 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
 
 ## 6. Latency / success criteria
 - [ ] Watch the **Detect→actuate** row on the Settings screen, and `capture.lag_ms` and
-      `capture.stale` in `/state`. Reflex actions (feedback/clip) should land within about
-      110 ms; investigate if the lag grows or `stale` keeps counting (CPU contention, or too
+      `capture.stale` in `/state`. The row times a block from capture to the console write and should stay at a few
+      milliseconds; investigate if it or the lag grows or `stale` keeps counting (CPU contention, or too
       small a buffer on the audio interface). The footer's `loop …ms · jit …ms` only shows
       that the app's timer is healthy: audio is analysed on a separate thread.
 

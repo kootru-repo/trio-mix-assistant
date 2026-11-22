@@ -44,7 +44,7 @@ Small acoustic acts often play with no one at front‑of‑house. This app watch
 
 ### Coach mode: advise, don't act
 
-Flip **COACH** and the app stops touching the console. Every move it would make (feedback notch, clip trim, vocal ride, room calibration, even scene recall) is listed as a plain manual instruction in a **Coach — manual moves** panel and the decision log, for you to dial in by hand. The deterministic math is the same; only your own moves act. Tap the image for the full‑page view.
+Flip **COACH** and the app stops touching the console. Every move it would make (feedback notch, clip trim, vocal ride, room calibration, even scene recall) is listed as a plain manual instruction in a **COACH — MANUAL MOVES** panel and the decision log, for you to dial in by hand. The deterministic math is the same; only your own moves act. Tap the image for the full‑page view.
 
 [![Coach mode: the assistant advises every manual move instead of applying it](docs/screenshots/coach.png)](docs/screenshots/coach-full.png)
 
@@ -128,7 +128,7 @@ These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, typ
 
 ### Check your setup
 
-The app can check itself. It listens for about eight seconds, **changes nothing on the console and plays no sound**, then lists what passed, what failed and how to fix it.
+The app can check itself. With a real input or a console to check, it listens for about eight seconds; it **changes nothing on the console and plays no sound**, then lists what passed, what failed and how to fix it.
 
 - **In the dashboard:** Settings → **Run checks**. Use this while the app is running.
 - **In a terminal:** `TrioMixAssistant --diagnose` checks the setup in `show.conf` without starting the show. To check just one input, with no console: `TrioMixAssistant --diagnose --audio-device <number>`.
@@ -188,7 +188,7 @@ Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets +
 - **MIXING SURFACE**: drag faders, tap **M** to mute; a human move makes auto‑ride yield on that channel.
 - **Pink‑noise calibration** (Settings → *Run calibration*) measures the room, parks gentle cuts on the worst peaks, and builds a feedback watch‑list. The result shows as an octave‑band chart with ▲ watch / ▼ cut chips.
 - **Scenes**: recall console scenes; each song in the setlist recalls its scene automatically (on a real console this also needs AbleSet, `--ableset-port`).
-- **COACH**: flips the assistant from *acting* to *advising*. It stops touching the console and lists every move it would make (feedback notch, clip trim, vocal ride, calibration, even scene recall) as a plain manual instruction in a **Coach — manual moves** panel + the log, for you to dial in by hand. Only your own manual moves act.
+- **COACH**: flips the assistant from *acting* to *advising*. It stops touching the console and lists every move it would make (feedback notch, clip trim, vocal ride, calibration, even scene recall) as a plain manual instruction in a **COACH — MANUAL MOVES** panel + the log, for you to dial in by hand. Only your own manual moves act.
 - **TAKEOVER**: mutes the main and holds all jobs so a human always wins.
 - **Deep links**: `…:8770/#eq`, `#fx`, `#settings` open straight to a tab (handy on a tablet).
 
@@ -211,7 +211,7 @@ The QR at right is an *example* (`https://192.168.1.50:8770/`); yours encodes th
 
 Serving the dashboard to the network (`--lan`) needs a PIN of at least 6 characters, and the app refuses to start without one unless you pass **`--insecure-open`** (or `ALLOW_OPEN=yes` in `show.conf`) on a network you fully trust. Set **`PIN=123456`** in `show.conf` or add **`--pin "123456"`** (ideally with `--https`): the dashboard then asks for the PIN before it opens, and every control endpoint and the telemetry stream require it, so a stranger on the WiFi can't touch the console. The PIN is entered once per device for each run of the app (a `HttpOnly; SameSite=Strict` session cookie). Five wrong tries lock out only the device that made them for 30 seconds, doubling on each repeat up to 15 minutes, and devices already signed in keep control throughout. Across all devices, unsuccessful sign-in attempts are capped at 20 to 30 a minute; past the cap, devices that have not signed in before are refused until the minute passes. With or without a PIN, the server validates the `Host` header (DNS‑rebinding guard) and refuses control requests and WebSocket connections that come from another website (`Origin` check), so a page open in the operator's browser cannot drive the console.
 
-**Zero cert warnings:** a self‑signed cert always shows a one‑time browser warning (it's encrypted but not *trusted*). To remove it completely, launch with **`--trust`**: the app runs a local root CA and serves a cert signed by it, then prints steps to install that root **once per device** (browse to `/ca.pem`, or copy `ca.pem` from the `.certs` folder beside `show.conf`). After the one‑time install, every https connection is fully trusted: green padlock, no warning. (There's no server‑only way to skip the per‑device install; that's how certificate trust works. The alternative is plain http, with no cert and no warning, but also no PWA/Wake‑Lock, and the PIN travels in clear.)
+**Zero cert warnings:** a self‑signed cert always shows a one‑time browser warning (it's encrypted but not *trusted*). To remove it completely, set **`TRUST=yes`** in `show.conf` (or add **`--trust`** to your command line): the app runs a local root CA and serves a cert signed by it, then prints steps to install that root **once per device** (browse to `/ca.pem`, or copy `ca.pem` from the `.certs` folder beside `show.conf`). After the one‑time install, every https connection is fully trusted: green padlock, no warning. (There's no server‑only way to skip the per‑device install; that's how certificate trust works. The alternative is plain http, with no cert and no warning, but also no PWA/Wake‑Lock, and the PIN travels in clear.)
 
 <img src="docs/screenshots/pin-login.png" width="360" alt="PIN login screen">
 
@@ -264,7 +264,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 | **Balance hold** | advisory | Snapshot the bass/keys balance and hold it from wandering. |
 | **Phase / polarity** | advisory | Cross‑correlate paired mics (mic + DI, two mics on one source): out of polarity → **auto‑flip** the channel Φ (or advise it in coach mode); flag comb‑filtering time offsets. Opt‑in via *phase pairs*. |
 | **Vocal unmask** | advisory | Sidechained to the lead vocal: when it's present, **dynamically duck** each instrument's ~3 kHz band a few dB so the vocal cuts through, then release when it pauses (fast attack / slow release). Coach mode advises a static dip instead. |
-| **Pink‑noise calibration** | pre‑show | Measure the room, cut the worst peaks, pre‑dip feedback‑prone freqs, seed the watch‑list. |
+| **Pink‑noise calibration** | pre‑show | Measure the room, cut up to four octave bands that stand out (a fifth or sixth gets a small dip), seed the watch-list. |
 
 **Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends every automatic move, covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 

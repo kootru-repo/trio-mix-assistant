@@ -177,8 +177,8 @@ npm run run -- --emulate          # real OSC over localhost vs. a desk emulator
 
 `--emulate` runs the **production** path: the real `OscConsole` sends OSC over a
 UDP socket to an in-process **protocol-faithful M32C emulator** that streams
-`/meters`, echoes `/xremote` fader pushes, and answers scene recalls; a timed audio
-stream feeds the real capture queue so the assistant catches feedback over the live
+`/meters`, echoes `/xremote` fader pushes, and records scene recalls; a timed audio
+stream feeds the real capture path so the assistant catches feedback over the live
 loop. It exercises framing, the subscribe/renew handshake, reconciliation timing,
 and the capture/dead-stream paths with no hardware. `ts/test/emulator.test.ts` pins
 the exact wire layout. **Caveat:** the emulator encodes the same protocol
@@ -256,7 +256,7 @@ over `wss://` automatically under https.
 | **Balance hold** | advisory | Snapshot the bass/keys balance and hold it from wandering. |
 | **Phase / polarity** | advisory | Cross-correlate paired mics (mic+DI, two mics on one source): out of polarity → auto-flip the channel Φ (or advise in coach mode); flag comb-filtering time offsets. Opt-in via `PHASE_PAIRS` / template `phase_pairs`. |
 | **Vocal unmask** | advisory | Dynamic EQ sidechained to the lead vocal: when it's up, duck each instrument's `UNMASK_FREQ` (~3 kHz) band toward `UNMASK_DEPTH_DB` (fast attack), release when it pauses (slow). Coach mode advises a static dip. Targets = `UNMASK_CHANNELS` (default: all but vocal/meas/stage). |
-| **Pink-noise calibration** | pre-show | Measure the room, cut the worst peaks, pre-dip feedback-prone freqs, build the baseline + watch-list. |
+| **Pink-noise calibration** | pre-show | Measure the room, cut up to four octave bands that stand out (a fifth or sixth gets a −3 dB dip), build the baseline + watch-list. |
 | **Manual mixing surface** | performer | Draggable per-channel fader strips + master + one-tap mute, over WebSocket. A human move makes the auto-ride **yield** on that channel for a few seconds (shared-control). |
 | **Coach mode** | advisory | A header toggle that suspends every automatic console write, covering mix corrections *and* setlist automation (scene recall, guest mutes), and instead lists the exact manual move (channel, band, dB, Hz, scene) in a panel + the log. Only your own manual moves act. The numbers are the same deterministic math as auto mode. For mixing by hand with guidance, or previewing what the app would do. |
 
@@ -353,7 +353,7 @@ body-size limits.
   calibration claimed (so they never clobber each other and `reset` only clears
   feedback bands); calibration refuses to run during a takeover and pauses the
   assistant during its sweep; the OSC socket and queued ramps close cleanly.
-- **Clean rejection**: an over-cap request body is *drained* before the 400 so
+- **Clean rejection**: an over-cap request body (up to 256 KiB; larger ones are refused unread) is *drained* before the 400 so
   closing can't RST and lose the response.
 - **Front-end resilience**: one transport at a time (WebSocket primary, SSE
   fallback) with a single bounded reconnect (no double-connect, no storm);

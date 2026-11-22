@@ -2,6 +2,7 @@ import { C } from "../core/config.ts";
 import type { Args } from "./args.ts";
 
 const WILDCARD_HOSTS = ["0.0.0.0", "::"];
+const LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "::1"];
 
 export function trustStepsLines(args: Args, scheme: string, ip: string | null, caPath: string): string[] {
   const hostUrl = ip || (!WILDCARD_HOSTS.includes(args.host) ? args.host : "127.0.0.1");
@@ -16,7 +17,7 @@ export function trustStepsLines(args: Args, scheme: string, ip: string | null, c
   lines.push("         iOS:     install the profile, then Settings > General > About > Certificate Trust Settings > enable it");
   lines.push("         Android: Settings > Security > Install a certificate > CA certificate");
   lines.push("         macOS:   double-click > Keychain 'System' > set this cert to 'Always Trust'");
-  lines.push("         Windows: double-click > Install > Local Machine > 'Trusted Root Certification Authorities'");
+  lines.push("         Windows: rename it to end in .crt, double-click > Install Certificate > Local Machine > 'Trusted Root Certification Authorities'");
   lines.push(`    3) Reload  ${scheme}://${hostUrl}:${args.port}/  — trusted, no warning.`);
   return lines;
 }
@@ -38,7 +39,7 @@ export function bannerLines(input: BannerInput): string[] {
   lines.push(`Trio Mix-Assistant [${mode}] -> ${scheme}://${open ? "127.0.0.1" : args.host}:${args.port}/`);
   if (args.pin) {
     lines.push("  PIN auth: ON — the dashboard asks for the PIN before it opens.");
-    if (scheme !== "https" && open) lines.push("  [!] PIN over plain http is sniffable on the LAN — add --https.");
+    if (scheme !== "https" && !LOOPBACK_HOSTS.includes(args.host)) lines.push("  [!] PIN over plain http is sniffable on the LAN — add --https.");
   } else if (WILDCARD_HOSTS.includes(args.host)) {
     lines.push("  [!] No PIN: anyone on this network can open the dashboard and control the");
     lines.push("      console. On shared WiFi set one (--pin, or PIN= in show.conf).");
