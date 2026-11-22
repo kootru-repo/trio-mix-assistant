@@ -128,7 +128,7 @@ These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, typ
 
 ### Check your setup
 
-The app can check itself. With a real input or a console to check, it listens for about eight seconds; it **changes nothing on the console and plays no sound**, then lists what passed, what failed and how to fix it.
+The app can check itself. It listens for about eight seconds (a terminal check with nothing real to listen to skips the wait), **changes nothing on the console and plays no sound**, then lists what passed, what failed and how to fix it.
 
 - **In the dashboard:** Settings → **Run checks**. Use this while the app is running.
 - **In a terminal:** `TrioMixAssistant --diagnose` checks the setup in `show.conf` without starting the show. To check just one input, with no console: `TrioMixAssistant --diagnose --audio-device <number>`.

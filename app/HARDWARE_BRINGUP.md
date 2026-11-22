@@ -140,8 +140,8 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
   **Aggregate Device**; Windows → a single multichannel interface (the audio
   module has no ASIO, so an ASIO aggregate such as ASIO4ALL will not work). A device with too few channels is rejected with a
   clear message in the Decision log, and the app keeps running without listening.
-- **48 kHz, float32.** Capture runs at 48 kHz. A device locked to 44.1 kHz is rejected
-  with a clear message (no auto-resample); set the interface to 48 kHz.
+- **48 kHz, float32.** Capture runs at 48 kHz. The app does not resample: if the driver refuses 48 kHz, the device fails to open
+  with a message naming 48000 Hz; set the interface to 48 kHz.
 - **Calibration output.** Pink noise plays to the OS default output unless you pass
   `--output-device` (point it at the PA; it is not used with `--auto`). Otherwise it may play out the laptop
   speakers and calibration will (correctly) stop with "calibration heard only … dBFS at the mic".

@@ -23,7 +23,7 @@ recommendation below follows from them:
 | Constraint | Where | Consequence for your rig |
 |---|---|---|
 | **One input device carries *all* channels** (console returns **and** the meas mic) | `DeviceCapture` opens a single stream, `channels = max(channel_map)+1` | Use the console's own multichannel USB. A *separate* USB meas mic needs an OS aggregate device. |
-| **48 kHz, float32** | `SAMPLE_RATE = 48000`; a 44.1 kHz-locked device is rejected with a clear message (no auto-resample) | Set the interface to 48 kHz; run the whole rig at 48 k. |
+| **48 kHz, float32** | `SAMPLE_RATE = 48000`; the app asks the driver for 48 kHz and does not resample; if the driver refuses, the app says the device could not be opened at 48000 Hz | Set the interface to 48 kHz; run the whole rig at 48 k. |
 | **Device column = console channel − 1** (default map) | the channel map, else `{ch: ch-1}` | Use the console's default X-USB routing (card sends = inputs 1–N in order), or override with `--channel-map`. |
 | **Low-latency host API preferred** | ranker rewards ASIO (+4) > Core Audio / WASAPI / ALSA / JACK (+3), penalizes built-in mic arrays | macOS → **Core Audio**; Windows → **WASAPI** (the bundled audio module has no ASIO). |
 

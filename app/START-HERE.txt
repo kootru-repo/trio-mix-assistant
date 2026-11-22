@@ -56,8 +56,8 @@ WHAT YOU NEED
   and a QR code. Each device enters the PIN once per run of the app, and nobody else on the
   network can touch the console.
   Scan the QR code with the camera (on an iPhone or iPad, open it in Safari),
-  accept the certificate warning once (HTTPS=yes), then "Add to Home
-  Screen" for a full-screen app.
+  accept the certificate warning once (HTTPS=yes; it returns on a new
+  network), then "Add to Home Screen" for a full-screen app.
   Not tried on a real iPhone or iPad yet.
 
 ------------------------------------------------------------

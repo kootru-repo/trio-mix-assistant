@@ -57,7 +57,7 @@ export function bannerLines(input: BannerInput): string[] {
     if (alts.length) {
       lines.push("  If that's unreachable, try: " + alts.map((a) => `${scheme}://${a}:${args.port}/`).join(", "));
     }
-    if (scheme === "https" && !args.trust) lines.push("  (self-signed: accept the certificate warning once on each device)");
+    if (scheme === "https" && !args.trust) lines.push("  (self-signed: accept the certificate warning once on each device; it returns on a new network)");
     if (input.qr) {
       lines.push("  Scan with the phone or tablet camera:");
       lines.push(...input.qr);

@@ -221,7 +221,7 @@ The dashboard has not been tried on a real iPhone or iPad yet; see
 Launched with `--lan` (and ideally `--https`):
 1. On the phone or tablet, open the printed LAN URL or **scan the QR** in the terminal
    (on an iPhone or iPad, use Safari).
-2. `--https` is self‑signed → **accept the certificate warning once**.
+2. `--https` is self‑signed → **accept the certificate warning once** (it returns when the laptop's network address changes, such as at a new venue).
 3. **Add to Home Screen** → it installs as a full‑screen PWA with screen Wake Lock.
 4. Same network only; if the AP has "client isolation"/guest mode, turn it off.
 
@@ -314,7 +314,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 
 Default (no flags) = the setup in `show.conf`: **simulation** on `https://127.0.0.1:8770/` as
 shipped (`HTTPS=yes`; accept the certificate warning once, or set `HTTPS=no`). Started with any
-flag other than `--diagnose`, `--rehearse` or `--list-devices`, the app ignores `show.conf`; simulation is
+flag other than `--diagnose`, `--list-devices` or `--rehearse` (your `show.conf` with the emulated console in place of the real one), the app ignores `show.conf`; simulation is
 then on `http://127.0.0.1:8770/`.
 
 ---
