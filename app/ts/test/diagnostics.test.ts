@@ -553,7 +553,7 @@ test("--diagnose reports an input that delivers only zeros as blocked, and exits
   const { code, text } = await diagnoseInputs([{ name: "Muted mic", inputs: 2, level: 0 }], ["--diagnose", "--audio-device", "0"]);
   assert.ok(text.includes("[PASS] Chosen input opens"), text);
   assert.ok(text.includes("[FAIL] Signal is not digital silence: every sample is exactly zero"), text);
-  assert.ok(text.includes("Microphone"), text);
+  assert.ok(/Fix: .*microphone/i.test(text), text);
   assert.equal(code, 1, text);
 });
 
