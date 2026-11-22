@@ -14,7 +14,7 @@ export function oneShot(con: ConsoleBase, print: Print = () => undefined): void 
     [5, -40.0],
   ];
   for (const [ch, db] of set) {
-    con.setFaderDb(ch, db);
+    con.setFaderRaw(ch, db);
     print(`  ch${ch} fader -> ${signed(db, 1)} dB`);
   }
   con.setChannelMute(6, true);

@@ -13,7 +13,7 @@ export class ProtectJobs extends AssistantBase {
       if (!this.calBusBands.has(b) && !this.fbBusBands.includes(b)) return b;
     }
     if (this.fbBusBands.length) return this.fbBusBands[this.usedBusNotchBand % this.fbBusBands.length]!;
-    return 6;
+    return -1;
   }
 
   handleFeedback(ch: number, feat: ChannelFeatures): void {
@@ -38,7 +38,9 @@ export class ProtectJobs extends AssistantBase {
         const hz = fixed(feat.fbFreq, 0);
         if (ch === C.MEAS_MIC_CH) {
           const band = this.allocBusBand();
-          if (this.coachMode) {
+          if (band < 0) {
+            this.emit("system", "no free main-bus band for a feedback notch");
+          } else if (this.coachMode) {
             this.recommend(
               "feedback",
               ch,
@@ -99,6 +101,7 @@ export class ProtectJobs extends AssistantBase {
   handleClip(ch: number, feat: ChannelFeatures, now: number): void {
     if (!this.enabled["clip"]) return;
     if (feat.peakDbfs > C.CLIP_PEAK_DBFS) {
+      if (!this.coachMode && now - need(this.lastClipT, ch) < C.CLIP_TRIM_COOLDOWN_S) return;
       if (this.coachMode) {
         this.recommend(
           "clip",

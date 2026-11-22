@@ -74,6 +74,7 @@ export class SessionLog implements SessionLogPort {
     this.warn = opts.warn ?? defaultWarn;
     const db = new DatabaseSync(dbPath);
     this.db = db;
+    db.exec("PRAGMA busy_timeout=2000");
     db.exec("PRAGMA journal_mode=WAL");
     db.exec(SCHEMA);
     this.insertEvent = db.prepare(

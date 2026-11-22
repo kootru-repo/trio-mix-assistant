@@ -26,10 +26,10 @@ where it differs, there's a **Windows** and a **macOS** version side by side.
 
 ## 1. Install (one time per laptop)
 
-You need Node.js 22+ (https://nodejs.org/; macOS: `brew install node`).
+You need Node.js 22.13+ (https://nodejs.org/; macOS: `brew install node`).
 
 ```
-$ node --version        # 22 or higher
+$ node --version        # 22.13 or higher
 ```
 
 > Live audio input (the console's USB feed and the measurement mic) needs the optional native
@@ -90,7 +90,7 @@ one step the emulator can't do for you. Done once per firmware.
 PS> npm run run -- --hardware `
       --console-ip 192.168.1.50 `
       --audio-device 2 `
-      --template myset.json `
+      --template ../myset.json `
       --venue "The Cellar" `
       --lan --https
 ```
@@ -100,7 +100,7 @@ PS> npm run run -- --hardware `
 $ npm run run -- --hardware \
       --console-ip 192.168.1.50 \
       --audio-device 2 \
-      --template myset.json \
+      --template ../myset.json \
       --venue "The Cellar" \
       --lan --https
 ```
@@ -207,10 +207,10 @@ Launched with `--lan` (and ideally `--https`):
 
 Practice the exact launch + dashboard with zero risk:
 ```powershell
-PS> npm run run -- --emulate --lan --https
+PS> npm run run -- --emulate --lan --pin 123456 --https
 ```
 ```bash
-$ npm run run -- --emulate --lan --https
+$ npm run run -- --emulate --lan --pin 123456 --https
 ```
 This runs the **full real stack** (OSC over localhost) against a built‑in
 protocol‑faithful desk emulator + a timed audio feed: meters stream, feedback gets
@@ -241,7 +241,8 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--advisor-interval <s>` | seconds between advisor checks (default 30) |
 | `--lan` | bind to the LAN so tablets can connect |
 | `--https` | serve TLS (self‑signed) for PWA install + Wake Lock |
-| `--pin "<code>"` | require this PIN to open the dashboard + control the console (recommended on untrusted networks; pair with `--https`). Omit for no auth on a trusted LAN. `PIN=` in `show.conf` sets the same thing for the double-click start |
+| `--pin "<code>"` | require this PIN (at least 6 characters) to open the dashboard + control the console; pair with `--https`. Required with `--lan` unless `--insecure-open` is given. `PIN=` in `show.conf` |
+| `--insecure-open` | allow the dashboard on the network with no PIN (anyone on the network can control the console); `ALLOW_OPEN=yes` in `show.conf` |
 | `--trust` | serve a cert signed by a local root CA (implies `--https`). Install the printed root once per device → a fully‑trusted, **warning‑free** https connection |
 | `--host <ip>` / `--port <n>` | bind address / port (default 8770) |
 
@@ -267,8 +268,8 @@ The dashboard now names most of these in an **ALERT banner**; this table gives t
 | **Tablet can't open the page** | Not launched with `--lan`; firewall blocking inbound; different Wi‑Fi/VLAN; AP "client isolation" on. Use the exact printed URL/QR. |
 | **HTTPS cert warning on tablet** | Expected with self‑signed. Tap **Advanced → proceed**, then Add to Home Screen. **To remove the warning entirely,** launch with `--trust`: it prints steps to install a local root CA once per device (`…/ca.pem`), after which https is fully trusted (no warning). If a browser won't let you proceed *and* you're not using `--trust`, you're on an old build's 10‑year cert; delete `app/.certs` and relaunch. Always open via the exact **IP** URL the app prints. |
 | **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `ts/src/core/console.ts`. |
-| **Wrong meter moves when you play an input** | Channel‑map mismatch. The startup log shows `listening on '<device>'`; verify the patch order (§2.2) and the `channel_map`. |
-| **`node` not found** | Install Node.js 22+ from nodejs.org, then open a new terminal. |
+| **Wrong meter moves when you play an input** | Channel‑map mismatch. The startup log shows `listening on '<device>'`; verify the patch order (§2.2) and the channel map. |
+| **`node` not found** | Install Node.js 22.13+ from nodejs.org, then open a new terminal. |
 | **"live audio input needs the optional native module"** | Install `naudiodon2` next to the app, or run without `--audio-device`. |
 | **Audio device index changed between shows** | Indexes shift when devices are added/removed. The startup log prints the resolved name; prefer the device **name** in `show.conf` over the index. |
 

@@ -53,6 +53,7 @@ export interface Config {
   FB_HARMONIC_SUSTAIN: number;
   CLIP_PEAK_DBFS: number;
   CLIP_TRIM_DB: number;
+  CLIP_TRIM_COOLDOWN_S: number;
   CLIP_RECOVER_S: number;
   CLIP_RECOVER_DB: number;
   CAL_DURATION_S: number;
@@ -147,6 +148,7 @@ export const C: Config = {
   FB_HARMONIC_SUSTAIN: 3,
   CLIP_PEAK_DBFS: -1.0,
   CLIP_TRIM_DB: -2.0,
+  CLIP_TRIM_COOLDOWN_S: 0.25,
   CLIP_RECOVER_S: 8.0,
   CLIP_RECOVER_DB: 0.5,
   CAL_DURATION_S: 10.0,
@@ -202,8 +204,11 @@ export function applyChannelMap(spec: ChannelMapSpec): void {
   for (const role of newChans.values()) {
     newLabels.set(role, labels[role] ?? C.ROLE_LABELS.get(role) ?? titleCase(role));
   }
-  const newLead = spec.lead != null ? Math.trunc(Number(spec.lead)) : C.LEAD_VOCAL_CH;
-  const newMeas = spec.meas_mic != null ? Math.trunc(Number(spec.meas_mic)) : C.MEAS_MIC_CH;
+  const keys = [...newChans.keys()];
+  const wantLead = spec.lead != null ? Math.trunc(Number(spec.lead)) : C.LEAD_VOCAL_CH;
+  const wantMeas = spec.meas_mic != null ? Math.trunc(Number(spec.meas_mic)) : C.MEAS_MIC_CH;
+  const newLead = newChans.has(wantLead) || !keys.length ? wantLead : Math.min(...keys);
+  const newMeas = newChans.has(wantMeas) || !keys.length ? wantMeas : Math.max(...keys);
   const newBal = "balance" in spec ? ints(spec.balance ?? []) : C.BALANCE_CHANNELS;
   const newGuest = "guest" in spec ? ints(spec.guest ?? []) : C.GUEST_CHANNELS;
   const newLinks = "stereo_links" in spec ? pairs(spec.stereo_links ?? []) : C.STEREO_LINKS;
@@ -229,12 +234,12 @@ export function autoChannelMap(nInputs: number): ChannelMapSpec {
   const n = Math.max(1, Math.trunc(nInputs));
   let spec: ChannelMapSpec;
   if (n === 1) {
-    spec = { map: { "1": "meas_mic" }, meas_mic: 1 };
+    spec = { map: { "1": "meas_mic" }, lead: 1, meas_mic: 1 };
   } else {
     const m: Record<string, string> = {};
     for (let i = 1; i < n; i++) m[String(i)] = `in_${i}`;
     m[String(n)] = "meas_mic";
-    spec = { map: m, meas_mic: n };
+    spec = { map: m, lead: 1, meas_mic: n };
   }
   spec = { ...spec, balance: [], guest: [], stereo_links: [], stage_mic: null, phase_pairs: [] };
   applyChannelMap(spec);

@@ -1,76 +1,17 @@
 import { C } from "./config.ts";
 import { faderToDb } from "./console.ts";
 import { argFloat } from "./oscargs.ts";
+import { parseInteger } from "./util.ts";
 import { decodeMeterBlob, decodePacket } from "./oscwire.ts";
-import type { OscArg, OscMessage } from "./oscwire.ts";
+import type { OscArg } from "./oscwire.ts";
 import type { UdpEndpoint, UdpFactory } from "./transport.ts";
-
-export { decodeMeterBlob, encodeMeterBlob } from "./oscwire.ts";
-
-const INT_TEXT = /^\s*[+-]?\d+\s*$/;
 
 export function chFromFaderAddr(addr: string): number | null {
   const parts = addr.split("/");
-  if (parts.length >= 5 && parts[1] === "ch" && parts[3] === "mix" && parts[4] === "fader") {
-    const p = parts[2]!;
-    return INT_TEXT.test(p) ? Number.parseInt(p.trim(), 10) : null;
+  if (parts.length === 5 && parts[1] === "ch" && parts[3] === "mix" && parts[4] === "fader") {
+    return parseInteger(parts[2]!);
   }
   return null;
-}
-
-function patternRegex(address: string): RegExp | null {
-  let pattern = "^";
-  let i = 0;
-  while (i < address.length) {
-    const c = address[i]!;
-    if (c === "*") {
-      pattern += "[^/]*";
-    } else if (c === "?") {
-      pattern += "[^/]";
-    } else if (c === "[") {
-      pattern += "[";
-      i++;
-      if (i < address.length && address[i] === "!") {
-        pattern += "^";
-        i++;
-      }
-      while (i < address.length && address[i] !== "]") {
-        if ("\\^$.|()+*?".includes(address[i]!)) pattern += "\\";
-        pattern += address[i]!;
-        i++;
-      }
-      pattern += "]";
-    } else if (c === "{") {
-      pattern += "(";
-      i++;
-      while (i < address.length && address[i] !== "}") {
-        const ch = address[i]!;
-        if (ch === ",") pattern += "|";
-        else if ("\\^$.|()[]+*?".includes(ch)) pattern += "\\" + ch;
-        else pattern += ch;
-        i++;
-      }
-      pattern += ")";
-    } else if ("\\^$.|()[]+?".includes(c)) {
-      pattern += "\\" + c;
-    } else {
-      pattern += c;
-    }
-    i++;
-  }
-  pattern += "$";
-  try {
-    return new RegExp(pattern);
-  } catch {
-    return null;
-  }
-}
-
-function routeMatches(key: string, address: string): boolean {
-  const direct = patternRegex(address);
-  if (direct === null) return false;
-  if (direct.test(key)) return true;
-  return key.includes("*") && new RegExp("^" + key.replaceAll("*", ".*?") + "$").test(address);
 }
 
 export interface MeterReceiverOptions {
@@ -86,8 +27,11 @@ export class MeterReceiver {
   ip: string;
   port: number;
   running = false;
+  lastError: unknown = null;
   private readonly udp: UdpFactory;
   private endpoint: UdpEndpoint | null = null;
+  private generation = 0;
+  private pending: Promise<void> = Promise.resolve();
 
   constructor(udp: UdpFactory, opts: MeterReceiverOptions = {}) {
     this.udp = udp;
@@ -97,7 +41,7 @@ export class MeterReceiver {
     this.port = opts.port ?? C.LOCAL_PORT;
   }
 
-  handleMeters(_address: string, args: readonly OscArg[]): void {
+  handleMeters(args: readonly OscArg[]): void {
     if (!this.running) return;
     const first = args[0];
     if (first && first.t === "b") {
@@ -116,24 +60,30 @@ export class MeterReceiver {
   }
 
   dispatch(data: Uint8Array): void {
-    let messages: OscMessage[];
-    try {
-      messages = decodePacket(data);
-    } catch {
-      return;
-    }
-    for (const m of messages) {
+    for (const m of decodePacket(data)) {
       try {
-        if (routeMatches("/meters*", m.address)) this.handleMeters(m.address, m.args);
-        if (routeMatches("/ch/*/mix/fader", m.address)) this.handleFader(m.address, m.args);
-      } catch {
-        continue;
+        if (m.address.startsWith("/meters")) this.handleMeters(m.args);
+        else if (chFromFaderAddr(m.address) !== null) this.handleFader(m.address, m.args);
+      } catch (e) {
+        this.lastError = e;
       }
     }
   }
 
-  async start(): Promise<void> {
+  start(): Promise<void> {
+    const gen = ++this.generation;
+    const run = this.pending.then(() => this.bindFor(gen));
+    this.pending = run.catch(() => undefined);
+    return run;
+  }
+
+  private async bindFor(gen: number): Promise<void> {
+    if (gen !== this.generation || this.endpoint !== null) return;
     const ep = await this.udp.bind(this.port, this.ip);
+    if (gen !== this.generation) {
+      ep.close();
+      return;
+    }
     this.endpoint = ep;
     this.port = ep.port;
     ep.onMessage((data) => this.dispatch(data));
@@ -141,14 +91,15 @@ export class MeterReceiver {
   }
 
   stop(): void {
+    this.generation++;
     this.running = false;
     const ep = this.endpoint;
     this.endpoint = null;
     if (ep !== null) {
       try {
         ep.close();
-      } catch {
-        return;
+      } catch (e) {
+        this.lastError = e;
       }
     }
   }

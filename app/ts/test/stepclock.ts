@@ -20,7 +20,7 @@ export class StepClock implements Clock {
     return this.now;
   }
 
-  perfCounter(): number {
+  highResolution(): number {
     return this.now;
   }
 

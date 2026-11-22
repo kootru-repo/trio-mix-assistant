@@ -1,5 +1,12 @@
 import dgram from "node:dgram";
-import { networkInterfaces } from "node:os";
+
+const quietly = (fn: () => void): void => {
+  try {
+    fn();
+  } catch {
+    return;
+  }
+};
 
 export function lanIp(): Promise<string | null> {
   return new Promise((resolve) => {
@@ -8,12 +15,7 @@ export function lanIp(): Promise<string | null> {
     const done = (value: string | null): void => {
       if (settled) return;
       settled = true;
-      try {
-        socket.close();
-      } catch {
-        resolve(value);
-        return;
-      }
+      quietly(() => socket.close());
       resolve(value);
     };
     socket.once("error", () => done(null));
@@ -29,22 +31,4 @@ export function lanIp(): Promise<string | null> {
       done(null);
     }
   });
-}
-
-export async function allLanIps(): Promise<string[]> {
-  const ips: string[] = [];
-  const primary = await lanIp();
-  if (primary) ips.push(primary);
-  try {
-    for (const list of Object.values(networkInterfaces())) {
-      for (const info of list ?? []) {
-        if (info.family === "IPv4" && !info.internal && !info.address.startsWith("127.") && !ips.includes(info.address)) {
-          ips.push(info.address);
-        }
-      }
-    }
-  } catch {
-    return ips;
-  }
-  return ips;
 }

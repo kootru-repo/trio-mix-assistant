@@ -33,7 +33,6 @@ class MemEndpoint implements UdpEndpoint {
 }
 
 export class MemNetwork implements UdpFactory {
-  readonly sentLog: { from: Peer; to: Peer; data: Uint8Array }[] = [];
   private readonly endpoints = new Map<number, MemEndpoint>();
   private nextPort = 49152;
   private pending = 0;
@@ -53,7 +52,6 @@ export class MemNetwork implements UdpFactory {
 
   deliver(data: Uint8Array, from: Peer, to: Peer): void {
     const copy = data.slice();
-    this.sentLog.push({ from, to, data: copy });
     this.pending++;
     void Promise.resolve().then(() => {
       try {

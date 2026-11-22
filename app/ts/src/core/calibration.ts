@@ -1,9 +1,8 @@
 import { C } from "./config.ts";
 import type { ConsoleBase } from "./console.ts";
-import { findResonantPeaks, generatePinkNoise, octaveBandLevels } from "./dsp.ts";
+import { findResonantPeaks, octaveBandLevels } from "./dsp.ts";
 import type { BandPair, Samples } from "./dsp.ts";
 import { fixed, signed } from "./numfmt.ts";
-import type { Rng } from "./rng.ts";
 
 export interface CalibrationResult {
   baseline: Map<number, number>;
@@ -31,7 +30,7 @@ export class Calibrator {
 
   analyze(captured: Samples): CalibrationResult {
     const baseline = octaveBandLevels(captured);
-    const { corrections, watchlist } = findResonantPeaks(captured);
+    const { corrections, watchlist } = findResonantPeaks(captured, C.SAMPLE_RATE, baseline);
     return { baseline, corrections, watchlist };
   }
 
@@ -65,18 +64,5 @@ export class Calibrator {
       }
     }
     return used;
-  }
-
-  run(
-    captureMeasMic: () => Samples,
-    rng: Rng,
-    emitPinkNoise: ((noise: Float32Array) => void) | null = null,
-    apply: boolean = true,
-    log: (msg: string) => void = () => {},
-  ): CalibrationResult {
-    if (emitPinkNoise) emitPinkNoise(generatePinkNoise(C.CAL_DURATION_S, rng));
-    const res = this.analyze(captureMeasMic());
-    if (apply) this.apply(res, log);
-    return res;
   }
 }

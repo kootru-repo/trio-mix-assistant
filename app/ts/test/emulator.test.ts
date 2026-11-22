@@ -7,7 +7,7 @@ import { dbToFader, OscConsole } from "../src/core/console.ts";
 import { EmulatedDesk } from "../src/core/emulator.ts";
 import { MemNetwork } from "../src/core/memtransport.ts";
 import { MeterReceiver } from "../src/core/metersrv.ts";
-import { decodeMessage, decodeMeterBlob, encodeMessage, oscFloat, oscInt, oscStr } from "../src/core/oscwire.ts";
+import { decodeMeterBlob, decodeReply, encodeMessage, oscFloat, oscInt, oscStr } from "../src/core/oscwire.ts";
 import type { OscArg, OscMessage } from "../src/core/oscwire.ts";
 import type { Peer, UdpEndpoint, UdpFactory } from "../src/core/transport.ts";
 import { SystemClock } from "../src/host/clock.ts";
@@ -20,19 +20,9 @@ const hex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 const LOCAL: Peer = { host: "127.0.0.1", port: 0 };
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-function decodeReply(b: Uint8Array): OscMessage {
-  const copy = b.slice();
-  if (copy.length >= 8 && hex(copy.subarray(0, 4)) === "6e6f6465") {
-    const fixed = new Uint8Array(copy.length);
-    fixed.set([0x2f], 0);
-    fixed.set(copy.subarray(0, 4), 1);
-    fixed.set(copy.subarray(8), 8);
-    const m = decodeMessage(fixed);
-    assert.ok(m);
-    return { address: "node", args: m.args };
-  }
-  const m = decodeMessage(copy);
-  assert.ok(m, `undecodable packet ${hex(copy)}`);
+function decodeAny(b: Uint8Array): OscMessage {
+  const m = decodeReply(b);
+  assert.ok(m, `undecodable packet ${hex(b)}`);
   return m;
 }
 
@@ -50,7 +40,7 @@ class Peerbox {
     this.ep = ep;
     ep.onMessage((data) => {
       this.raw.push(hex(data));
-      this.inbox.push(decodeReply(data));
+      this.inbox.push(decodeAny(data));
     });
   }
 
@@ -461,9 +451,9 @@ test("editor meter streams: expiry after 10 s, renew keeps alive, unsubscribe", 
 test("subscribe starts the meter task once and streams n_meters values to the app", async () => {
   const { clock, desk, fake } = bareDesk({ meterHz: 80 });
   assert.equal(desk.meterTaskStarted, false);
-  desk.handleSubscribe("/batchsubscribe");
+  desk.handleSubscribe();
   assert.equal(desk.meterTaskStarted, true);
-  desk.handleSubscribe("/batchsubscribe");
+  desk.handleSubscribe();
   await clock.advance(0.5);
   assert.equal(desk.metersSent, 40);
   const first = fake.sent.find(([a]) => a === "/meters/1");
@@ -503,14 +493,14 @@ test("handler: mute, scene, xremote and default counters", () => {
   assert.equal(desk.mute.get(2), true);
   desk.handleMute("/ch/02/mix/on", [oscInt(1)]);
   assert.equal(desk.mute.get(2), false);
-  desk.handleScene("/-action/goscene", [oscInt(5)]);
+  desk.handleScene([oscInt(5)]);
   assert.equal(desk.scene, 5);
-  desk.handleScene("/-action/goscene", [oscStr("x")]);
+  desk.handleScene([oscStr("x")]);
   assert.equal(desk.scene, 5);
-  desk.handleXremote("/xremote");
+  desk.handleXremote();
   assert.equal(desk.subscribed, true);
   const before = desk.recvCount;
-  desk.handleDefault("/whatever", [oscInt(1)]);
+  desk.handleDefault();
   assert.equal(desk.recvCount, before + 1);
 });
 
@@ -551,12 +541,18 @@ test("external moves nudge a channel every 12 seconds once subscribed", async ()
     r.app.inbox.length = 0;
     r.ed.send("/xremote");
     await r.net.settle();
-    await r.clock.advance(12);
+    await r.clock.advance(6);
+    r.ed.send("/xremote");
+    await r.net.settle();
+    await r.clock.advance(6);
     await r.net.settle();
     assert.equal(r.app.inbox.length, 1);
     assert.equal(r.ed.inbox.length, 1);
     assert.equal(r.app.inbox[0]!.address, r.ed.inbox[0]!.address);
-    await r.clock.advance(12);
+    await r.clock.advance(6);
+    r.ed.send("/xremote");
+    await r.net.settle();
+    await r.clock.advance(6);
     await r.net.settle();
     assert.equal(r.app.inbox.length, 2);
   } finally {
@@ -698,4 +694,186 @@ test("udp: console moves reach the desk model and a subscribed editor", async ()
   } finally {
     r.stop();
   }
+});
+
+test("300k unique addresses cannot grow the desk's tables past their caps", () => {
+  const { desk } = bareDesk();
+  const peer: Peer = { host: "10.9.9.9", port: 1 };
+  for (let i = 0; i < 300000; i++) {
+    const addr = `/x/${i}`;
+    if (i % 2 === 0) desk.handleAny(peer, addr, []);
+    else desk.handleAny(peer, addr, [oscInt(i)]);
+  }
+  assert.ok(desk.params.size <= 4096, String(desk.params.size));
+  assert.ok(desk.reqLog.length <= 1000);
+  const seeded = desk.params.size;
+  desk.handleAny(peer, "/ch/01/mix/fader", [oscFloat(0.5)]);
+  assert.equal(desk.params.size, seeded);
+  assert.equal(desk.fader.get(1), 0.5);
+});
+
+test("only channels 1 to 32 are accepted", () => {
+  const { desk } = bareDesk();
+  const peer: Peer = { host: "10.9.9.9", port: 1 };
+  for (const ch of ["00", "33", "99", "-1", "1000000"]) {
+    desk.handleAny(peer, `/ch/${ch}/mix/fader`, [oscFloat(0.5)]);
+    desk.handleAny(peer, `/ch/${ch}/mix/on`, [oscInt(0)]);
+  }
+  assert.equal(desk.fader.size, 0);
+  assert.equal(desk.mute.size, 0);
+  desk.handleAny(peer, "/ch/32/mix/fader", [oscFloat(0.5)]);
+  assert.equal(desk.fader.size, 1);
+});
+
+test("the remote list is capped", () => {
+  const { desk } = bareDesk();
+  for (let i = 0; i < 100; i++) desk.handleAny({ host: "10.1.1.1", port: 2000 + i }, "/xremote", []);
+  assert.equal(desk.remotes.size, 16);
+});
+
+test("an editor that stops renewing /xremote stops receiving pushes after 10 s", async () => {
+  const r = await memRig();
+  try {
+    r.ed.send("/xremote");
+    await r.net.settle();
+    await r.clock.advance(6);
+    r.ed.send("/xremote");
+    await r.net.settle();
+    await r.clock.advance(6);
+    r.desk.moveFaderExternally(2, -6.0);
+    await r.net.settle();
+    assert.equal(r.ed.inbox.length, 1);
+    r.ed.inbox.length = 0;
+    await r.clock.advance(10.5);
+    r.desk.moveFaderExternally(3, -6.0);
+    await r.net.settle();
+    assert.equal(r.ed.inbox.length, 0);
+    assert.equal(r.desk.remotes.size, 0);
+  } finally {
+    r.stop();
+  }
+});
+
+test("the app subscription lapses after 10 s and /unsubscribe clears it", async () => {
+  const { clock, desk } = bareDesk();
+  desk.handleXremote();
+  assert.equal(desk.subscribed, true);
+  await clock.advance(9);
+  assert.equal(desk.subscribed, true);
+  desk.handleSubscribe();
+  await clock.advance(9);
+  assert.equal(desk.subscribed, true);
+  await clock.advance(2);
+  assert.equal(desk.subscribed, false);
+  desk.handleXremote();
+  assert.equal(desk.subscribed, true);
+  desk.handleAny({ host: "10.1.1.1", port: 5 }, "/unsubscribe", []);
+  assert.equal(desk.subscribed, false);
+});
+
+test("an editor fader move while subscribed reaches every peer exactly once", async () => {
+  const r = await memRig();
+  const other = new Peerbox(await r.net.bind(0, "127.0.0.1"));
+  other.target = r.ed.target;
+  try {
+    r.ed.send("/xremote");
+    other.send("/xremote");
+    await r.net.settle();
+    assert.equal(r.desk.subscribed, true);
+    r.ed.send("/ch/04/mix/fader", oscFloat(0.4));
+    await r.net.settle();
+    assert.equal(r.app.inbox.length, 1);
+    assert.equal(other.inbox.length, 1);
+    assert.equal(r.ed.inbox.length, 0);
+  } finally {
+    other.ep.close();
+    r.stop();
+  }
+});
+
+test("a node path with a long run of slashes is answered quickly", async () => {
+  const r = await memRig();
+  try {
+    const t0 = performance.now();
+    r.ed.send("/node", oscStr("a" + "/".repeat(60000) + "b"));
+    r.ed.send("/node", oscStr("/".repeat(60000)));
+    await r.net.settle();
+    assert.ok(performance.now() - t0 < 500);
+    assert.equal(r.ed.inbox.length, 2);
+  } finally {
+    r.stop();
+  }
+});
+
+test("the meter rate is clamped", () => {
+  const net = new MemNetwork();
+  const clock = new StepClock();
+  assert.equal(new EmulatedDesk(net, clock, { meterHz: -1 }).meterHz, 0.1);
+  assert.equal(new EmulatedDesk(net, clock, { meterHz: 1e10 }).meterHz, 1000);
+  assert.equal(new EmulatedDesk(net, clock, { meterHz: Number.NaN }).meterHz, 10);
+  assert.equal(new EmulatedDesk(net, clock, { meterHz: 25 }).meterHz, 25);
+});
+
+test("start then stop leaves the port free and start works again", async () => {
+  const net = new MemNetwork();
+  const clock = new StepClock();
+  const desk = new EmulatedDesk(net, clock, { listenPort: 50200 });
+  const first = desk.start();
+  desk.stop();
+  await first;
+  const probe = await net.bind(50200, "127.0.0.1");
+  probe.close();
+  await desk.start();
+  assert.equal(desk.listenPort, 50200);
+  const again = net.bind(50200, "127.0.0.1");
+  await assert.rejects(again);
+  desk.stop();
+});
+
+test("start, stop, start runs a single meter loop", async () => {
+  const net = new MemNetwork();
+  const clock = new StepClock();
+  const app = await net.bind(0, "127.0.0.1");
+  const desk = new EmulatedDesk(net, clock, { listenPort: 50201, appPort: app.port, meterHz: 10 });
+  await desk.start();
+  desk.handleSubscribe();
+  desk.stop();
+  await desk.start();
+  desk.handleSubscribe();
+  await clock.advance(1);
+  assert.equal(desk.metersSent, 10);
+  desk.stop();
+  app.close();
+});
+
+test("meter subscriptions are capped and overlong addresses are ignored", () => {
+  const { desk } = bareDesk();
+  for (let i = 0; i < 1000; i++) {
+    const peer: Peer = { host: "10.9.9.9", port: 1000 + i };
+    desk.handleAny(peer, "/meters", [oscStr("/meters/1"), oscInt(0)]);
+  }
+  assert.ok(desk.meterSubs.size <= 64, String(desk.meterSubs.size));
+  const peer: Peer = { host: "10.8.8.8", port: 1 };
+  const long = "/" + "a".repeat(300);
+  const before = desk.params.size;
+  desk.handleAny(peer, long, [oscInt(1)]);
+  desk.handleAny(peer, long, []);
+  desk.handleAny(peer, "/node", [oscStr(long)]);
+  assert.equal(desk.params.size, before);
+  assert.ok(desk.reqLog.every((k) => k.length <= 256));
+  desk.handleAny(peer, "/meters", [oscStr(long)]);
+  assert.ok(![...desk.meterSubs.keys()].some((k) => k.length > 300));
+});
+
+test("channel addresses need exactly five parts and fader values must be finite", () => {
+  const { desk } = bareDesk();
+  const peer: Peer = { host: "10.9.9.9", port: 1 };
+  desk.handleAny(peer, "/ch/01/mix/fader/extra", [oscFloat(0.5)]);
+  desk.handleAny(peer, "/ch/01/mix/fader/extra/more", [oscFloat(0.5)]);
+  assert.equal(desk.fader.size, 0);
+  for (const bad of [NaN, Infinity, -Infinity]) desk.handleAny(peer, "/ch/02/mix/fader", [oscFloat(bad)]);
+  assert.equal(desk.fader.size, 0);
+  assert.deepEqual(desk.params.get("/ch/02/mix/fader"), [oscFloat(dbToFader(0))]);
+  desk.handleAny(peer, "/ch/02/mix/fader", [oscFloat(0.25)]);
+  assert.equal(desk.fader.get(2), 0.25);
 });

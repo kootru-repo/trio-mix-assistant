@@ -1,27 +1,27 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { crc32, deflateRawSync } from "node:zlib";
 
-const here = resolve(new URL(".", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const here = dirname(fileURLToPath(import.meta.url));
 const tsDir = resolve(here, "..");
 const appDir = resolve(tsDir, "..");
 
 export const NAME = "TrioMixAssistant";
 
-const DOCS = ["show.conf", "RUNBOOK.md", "HARDWARE_BRINGUP.md", "README.md"];
+const DOCS = ["show.conf", "RUNBOOK.md", "HARDWARE_BRINGUP.md", "HARDWARE_SETUP.md", "README.md"];
 
 const NODE_CHECK_BAT =
-  'node -e "process.exit(Number(process.versions.node.split(\'.\')[0])>=22?0:1)" >nul 2>nul || (\r\n' +
-  "  echo Node.js 22 or newer is needed. Install it from https://nodejs.org/ and run this again.\r\n" +
+  'node -e "var v=process.versions.node.split(\'.\').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=13)?0:1)" >nul 2>nul || (\r\n' +
+  "  echo Node.js 22.13 or newer is needed. Install it from https://nodejs.org/ and run this again.\r\n" +
   "  pause\r\n" +
   "  exit /b 1\r\n" +
   ")\r\n";
 
 const NODE_CHECK_SH =
-  "if ! command -v node >/dev/null 2>&1 || ! node -e \"process.exit(Number(process.versions.node.split('.')[0])>=22?0:1)\"; then\n" +
-  '  echo "Node.js 22 or newer is needed. Install it from https://nodejs.org/ (or: brew install node) and run this again."\n' +
+  "if ! command -v node >/dev/null 2>&1 || ! node -e \"var v=process.versions.node.split('.').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=13)?0:1)\"; then\n" +
+  '  echo "Node.js 22.13 or newer is needed. Install it from https://nodejs.org/ (or: brew install node) and run this again."\n' +
   "  exit 1\n" +
   "fi\n";
 
@@ -29,16 +29,16 @@ const bat = (body: string): string => `@echo off\r\ncd /d "%~dp0"\r\n${NODE_CHEC
 const sh = (body: string): string => `#!/bin/bash\ncd "$(dirname "$0")"\n${NODE_CHECK_SH}${body}`;
 
 export const SCRIPTS: Record<string, string> = {
-  "start.bat": bat("node js\\host\\launch.js\r\n"),
+  "start.bat": bat("node --no-warnings js\\host\\launch.js\r\n"),
   "rehearse.bat": bat(
-    "echo Running the FULL app against a simulated console (no hardware needed)...\r\nnode js\\host\\launch.js --rehearse\r\n",
+    "echo Running the FULL app against a simulated console (no hardware needed)...\r\nnode --no-warnings js\\host\\launch.js --rehearse\r\n",
   ),
   "list-devices.bat": bat(
-    "node js\\host\\launch.js --list-devices\r\necho.\r\necho Put the device NUMBER (or exact NAME) into AUDIO_DEVICE in show.conf\r\n",
+    "node --no-warnings js\\host\\launch.js --list-devices\r\necho.\r\necho Put the device NUMBER (or exact NAME) into AUDIO_DEVICE in show.conf\r\n",
   ),
-  "start.command": sh("node js/host/launch.js\n"),
-  "rehearse.command": sh("node js/host/launch.js --rehearse\n"),
-  "list-devices.command": sh("node js/host/launch.js --list-devices\n"),
+  "start.command": sh("node --no-warnings js/host/launch.js\n"),
+  "rehearse.command": sh("node --no-warnings js/host/launch.js --rehearse\n"),
+  "list-devices.command": sh("node --no-warnings js/host/launch.js --list-devices\n"),
 };
 
 function crcOf(buf: Buffer): number {
@@ -85,7 +85,8 @@ export function zipFolder(folder: string, zipPath: string, prefix: string): numb
       parts.push(local, entryName, body);
       const cen = Buffer.alloc(46);
       cen.writeUInt32LE(0x02014b50, 0);
-      cen.writeUInt16LE(20, 4);
+      const executable = entryName.toString("utf8").endsWith(".command");
+      cen.writeUInt16LE(executable ? 0x031e : 20, 4);
       cen.writeUInt16LE(20, 6);
       cen.writeUInt16LE(0x0800, 8);
       cen.writeUInt16LE(stored ? 8 : 0, 10);
@@ -95,6 +96,7 @@ export function zipFolder(folder: string, zipPath: string, prefix: string): numb
       cen.writeUInt32LE(body.length, 20);
       cen.writeUInt32LE(data.length, 24);
       cen.writeUInt16LE(entryName.length, 28);
+      cen.writeUInt32LE(executable ? (0o100755 << 16) >>> 0 : 0, 38);
       cen.writeUInt32LE(offset, 42);
       central.push(cen, entryName);
       offset += local.length + entryName.length + body.length;

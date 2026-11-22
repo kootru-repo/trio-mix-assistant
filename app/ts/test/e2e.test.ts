@@ -4,6 +4,9 @@ import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const main = fileURLToPath(new URL("../src/host/main.ts", import.meta.url));
 
@@ -99,7 +102,7 @@ test("the simulation starts, serves the dashboard and state, and guards control 
 
 test("a PIN protects the dashboard", async () => {
   const port = await freePort();
-  const app = await launch(["--port", String(port), "--session-db", "off", "--pin", "4242"]);
+  const app = await launch(["--port", String(port), "--session-db", "off", "--pin", "424242"]);
   try {
     const base = `http://127.0.0.1:${port}`;
     const denied = await get(base, "/state");
@@ -107,7 +110,7 @@ test("a PIN protects the dashboard", async () => {
     const login = await fetch(base + "/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", Origin: base },
-      body: JSON.stringify({ pin: "4242" }),
+      body: JSON.stringify({ pin: "424242" }),
     });
     assert.equal(login.status, 200);
     const cookie = (login.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
@@ -148,4 +151,21 @@ test("bad arguments exit with a usage message", async () => {
   const code: number | null = await new Promise((r) => child.once("exit", (c) => r(c)));
   assert.equal(code, 2);
   assert.match(text, /invalid int value/);
+});
+
+test("a template with a malformed channel spec is reported as a show template error", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tmpl-"));
+  try {
+    const file = join(dir, "bad.json");
+    writeFileSync(file, JSON.stringify({ channels: { phase_pairs: "nope" }, songs: [] }));
+    const child = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", main, "--template", file, "--session-db", "off"]);
+    let text = "";
+    child.stdout.on("data", (b: Buffer) => (text += b.toString("utf8")));
+    child.stderr.on("data", (b: Buffer) => (text += b.toString("utf8")));
+    const code: number | null = await new Promise((r) => child.once("exit", (c) => r(c)));
+    assert.equal(code, 2);
+    assert.match(text, /show template error/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

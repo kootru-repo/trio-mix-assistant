@@ -20,7 +20,7 @@ network. Reports are especially welcome for anything that lets someone:
 
 ## What to know when you run it
 
-- Set a PIN whenever the dashboard is on a shared network (`PIN=` in
+- A PIN of at least 6 characters is required whenever the dashboard is served to the network (the app refuses to start without one unless `--insecure-open` or `ALLOW_OPEN=yes` is given, which is only for a network you fully trust) (`PIN=` in
   `app/show.conf`, or `--pin`).
 - Use `--https` with a PIN. Without it the PIN travels unencrypted on the
   network.
@@ -32,3 +32,11 @@ network. Reports are especially welcome for anything that lets someone:
 ## Supported versions
 
 Fixes go into the latest version on `main`.
+
+## Data that leaves the computer
+
+Nothing is sent anywhere unless you turn on `--advisor` (or `ADVISOR=yes` in `show.conf`). With
+the advisor on, every 30 seconds (the interval is configurable) the app sends a short summary
+to `api.anthropic.com`: recent event text, each channel's role and level, the current song and
+scene names, and any alerts. It does not send the venue name, the PIN, or audio. The API key is read
+from the `ANTHROPIC_API_KEY` environment variable and is only sent to that address.

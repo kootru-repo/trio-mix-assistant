@@ -41,3 +41,8 @@ export const originAllowed = (origin: string | null | undefined, hostHeader: str
 const digest = (s: string): Buffer => createHash("sha256").update(s, "utf8").digest();
 
 export const safeEqual = (a: string, b: string): boolean => timingSafeEqual(digest(a), digest(b));
+
+export const isLoopbackHost = (host: string): boolean => {
+  const h = host.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  return h === "localhost" || h === "::1" || /^127\.\d+\.\d+\.\d+$/.test(h);
+};

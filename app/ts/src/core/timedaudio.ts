@@ -1,7 +1,6 @@
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
 import type {
-  AudioDeviceId,
   AudioDeviceInfo,
   AudioHostApiInfo,
   AudioInputCallback,
@@ -28,12 +27,14 @@ export class TimedAudioStream implements AudioInputStream {
   readonly blockSize: number;
   deliver = true;
   xrunNext = false;
+  lastError: unknown = null;
   private readonly callback: AudioInputCallback;
   private readonly clock: Clock;
   private readonly content: ContentFn;
   private readonly rng: Rng;
   private stopped = true;
-  private task: Promise<void> | null = null;
+  private task: Promise<void> = Promise.resolve();
+  private generation = 0;
   private i = 0;
 
   constructor(callback: AudioInputCallback, channels: number, clock: Clock, opts: TimedAudioOptions = {}) {
@@ -56,7 +57,7 @@ export class TimedAudioStream implements AudioInputStream {
       const amp = Math.min(0.6, 0.03 * 1.25 ** (i % 60));
       for (let k = 0; k < n; k++) {
         const t = (i * n + k) / this.sampleRate;
-        const tone = Math.fround(amp * Math.sin(2 * Math.PI * 2500.0 * t));
+        const tone = amp * Math.sin(2 * Math.PI * 2500.0 * t);
         const at = k * ch + measCol;
         frame[at] = frame[at]! + tone;
       }
@@ -64,11 +65,11 @@ export class TimedAudioStream implements AudioInputStream {
     return frame;
   }
 
-  private async loop(): Promise<void> {
+  private async loop(gen: number): Promise<void> {
     const period = this.blockSize / this.sampleRate;
-    let nextT = this.clock.perfCounter();
-    while (!this.stopped) {
-      const now = this.clock.perfCounter();
+    let nextT = this.clock.highResolution();
+    while (!this.stopped && gen === this.generation) {
+      const now = this.clock.highResolution();
       let burst = 0;
       while (nextT <= now && burst < 8) {
         if (this.deliver) {
@@ -78,24 +79,28 @@ export class TimedAudioStream implements AudioInputStream {
           this.xrunNext = false;
           try {
             this.callback(frame, xrun);
-          } catch {}
+          } catch (e) {
+            this.lastError = e;
+          }
         }
         nextT += period;
         burst += 1;
       }
       if (nextT <= now) nextT = now + period;
-      await this.clock.sleep(Math.max(0.001, Math.min(period, nextT - this.clock.perfCounter())));
+      await this.clock.sleep(Math.max(0.001, Math.min(period, nextT - this.clock.highResolution())));
     }
   }
 
   start(): void {
     if (!this.stopped) return;
     this.stopped = false;
-    this.task = this.loop();
+    const gen = ++this.generation;
+    this.task = Promise.all([this.task, this.loop(gen)]).then(() => undefined);
   }
 
   stop(): void {
     this.stopped = true;
+    this.generation++;
   }
 
   close(): void {
@@ -103,13 +108,14 @@ export class TimedAudioStream implements AudioInputStream {
   }
 
   settled(): Promise<void> {
-    return this.task ?? Promise.resolve();
+    return this.task;
   }
 }
 
 export class TimedAudioFactory implements AudioInputFactory {
   private readonly clock: Clock;
   private readonly maxChannels: number;
+  static readonly KEEP_STREAMS = 8;
   readonly streams: TimedAudioStream[] = [];
 
   constructor(clock: Clock, maxChannels: number = 64) {
@@ -117,12 +123,12 @@ export class TimedAudioFactory implements AudioInputFactory {
     this.maxChannels = maxChannels;
   }
 
-  queryDevice(_device: AudioDeviceId | null): AudioDeviceInfo {
+  queryDevice(): AudioDeviceInfo {
     return { name: "timed audio (emulated)", max_input_channels: this.maxChannels, default_samplerate: C.SAMPLE_RATE, hostapi: 0 };
   }
 
   listDevices(): AudioDeviceInfo[] {
-    return [this.queryDevice(null)];
+    return [this.queryDevice()];
   }
 
   listHostApis(): AudioHostApiInfo[] {
@@ -139,6 +145,7 @@ export class TimedAudioFactory implements AudioInputFactory {
       blockSize: options.blockSize,
     });
     this.streams.push(stream);
+    if (this.streams.length > TimedAudioFactory.KEEP_STREAMS) this.streams.shift();
     return stream;
   }
 }

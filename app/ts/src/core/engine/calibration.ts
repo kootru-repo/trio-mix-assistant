@@ -15,17 +15,35 @@ export class EngineCalibration extends EngineShow {
     this.status = "calibrating";
     this.assistant.emit("calibration", "pink-noise sweep — emitting & capturing…");
     this.rebuildTelemetry();
-    this.calibrationTask = this.calibrateWorker().catch((exc: unknown) => this.noteError(exc));
+    this.calibrationTask = this.calibrateWorker().catch((exc: unknown) => {
+      this.calibStatus = "none";
+      if (this.status === "calibrating") this.status = "live";
+      const msg = exc instanceof Error ? exc.message : String(exc);
+      this.assistant.emit("calibration", `calibration failed: ${msg}`);
+      this.rebuildTelemetry();
+    });
+  }
+
+  private calibrationAborted(epoch: number): boolean {
+    if (this.takeoverEpoch === epoch && this.status !== "takeover") return false;
+    this.calibStatus = "none";
+    this.assistant.emit("calibration", "calibration aborted — takeover engaged");
+    this.rebuildTelemetry();
+    return true;
   }
 
   protected async calibrateWorker(): Promise<void> {
+    const epoch = this.takeoverEpoch;
     await this.clock.sleep(1.2);
+    if (this.calibrationAborted(epoch)) return;
     let capture: Samples | null = null;
     let played = true;
     if (this.source !== null) {
       played = await this.source.emitPinkNoise(generatePinkNoise(C.CAL_DURATION_S, this.noiseRng));
+      if (this.calibrationAborted(epoch)) return;
       capture = await this.source.captureMeas(C.CAL_DURATION_S);
     }
+    if (this.calibrationAborted(epoch)) return;
     let res: CalibrationResult | null = null;
     let silent = false;
     let levelDb: number | null = null;
@@ -36,12 +54,6 @@ export class EngineCalibration extends EngineShow {
       levelDb = 20.0 * Math.log10(rms + 1e-9);
       if (rms < 10 ** (-50.0 / 20.0)) silent = true;
       else res = this.calibrator.analyze(capture);
-    }
-    if (this.status === "takeover") {
-      this.calibStatus = "none";
-      this.assistant.emit("calibration", "calibration aborted — takeover engaged");
-      this.rebuildTelemetry();
-      return;
     }
     if (silent) {
       this.calibStatus = "none";

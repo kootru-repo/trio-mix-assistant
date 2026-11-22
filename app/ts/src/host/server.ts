@@ -6,27 +6,48 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo, Socket } from "node:net";
 import { join } from "node:path";
 import type { TLSSocket } from "node:tls";
-import { truthy } from "../core/engine/base.ts";
+import { asBool } from "../core/util.ts";
 import type { Engine } from "../core/engine/index.ts";
 import { ICON_SVG, LOGIN_HTML, MANIFEST } from "./server/assets.ts";
-import { hostAllowed, originAllowed, safeEqual } from "./server/guards.ts";
-import { decodeUtf8, jsonForHtml, jsonText, strOf, strictLoads } from "./server/json.ts";
+import { hostAllowed, isLoopbackHost, originAllowed, safeEqual } from "./server/guards.ts";
+import { Hub } from "./server/hub.ts";
+import type { Sink } from "./server/hub.ts";
+import { BadMessage, decodeUtf8, jsonForHtml, jsonText, strOf, strictLoads } from "./server/json.ts";
 import { LoginLimiter } from "./server/limiter.ts";
-import { WS_MAX_FRAME, WsParser, wsAccept, wsFrame } from "./server/ws.ts";
-
-export { hostAllowed, originAllowed } from "./server/guards.ts";
-export { LoginLimiter } from "./server/limiter.ts";
-export { jsonForHtml, jsonText, strictLoads } from "./server/json.ts";
+import {
+  CLOSE_INTERNAL,
+  WsAssembler,
+  WsParser,
+  closeCodeOf,
+  wsAccept,
+  wsCloseFrame,
+  wsFrame,
+  wsKeyValid,
+} from "./server/ws.ts";
+import type { WsFrame } from "./server/ws.ts";
 
 const MAX_BODY = 1 << 16;
 const MAX_DRAIN = 1 << 18;
 const MAX_STREAMS = 32;
 const SOCK_TIMEOUT_MS = 20000;
 const HANDLER_TIMEOUT_MS = 15000;
+const REQUEST_TIMEOUT_MS = 10000;
+const MAX_CONNECTIONS = 128;
 const STREAM_INTERVAL_MS = 100;
+const KEEPALIVE_TICKS = 50;
 const MAX_BACKLOG = 1 << 20;
+const MIN_PIN_LENGTH = 6;
+const LOG_INTERVAL_MS = 10000;
+const CIPHERS = "ECDHE+AESGCM:ECDHE+CHACHA20";
 
 const STATIC_JS: Record<string, string> = { "/dashboard.js": "dashboard.js", "/login.js": "login.js" };
+
+export class OpenDashboardRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OpenDashboardRefused";
+  }
+}
 
 export interface ServerOptions {
   engine: Engine;
@@ -35,6 +56,8 @@ export interface ServerOptions {
   caPem?: string | null;
   tls?: { key: string | Buffer; cert: string | Buffer } | null;
   limiter?: LoginLimiter;
+  requirePinOnLan?: boolean;
+  allowOpen?: boolean;
 }
 
 export interface DashboardServer {
@@ -93,24 +116,27 @@ const headerOf = (req: IncomingMessage, name: string): string | undefined => {
   return Array.isArray(v) ? v.join(", ") : v;
 };
 
+const noStore = (path: string): boolean =>
+  path === "/" || path === "/index.html" || path === "/state" || path === "/events" || path.startsWith("/api/");
+
+const contentSecurityPolicy = (nonce: string): string =>
+  `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; connect-src 'self'; ` +
+  `img-src 'self' data:; manifest-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; object-src 'none'`;
+
 const readBody = (req: IncomingMessage): Promise<Body> =>
   new Promise((resolve, reject) => {
     const raw = headerOf(req, "content-length") ?? "0";
-    if (raw.trim() !== "" && !/^\s*[+-]?\d+\s*$/.test(raw)) {
-      reject(new RangeError("bad Content-Length"));
+    if (raw.trim() !== "" && !/^\s*\d+\s*$/.test(raw)) {
+      reject(new BadMessage("bad Content-Length"));
       return;
     }
     const n = raw.trim() === "" ? 0 : Number(raw);
-    if (n < 0) {
-      reject(new RangeError("bad Content-Length"));
-      return;
-    }
     if (n === 0) {
       resolve({});
       return;
     }
     if (n > MAX_DRAIN) {
-      reject(new RangeError("request body too large"));
+      reject(new BadMessage("request body too large"));
       return;
     }
     const chunks: Buffer[] = [];
@@ -126,7 +152,7 @@ const readBody = (req: IncomingMessage): Promise<Body> =>
     req.on("end", () =>
       settle(() => {
         if (n > MAX_BODY) {
-          reject(new RangeError("request body too large"));
+          reject(new BadMessage("request body too large"));
           return;
         }
         try {
@@ -141,17 +167,29 @@ const readBody = (req: IncomingMessage): Promise<Body> =>
     req.on("close", () => settle(() => reject(new Error("connection closed"))));
   });
 
-const isBadMessage = (e: unknown): boolean =>
-  e instanceof TypeError || e instanceof RangeError || e instanceof SyntaxError;
-
 export function createServer(opts: ServerOptions): DashboardServer {
   const { engine, staticDir } = opts;
   const pin = opts.pin !== undefined && opts.pin !== null && String(opts.pin) !== "" ? String(opts.pin) : null;
+  if (pin !== null && pin.length < MIN_PIN_LENGTH) {
+    throw new Error(`the PIN must be at least ${MIN_PIN_LENGTH} characters long`);
+  }
+  const requirePinOnLan = opts.requirePinOnLan ?? true;
+  const allowOpen = opts.allowOpen ?? false;
   const token = pin !== null ? randomBytes(32).toString("base64url") : null;
   const caPem = opts.caPem ?? null;
   const limiter = opts.limiter ?? new LoginLimiter();
   let streams = 0;
+  let lastLog = 0;
   const sockets = new Set<Socket>();
+
+  const report = (e: unknown): void => {
+    const t = Date.now();
+    if (t - lastLog < LOG_INTERVAL_MS) return;
+    lastLog = t;
+    console.error("dashboard server error:", e);
+  };
+
+  const hub = new Hub(() => engine.snapshot(), STREAM_INTERVAL_MS, KEEPALIVE_TICKS, report);
 
   const readStatic = (name: string): string => readFileSync(join(staticDir, name), "utf8");
 
@@ -171,56 +209,77 @@ export function createServer(opts: ServerOptions): DashboardServer {
   const originOk = (req: IncomingMessage): boolean =>
     originAllowed(headerOf(req, "origin") ?? null, headerOf(req, "host"));
 
+  const fail = (res: ServerResponse, e: unknown): void => {
+    try {
+      if (res.headersSent || res.writableEnded || res.socket?.destroyed === true) return;
+      if (e instanceof BadMessage) return sendError(res, 400);
+      report(e);
+      sendError(res, 500);
+    } catch {
+      res.socket?.destroy();
+    }
+  };
+
   const serveSse = (res: ServerResponse, socket: Socket): void => {
     if (streams >= MAX_STREAMS) {
       sendError(res, 503);
       return;
     }
     streams += 1;
-    let timer: NodeJS.Timeout | null = null;
     let released = false;
+    let unsubscribe: (() => void) | null = null;
     const release = (): void => {
       if (released) return;
       released = true;
-      if (timer !== null) clearInterval(timer);
+      if (unsubscribe !== null) unsubscribe();
       streams -= 1;
     };
     res.on("close", release);
-    res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
+    res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", Connection: "keep-alive" });
     res.flushHeaders();
     socket.setTimeout(SOCK_TIMEOUT_MS);
     socket.once("timeout", () => socket.destroy());
-    const push = (): void => {
-      if (res.writableLength > MAX_BACKLOG) {
-        socket.destroy();
-        return;
-      }
-      res.write(`data: ${jsonText(engine.snapshot())}\n\n`);
+    const sink: Sink = {
+      kind: "sse",
+      write: (bytes) => {
+        if (res.writableLength > MAX_BACKLOG) {
+          socket.destroy();
+          return;
+        }
+        res.write(bytes);
+      },
+      destroy: () => socket.destroy(),
     };
-    push();
-    timer = setInterval(push, STREAM_INTERVAL_MS);
+    unsubscribe = hub.add(sink);
+    if (released) unsubscribe();
   };
 
   const serveWs = (req: IncomingMessage, socket: Socket, head: Buffer): void => {
     if (!hostOk(req) || !originOk(req)) return rawError(socket, 403);
     if (!authed(req)) return rawError(socket, 401);
     const key = headerOf(req, "sec-websocket-key");
-    if (key === undefined || key === "") return rawError(socket, 400);
+    if (!wsKeyValid(key)) return rawError(socket, 400);
     if (streams >= MAX_STREAMS) return rawError(socket, 503);
     streams += 1;
     let released = false;
     let done = false;
-    let timer: NodeJS.Timeout | null = null;
+    let unsubscribe: (() => void) | null = null;
     const release = (): void => {
       if (released) return;
       released = true;
-      if (timer !== null) clearInterval(timer);
+      if (unsubscribe !== null) unsubscribe();
       streams -= 1;
     };
-    const finish = (): void => {
+    const closeWith = (code: number | null): void => {
       if (done) return;
       done = true;
-      if (timer !== null) clearInterval(timer);
+      if (unsubscribe !== null) unsubscribe();
+      try {
+        socket.write(wsCloseFrame(code));
+      } catch {
+        socket.destroy();
+        return;
+      }
       socket.end();
       setTimeout(() => socket.destroy(), 2000).unref();
     };
@@ -236,62 +295,71 @@ export function createServer(opts: ServerOptions): DashboardServer {
       "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
         `Sec-WebSocket-Accept: ${wsAccept(key)}\r\n\r\n`,
     );
-    const send = (data: string | Buffer, opcode: number = 0x1): void => {
-      if (done) return;
-      if (socket.writableLength > MAX_BACKLOG) {
-        finish();
-        return;
-      }
-      socket.write(wsFrame(data, opcode));
-    };
     const parser = new WsParser();
-    let frag: Buffer = Buffer.alloc(0);
-    let fragOp: number | null = null;
-    const onFrame = (fin: boolean, opcode: number, payload: Buffer): boolean => {
-      if (opcode === 0x8) return false;
-      if (opcode === 0x9) {
-        send(payload, 0xa);
+    const assembler = new WsAssembler();
+    const onFrame = (f: WsFrame): boolean => {
+      if (f.opcode === 0x8) {
+        const code = closeCodeOf(f.payload);
+        closeWith(code !== null && typeof code === "object" ? code.close : code);
+        return false;
+      }
+      if (f.opcode === 0x9) {
+        if (socket.writableLength > MAX_BACKLOG) {
+          socket.destroy();
+          return false;
+        }
+        socket.write(wsFrame(f.payload, 0xa));
         return true;
       }
-      if (opcode === 0xa) return true;
-      if (opcode === 0x0) {
-        if (fragOp === null) return false;
-        frag = Buffer.concat([frag, payload]);
-      } else if (opcode === 0x1 || opcode === 0x2) {
-        frag = Buffer.from(payload);
-        fragOp = opcode;
-      } else return true;
-      if (frag.length > WS_MAX_FRAME) return false;
-      if (fin && fragOp !== null) {
-        const data = frag;
-        const op = fragOp;
-        frag = Buffer.alloc(0);
-        fragOp = null;
-        if (op === 0x1 && data.length > 0) {
-          try {
-            engine.command(strictLoads(decodeUtf8(data)));
-          } catch (e) {
-            if (!isBadMessage(e)) return false;
-          }
+      if (f.opcode === 0xa) return true;
+      const out = assembler.accept(f);
+      if (out === null) return true;
+      if ("close" in out) {
+        closeWith(out.close);
+        return false;
+      }
+      if (out.opcode === 0x1 && out.message.length > 0) {
+        try {
+          engine.command(strictLoads(decodeUtf8(out.message)));
+        } catch (e) {
+          if (!(e instanceof BadMessage)) throw e;
         }
       }
       return true;
     };
     const onData = (chunk: Buffer): void => {
       if (done) return;
-      parser.push(chunk);
-      for (;;) {
-        const f = parser.next();
-        if (f === null) return;
-        if (f === "bad" || !onFrame(f.fin, f.opcode, f.payload)) {
-          finish();
-          return;
+      try {
+        parser.push(chunk);
+        for (;;) {
+          const f = parser.next();
+          if (f === null) return;
+          if ("close" in f) {
+            closeWith(f.close);
+            return;
+          }
+          if (!onFrame(f)) return;
         }
+      } catch (e) {
+        report(e);
+        closeWith(CLOSE_INTERNAL);
       }
     };
     socket.on("data", onData);
-    send(jsonText(engine.snapshot()));
-    timer = setInterval(() => send(jsonText(engine.snapshot())), STREAM_INTERVAL_MS);
+    const sink: Sink = {
+      kind: "ws",
+      write: (bytes) => {
+        if (done) return;
+        if (socket.writableLength > MAX_BACKLOG) {
+          socket.destroy();
+          return;
+        }
+        socket.write(bytes);
+      },
+      destroy: () => socket.destroy(),
+    };
+    unsubscribe = hub.add(sink);
+    if (done || released) unsubscribe();
     if (head.length > 0) onData(head);
   };
 
@@ -301,8 +369,8 @@ export function createServer(opts: ServerOptions): DashboardServer {
       sendError(res, 429);
       return;
     }
-    readBody(req).then(
-      async (body) => {
+    readBody(req)
+      .then(async (body) => {
         const ok = pin !== null && safeEqual(strOf(body["pin"] ?? ""), pin);
         if (!ok) {
           await new Promise((r) => setTimeout(r, limiter.delayS * 1000));
@@ -313,17 +381,20 @@ export function createServer(opts: ServerOptions): DashboardServer {
         let cookie = `mixauth=${token}; HttpOnly; SameSite=Strict; Path=/`;
         if ((req.socket as TLSSocket).encrypted === true) cookie += "; Secure";
         sendJson(res, { ok: true }, 200, { "Set-Cookie": cookie });
-      },
-      () => sendError(res, 400),
-    );
+      })
+      .catch((e) => fail(res, e));
   };
 
-  const doGet = (req: IncomingMessage, res: ServerResponse): void => {
+  const doGet = (req: IncomingMessage, res: ServerResponse, nonce: string): void => {
     if (!hostOk(req)) return sendError(res, 403);
     const path = pathOf(req.url);
-    if (path === "/" || path.startsWith("/index")) {
+    if (path === "/" || path === "/index.html") {
       if (!authed(req)) return sendText(res, LOGIN_HTML, "text/html; charset=utf-8");
-      const html = readStatic("index.html").split("__INITIAL_STATE__").join(jsonForHtml(engine.snapshot()));
+      const html = readStatic("index.html")
+        .split("__NONCE__")
+        .join(nonce)
+        .split("__INITIAL_STATE__")
+        .join(jsonForHtml(engine.snapshot()));
       sendText(res, html, "text/html; charset=utf-8");
     } else if (path === "/state") {
       if (!authed(req)) return sendError(res, 401);
@@ -348,9 +419,17 @@ export function createServer(opts: ServerOptions): DashboardServer {
     } else sendError(res, 404);
   };
 
+  const flag = (v: unknown): boolean => {
+    try {
+      return asBool(v);
+    } catch {
+      throw new BadMessage("expected a boolean");
+    }
+  };
+
   const control = (url: string, body: Body): boolean => {
-    if (url === "/api/toggle") engine.setEnabled(strOf(body["job"]), truthy(body["on"]));
-    else if (url === "/api/panic") engine.panic(truthy(body["on"]));
+    if (url === "/api/toggle") engine.setEnabled(strOf(body["job"]), flag(body["on"]));
+    else if (url === "/api/panic") engine.panic(flag(body["on"]));
     else if (url === "/api/calibrate") engine.runCalibration();
     else if (url === "/api/lead_target") {
       engine.setLeadTarget(Object.hasOwn(body, "db") ? body["db"] : engine.assistant.leadTarget);
@@ -364,28 +443,32 @@ export function createServer(opts: ServerOptions): DashboardServer {
 
   const doPost = (req: IncomingMessage, res: ServerResponse): void => {
     if (!hostOk(req) || !originOk(req)) return sendError(res, 403);
+    if (headerOf(req, "transfer-encoding") !== undefined) return sendError(res, 411);
     const url = req.url ?? "";
     if (url === "/api/login") return doLogin(req, res);
     if (!authed(req)) return sendError(res, 401);
-    readBody(req).then(
-      (body) => {
-        try {
-          if (!control(url, body)) return sendError(res, 404);
-        } catch (e) {
-          return sendError(res, isBadMessage(e) ? 400 : 500);
-        }
+    readBody(req)
+      .then((body) => {
+        if (!control(url, body)) return sendError(res, 404);
         sendJson(res, engine.snapshot());
-      },
-      () => sendError(res, 400),
-    );
+      })
+      .catch((e) => fail(res, e));
   };
 
   const handle = (req: IncomingMessage, res: ServerResponse): void => {
     try {
-      if (req.method === "GET") doGet(req, res);
+      const nonce = randomBytes(16).toString("base64");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Referrer-Policy", "no-referrer");
+      res.setHeader("X-Frame-Options", "DENY");
+      res.setHeader("Content-Security-Policy", contentSecurityPolicy(nonce));
+      const path = pathOf(req.url);
+      if (noStore(path)) res.setHeader("Cache-Control", "no-store");
+      if (req.method === "GET") doGet(req, res, nonce);
       else if (req.method === "POST") doPost(req, res);
       else sendError(res, 501);
-    } catch {
+    } catch (e) {
+      report(e);
       if (res.headersSent) res.socket?.destroy();
       else sendError(res, 500);
     }
@@ -394,14 +477,18 @@ export function createServer(opts: ServerOptions): DashboardServer {
   const serverOpts = {
     requireHostHeader: false,
     keepAliveTimeout: HANDLER_TIMEOUT_MS,
-    headersTimeout: HANDLER_TIMEOUT_MS,
-    requestTimeout: 0,
+    headersTimeout: REQUEST_TIMEOUT_MS,
+    requestTimeout: REQUEST_TIMEOUT_MS,
   };
   const server: http.Server =
     opts.tls !== undefined && opts.tls !== null
-      ? https.createServer({ ...serverOpts, key: opts.tls.key, cert: opts.tls.cert }, handle)
+      ? https.createServer(
+          { ...serverOpts, key: opts.tls.key, cert: opts.tls.cert, minVersion: "TLSv1.2", ciphers: CIPHERS },
+          handle,
+        )
       : http.createServer(serverOpts, handle);
   server.timeout = HANDLER_TIMEOUT_MS;
+  server.maxConnections = MAX_CONNECTIONS;
   server.on("connection", (s: Socket) => {
     sockets.add(s);
     s.on("close", () => sockets.delete(s));
@@ -423,7 +510,8 @@ export function createServer(opts: ServerOptions): DashboardServer {
       res.shouldKeepAlive = false;
       res.on("finish", () => socket.end());
       handle(req, res);
-    } catch {
+    } catch (e) {
+      report(e);
       socket.destroy();
     }
   });
@@ -435,6 +523,15 @@ export function createServer(opts: ServerOptions): DashboardServer {
     },
     start(port: number, host: string): Promise<{ port: number }> {
       return new Promise((resolve, reject) => {
+        if (pin === null && requirePinOnLan && !allowOpen && !isLoopbackHost(host)) {
+          reject(
+            new OpenDashboardRefused(
+              `refusing to listen on ${host} without a PIN: anyone on the network could control the console. ` +
+                "Set a PIN or explicitly allow an open dashboard.",
+            ),
+          );
+          return;
+        }
         server.once("error", reject);
         server.listen(port, host, () => {
           server.off("error", reject);
@@ -444,6 +541,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
     },
     stop(): Promise<void> {
       return new Promise((resolve) => {
+        hub.stop();
         server.close(() => resolve());
         for (const s of sockets) s.destroy();
       });

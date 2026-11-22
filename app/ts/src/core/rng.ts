@@ -6,7 +6,6 @@ export interface Rng {
 }
 
 const M32 = 0xffffffffn;
-const M64 = (1n << 64n) - 1n;
 const M128 = (1n << 128n) - 1n;
 const PCG_MULT = 0x2360ed051fc65da44385df649fccf645n;
 
@@ -42,7 +41,7 @@ function entropyWords(seed: bigint): number[] {
   return words;
 }
 
-function seedState(seed: bigint): bigint[] {
+export function seedState(seed: bigint): bigint[] {
   const entropy = entropyWords(seed);
   const pool = [0, 0, 0, 0];
   const hc = { v: INIT_A };
@@ -68,31 +67,71 @@ function seedState(seed: bigint): bigint[] {
   return out;
 }
 
+const MULT_LIMBS = limbs(PCG_MULT);
+
+function limbs(x: bigint): Uint32Array {
+  const out = new Uint32Array(8);
+  for (let i = 0; i < 8; i++) out[i] = Number((x >> BigInt(16 * i)) & 0xffffn);
+  return out;
+}
+
 class Pcg64 {
-  private state: bigint;
-  private readonly inc: bigint;
+  private readonly s = new Uint32Array(8);
+  private readonly t = new Uint32Array(8);
+  private readonly inc: Uint32Array;
+  hi = 0;
+  lo = 0;
 
   constructor(seed: bigint) {
     const [s0, s1, i0, i1] = seedState(seed) as [bigint, bigint, bigint, bigint];
     const initstate = (s0 << 64n) | s1;
     const initseq = (i0 << 64n) | i1;
-    this.state = 0n;
-    this.inc = ((initseq << 1n) | 1n) & M128;
-    this.step();
-    this.state = (this.state + initstate) & M128;
-    this.step();
+    const inc = ((initseq << 1n) | 1n) & M128;
+    let state = inc;
+    state = (state + initstate) & M128;
+    state = (state * PCG_MULT + inc) & M128;
+    this.inc = limbs(inc);
+    this.s.set(limbs(state));
   }
 
   private step(): void {
-    this.state = (this.state * PCG_MULT + this.inc) & M128;
+    const s = this.s;
+    const t = this.t;
+    const inc = this.inc;
+    let carry = 0;
+    for (let k = 0; k < 8; k++) {
+      let acc = carry + inc[k]!;
+      for (let i = 0; i <= k; i++) acc += s[i]! * MULT_LIMBS[k - i]!;
+      t[k] = acc % 65536;
+      carry = Math.floor(acc / 65536);
+    }
+    s.set(t);
   }
 
-  nextU64(): bigint {
+  next64(): void {
     this.step();
-    const s = this.state;
-    const x = (s >> 64n) ^ (s & M64);
-    const rot = s >> 122n;
-    return ((x >> rot) | (x << ((64n - rot) & 63n))) & M64;
+    const s = this.s;
+    const lo0 = (s[0]! | (s[1]! << 16)) >>> 0;
+    const lo1 = (s[2]! | (s[3]! << 16)) >>> 0;
+    const hi0 = (s[4]! | (s[5]! << 16)) >>> 0;
+    const hi1 = (s[6]! | (s[7]! << 16)) >>> 0;
+    const xl = (lo0 ^ hi0) >>> 0;
+    const xh = (lo1 ^ hi1) >>> 0;
+    const rot = s[7]! >>> 10;
+    if (rot === 0) {
+      this.hi = xh;
+      this.lo = xl;
+    } else if (rot < 32) {
+      this.lo = ((xl >>> rot) | (xh << (32 - rot))) >>> 0;
+      this.hi = ((xh >>> rot) | (xl << (32 - rot))) >>> 0;
+    } else if (rot === 32) {
+      this.lo = xh;
+      this.hi = xl;
+    } else {
+      const r = rot - 32;
+      this.lo = ((xh >>> r) | (xl << (32 - r))) >>> 0;
+      this.hi = ((xl >>> r) | (xh << (32 - r))) >>> 0;
+    }
   }
 }
 
@@ -108,17 +147,22 @@ export class SeededRng implements Rng {
   }
 
   next(): number {
-    return Number(this.bits.nextU64() >> 11n) * TWO_NEG_53;
+    this.bits.next64();
+    return (this.bits.hi * 2097152 + (this.bits.lo >>> 11)) * TWO_NEG_53;
   }
 
   standardNormal(): number {
+    const b = this.bits;
     for (;;) {
-      let r = this.bits.nextU64();
-      const idx = Number(r & 0xffn);
-      r >>= 8n;
-      const sign = Number(r & 1n);
-      const rabs = (r >> 1n) & 0xfffffffffffffn;
-      const rabsN = Number(rabs);
+      b.next64();
+      const hi = b.hi;
+      const lo = b.lo;
+      const idx = lo & 0xff;
+      const lo8 = ((lo >>> 8) | ((hi & 0xff) << 24)) >>> 0;
+      const hi8 = hi >>> 8;
+      const sign = lo8 & 1;
+      const low = ((lo8 >>> 1) | ((hi8 & 1) << 31)) >>> 0;
+      const rabsN = ((hi8 >>> 1) & 0xfffff) * 4294967296 + low;
       let x = rabsN * ZIG_WI[idx]!;
       if (sign) x = -x;
       if (rabsN < ZIG_KI[idx]!) return x;
@@ -126,7 +170,7 @@ export class SeededRng implements Rng {
         for (;;) {
           const xx = -NOR_INV_R * Math.log1p(-this.next());
           const yy = -Math.log1p(-this.next());
-          if (yy + yy > xx * xx) return Number((rabs >> 8n) & 1n) ? -(NOR_R + xx) : NOR_R + xx;
+          if (yy + yy > xx * xx) return (low >>> 8) & 1 ? -(NOR_R + xx) : NOR_R + xx;
         }
       } else if ((ZIG_FI[idx - 1]! - ZIG_FI[idx]!) * this.next() + ZIG_FI[idx]! < Math.exp(-0.5 * x * x)) {
         return x;

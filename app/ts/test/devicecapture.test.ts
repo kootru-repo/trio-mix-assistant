@@ -15,22 +15,31 @@ import {
 } from "../src/core/devicecapture.ts";
 import type {
   AudioDeviceInfo,
+  AudioOutputSink,
   AudioInputCallback,
   AudioInputFactory,
   AudioInputOptions,
   AudioInputStream,
   DeviceCaptureOptions,
 } from "../src/core/devicecapture.ts";
+import { loadNativeAudio, NativeAudioInputFactory } from "../src/host/audiodevice.ts";
 import { fixture } from "./helpers.ts";
 import { StepClock } from "./stepclock.ts";
 
 class FakeStream implements AudioInputStream {
   started = 0;
+  stopped = 0;
   closed = 0;
+  startError: Error | null = null;
+  stopError: Error | null = null;
   start(): void {
     this.started += 1;
+    if (this.startError) throw this.startError;
   }
-  stop(): void {}
+  stop(): void {
+    this.stopped += 1;
+    if (this.stopError) throw this.stopError;
+  }
   close(): void {
     this.closed += 1;
   }
@@ -41,6 +50,9 @@ class FakeFactory implements AudioInputFactory {
   openError: Error | null = null;
   opens: AudioInputOptions[] = [];
   streams: FakeStream[] = [];
+  callbacks: AudioInputCallback[] = [];
+  nextStream: (() => FakeStream) | null = null;
+  outputSink?: () => AudioOutputSink | null;
   devices: AudioDeviceInfo[] = [];
   apis = [{ name: "MME" }];
   defaultIndex: number | null = null;
@@ -60,12 +72,21 @@ class FakeFactory implements AudioInputFactory {
   defaultInputIndex(): number | null {
     return this.defaultIndex;
   }
-  open(options: AudioInputOptions, _cb: AudioInputCallback): AudioInputStream {
+  open(options: AudioInputOptions, cb: AudioInputCallback): AudioInputStream {
     if (this.openError) throw this.openError;
     this.opens.push(options);
-    const s = new FakeStream();
+    this.callbacks.push(cb);
+    const s = this.nextStream ? this.nextStream() : new FakeStream();
     this.streams.push(s);
     return s;
+  }
+}
+
+class FeedClock extends ManualClock {
+  feed: (() => void) | null = null;
+  override sleep(seconds: number): Promise<void> {
+    if (this.feed !== null) this.feed();
+    return super.sleep(seconds);
   }
 }
 
@@ -108,7 +129,7 @@ test("drops backlog, keeps latest and counts overruns", () => {
   for (let v = 0; v < 40; v++) cap.onAudio(fullFrame(cap.ndev, v));
   const out = cap.block();
   assert.ok(allClose(out.get(1)!, 39));
-  assert.ok(cap.overruns > 0);
+  assert.ok(cap.skipped > 0);
 });
 
 test("underrun returns silence", () => {
@@ -129,9 +150,10 @@ test("underrun repeats the last frame before going silent", () => {
 });
 
 test("captureMeas collects the meas channel", async () => {
-  const { cap } = mk();
+  const clock = new FeedClock(100);
+  const { cap } = mk({}, clock);
+  clock.feed = () => cap.onAudio(constFrame(cap.ndev));
   cap.start();
-  for (let i = 0; i < 3; i++) cap.onAudio(constFrame(cap.ndev));
   const rec = await cap.captureMeas(0.05);
   assert.ok(rec);
   assert.ok(allClose(rec, C.MEAS_MIC_CH - 1));
@@ -212,12 +234,15 @@ test("dead supersedes silent", () => {
 test("a high xrun rate is flagged as overload", () => {
   const { cap, clock } = mk();
   cap.start();
+  cap.block();
   assert.equal(cap.overload(), false);
   clock.advance(3.0);
   cap.overruns = 100;
+  cap.block();
   assert.equal(cap.overload(), true);
   assert.equal(cap.status()["overload"], true);
   clock.advance(3.0);
+  cap.block();
   assert.equal(cap.overload(), false);
 });
 
@@ -261,7 +286,7 @@ test("open failure raises a clear error", () => {
     (e: unknown) =>
       e instanceof CaptureError &&
       e.message ===
-        "could not open audio device 'Mic' at 48000 Hz (Error: busy). " +
+        'could not open audio device "Mic" at 48000 Hz (Error: busy). ' +
           "It may be in use by another app, or not support 48000 Hz.",
   );
 });
@@ -345,11 +370,12 @@ test("meas channel follows the active auto map", async () => {
   const snap = channelMapState();
   try {
     autoChannelMap(1);
-    const { cap } = mk();
+    const clock = new FeedClock(100);
+    const { cap } = mk({}, clock);
+    clock.feed = () => cap.onAudio(fullFrame(cap.ndev, 0.2));
     assert.equal(cap.measCh, 1);
     assert.ok(cap.channelMap.has(cap.measCh));
     cap.start();
-    for (let i = 0; i < 4; i++) cap.onAudio(fullFrame(cap.ndev, 0.2));
     const rec = await cap.captureMeas(0.05);
     assert.ok(rec);
     assert.ok(allClose(rec, 0.2));
@@ -375,9 +401,10 @@ test("auto map with n inputs makes the last the meas mic", () => {
 });
 
 test("autoGain boosts a quiet mic toward the target", async () => {
-  const { cap } = mk();
+  const clock = new FeedClock(100);
+  const { cap } = mk({}, clock);
+  clock.feed = () => cap.onAudio(fullFrame(cap.ndev, 0.01));
   cap.start();
-  for (let i = 0; i < 32; i++) cap.onAudio(fullFrame(cap.ndev, 0.01));
   const g = await cap.autoGain(-20.0, 0.08);
   assert.ok(g > 12.0 && g < 28.0, String(g));
 });
@@ -483,7 +510,7 @@ test("channel map parsing", () => {
     ],
   );
   for (const bad of ["", "8", "8:x", "0:0", "8:-1", "  "]) {
-    assert.throws(() => parseChannelMap(bad), { name: "InvalidValueError" }, JSON.stringify(bad));
+    assert.throws(() => parseChannelMap(bad), { name: "InvalidArgumentError" }, JSON.stringify(bad));
   }
 });
 
@@ -499,7 +526,331 @@ test("ranking, picking, formatting and parsing match the recorded fixture", () =
     if ("ok" in m) {
       assert.deepEqual([...parseChannelMap(m.spec)], m.ok, JSON.stringify(m.spec));
     } else {
-      assert.throws(() => parseChannelMap(m.spec), { name: "InvalidValueError", message: m.error }, JSON.stringify(m.spec));
+      assert.throws(() => parseChannelMap(m.spec), { name: "InvalidArgumentError", message: m.error }, JSON.stringify(m.spec));
     }
   }
+});
+
+test("a stream that fails to start is closed and reported as a CaptureError", () => {
+  const { cap, factory } = mk();
+  factory.nextStream = () => {
+    const st = new FakeStream();
+    st.startError = new Error("device vanished");
+    return st;
+  };
+  assert.throws(
+    () => cap.start(),
+    (e: unknown) => e instanceof CaptureError && e.message.includes("device vanished"),
+  );
+  assert.equal(factory.streams[0]!.closed, 1);
+  factory.nextStream = null;
+  cap.start();
+  assert.equal(factory.streams.length, 2);
+  assert.equal(factory.streams[1]!.started, 1);
+});
+
+test("stop closes the stream even when stopping it throws, and late audio is ignored", () => {
+  const { cap, factory } = mk();
+  cap.start();
+  const st = factory.streams[0]!;
+  st.stopError = new Error("already gone");
+  cap.stop();
+  assert.equal(st.stopped, 1);
+  assert.equal(st.closed, 1);
+  factory.callbacks[0]!(fullFrame(cap.ndev, 0.5), false);
+  assert.ok(allClose(cap.block().get(1)!, 0));
+  cap.start();
+  assert.equal(factory.streams.length, 2);
+});
+
+test("taking the newest frame counts the dropped backlog as skipped, not as xruns", () => {
+  const { cap } = mk();
+  cap.start();
+  for (let v = 0; v < 5; v++) cap.onAudio(fullFrame(cap.ndev, v));
+  assert.equal(cap.skipped, 0);
+  cap.block();
+  assert.equal(cap.skipped, 4);
+  assert.equal(cap.overruns, 0);
+});
+
+test("status does not change the overload state, block does", () => {
+  const { cap, clock } = mk();
+  cap.start();
+  cap.block();
+  clock.advance(3.0);
+  cap.overruns = 100;
+  const mark = cap.ovrMarkT;
+  for (let i = 0; i < 3; i++) assert.equal(cap.status()["overload"], false);
+  assert.equal(cap.ovrMarkT, mark);
+  assert.equal(cap.overruns, 100);
+  cap.block();
+  assert.equal(cap.status()["overload"], true);
+});
+
+test("captureMeas ignores frames that were queued before it started", async () => {
+  const clock = new FeedClock(100);
+  const { cap } = mk({}, clock);
+  clock.feed = () => cap.onAudio(fullFrame(cap.ndev, 0.2));
+  cap.start();
+  for (let i = 0; i < 10; i++) cap.onAudio(fullFrame(cap.ndev, 0.9));
+  const rec = await cap.captureMeas(0.05);
+  assert.ok(rec);
+  assert.ok(allClose(rec, 0.2));
+});
+
+test("a hot unmapped column does not hide silence on the mapped ones", () => {
+  const { cap, clock } = mk({
+    channelMap: new Map([
+      [1, 0],
+      [8, 3],
+    ]),
+  });
+  cap.start();
+  const data = new Float32Array(C.BLOCK * cap.ndev);
+  for (let i = 0; i < C.BLOCK; i++) data[i * cap.ndev + 1] = 0.5;
+  cap.onAudio(data);
+  cap.block();
+  clock.advance(cap.SILENCE_HOLD_S + 1);
+  assert.equal(cap.silent(), true);
+});
+
+test("input gain does not hide a silent input", () => {
+  const { cap, clock } = mk({ gainDb: 48.0 });
+  cap.start();
+  cap.onAudio(fullFrame(cap.ndev, 1e-5));
+  cap.block();
+  clock.advance(cap.SILENCE_HOLD_S + 1);
+  assert.equal(cap.silent(), true);
+  assert.ok(Math.abs((cap.status()["peak"] as number) - 1e-5) < 1e-6);
+});
+
+test("autoGain refuses to amplify a dead input", async () => {
+  const clock = new FeedClock(100);
+  const { cap } = mk({}, clock);
+  clock.feed = () => cap.onAudio(fullFrame(cap.ndev, 1e-6));
+  cap.start();
+  assert.equal(await cap.autoGain(-20.0, 0.08), 0.0);
+  assert.equal(cap.gainDb, 0.0);
+  assert.ok(cap.autoDb !== null && cap.autoDb < -90);
+  cap.onAudio(fullFrame(cap.ndev, 0.1));
+  assert.ok(Math.abs(cap.block().get(1)![0]! - 0.1) < 1e-6);
+});
+
+test("the status says when no output sink is available", async () => {
+  const none = mk().cap;
+  assert.equal(none.status()["outputUnavailable"], true);
+  assert.equal(await none.emitPinkNoise(new Float32Array(4)), false);
+  assert.equal(none.status()["outputUnavailable"], true);
+  const withSink = mk({ outputSink: { play: () => undefined } }).cap;
+  assert.equal(withSink.status()["outputUnavailable"], false);
+  assert.equal(await withSink.emitPinkNoise(new Float32Array(4)), true);
+  assert.equal(withSink.status()["outputUnavailable"], false);
+});
+
+test("the factory's own output sink is used when none is given", async () => {
+  const factory = new FakeFactory();
+  const played: number[] = [];
+  factory.outputSink = () => ({
+    play: (s) => {
+      played.push(s.length);
+    },
+  });
+  const cap = new DeviceCapture({ factory, clock: new ManualClock(0) });
+  assert.equal(await cap.emitPinkNoise(new Float32Array(7)), true);
+  assert.deepEqual(played, [7]);
+});
+
+test("channel-map integers are plain decimal only", () => {
+  assert.throws(() => parseChannelMap("1_000:2"), /non-integer/);
+  assert.throws(() => parseChannelMap("1:2_0"), /non-integer/);
+  assert.deepEqual([...parseChannelMap("007:001")], [[7, 1]]);
+});
+
+const nativeDevices = [
+  { id: 0, name: "USB Audio", maxInputChannels: 0, maxOutputChannels: 2, defaultSampleRate: 48000, hostAPIName: "MME" },
+  { id: 1, name: "USB Audio", maxInputChannels: 2, maxOutputChannels: 0, defaultSampleRate: 48000, hostAPIName: "MME" },
+  { id: 2, name: "Odd", maxInputChannels: 2, maxOutputChannels: 0, defaultSampleRate: 48000, hostAPIName: "WDM-KS" },
+];
+
+function fakeNative(devices: typeof nativeDevices = nativeDevices, hooks: { start?: () => void; write?: () => void } = {}) {
+  const opened: { options: any; written: Uint8Array[]; ended: boolean; quit: number; handlers: Record<string, (...a: unknown[]) => void> }[] = [];
+  const native = {
+    getDevices: () => devices,
+    getHostAPIs: () => ({ defaultHostAPI: 0, HostAPIs: [{ id: 0, name: "MME", defaultInput: 1 }] }),
+    SampleFormatFloat32: 8,
+    AudioIO: (options: unknown) => {
+      const rec = { options, written: [] as Uint8Array[], ended: false, quit: 0, handlers: {} as Record<string, (...a: unknown[]) => void> };
+      opened.push(rec);
+      return {
+        on: (event: string, fn: (...a: unknown[]) => void) => {
+          rec.handlers[event] = fn;
+        },
+        start: () => hooks.start?.(),
+        quit: () => {
+          rec.quit += 1;
+        },
+        write: (c: Uint8Array) => {
+          hooks.write?.();
+          rec.written.push(c);
+        },
+        end: (cb?: () => void) => {
+          rec.ended = true;
+          cb?.();
+        },
+      };
+    },
+  };
+  return { native, opened };
+}
+
+test("an unknown host API is reported as no API, not as the first one", () => {
+  const f = new NativeAudioInputFactory(fakeNative().native);
+  const devs = f.listDevices();
+  assert.equal(devs[0]!.hostapi, 0);
+  assert.equal(devs[2]!.hostapi, -1);
+  assert.equal(rankInputs(devs, f.listHostApis(), null).find((r) => r.index === 2)!.hostapi, "");
+});
+
+test("a device name only matches devices that have inputs", () => {
+  const { native, opened } = fakeNative();
+  const f = new NativeAudioInputFactory(native);
+  assert.equal(f.queryDevice("USB").max_input_channels, 2);
+  assert.throws(() => f.queryDevice("Nothing"), /No input device/);
+  f.open({ device: "USB", channels: 2, sampleRate: 48000, blockSize: 1024 }, () => undefined);
+  assert.equal(opened[0]!.options.inOptions.deviceId, 1);
+});
+
+test("a missing module and a broken install are told apart", async () => {
+  const notFound = Object.assign(new Error("Cannot find package 'naudiodon2' imported from /x/y.js"), {
+    code: "ERR_MODULE_NOT_FOUND",
+  });
+  assert.equal(await loadNativeAudio(() => Promise.reject(notFound)), null);
+  const missing = await NativeAudioInputFactory.create(() => Promise.reject(notFound));
+  assert.throws(() => missing.listDevices(), /not installed/);
+
+  const brokenInstall = Object.assign(new Error("The specified module could not be found: portaudio.node"), {
+    code: "ERR_DLOPEN_FAILED",
+  });
+  await assert.rejects(loadNativeAudio(() => Promise.reject(brokenInstall)), /portaudio\.node/);
+  const broken = await NativeAudioInputFactory.create(() => Promise.reject(brokenInstall));
+  assert.throws(
+    () => broken.listDevices(),
+    (e: unknown) => e instanceof CaptureError && e.message.includes("portaudio.node") && !e.message.includes("is not installed"),
+  );
+
+  const otherPackage = Object.assign(new Error("Cannot find package 'bindings' imported from /x/y.js"), {
+    code: "ERR_MODULE_NOT_FOUND",
+  });
+  await assert.rejects(loadNativeAudio(() => Promise.reject(otherPackage)), /bindings/);
+
+  const { native } = fakeNative();
+  assert.equal(await loadNativeAudio(() => Promise.resolve({ default: native })), native);
+});
+
+test("the native output sink plays stereo to the named output device", async () => {
+  const { native, opened } = fakeNative();
+  const sink = new NativeAudioInputFactory(native).outputSink()!;
+  await sink.play(Float32Array.of(0.25, -0.5), 48000, "USB");
+  const o = opened[0]!;
+  assert.equal(o.options.outOptions.deviceId, 0);
+  assert.equal(o.options.outOptions.channelCount, 2);
+  assert.equal(o.options.outOptions.sampleRate, 48000);
+  const bytes = o.written[0]!;
+  assert.deepEqual([...new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))], [0.25, 0.25, -0.5, -0.5]);
+  assert.equal(o.ended, true);
+  await assert.rejects(Promise.resolve().then(() => sink.play(new Float32Array(1), 48000, "Nope")), /No output device/);
+  assert.equal(new NativeAudioInputFactory(null).outputSink(), null);
+});
+
+test("captureMeas returns null when the stream stalls before 90 percent arrived", async () => {
+  const clock = new FeedClock(100);
+  const { cap } = mk({}, clock);
+  let fed = 0;
+  clock.feed = () => {
+    if (fed < 3) {
+      fed += 1;
+      cap.onAudio(fullFrame(cap.ndev, 0.2));
+    }
+  };
+  cap.start();
+  assert.equal(await cap.captureMeas(1.0), null);
+  assert.equal(fed, 3);
+});
+
+test("captureMeas accepts a capture that is nearly complete", async () => {
+  const clock = new FeedClock(100);
+  const { cap } = mk({}, clock);
+  clock.feed = () => cap.onAudio(fullFrame(cap.ndev, 0.2));
+  cap.start();
+  const rec = await cap.captureMeas(0.2);
+  assert.ok(rec !== null && rec.length === Math.trunc(0.2 * cap.samplerate));
+});
+
+test("a failed restart exposes its reason in status", async () => {
+  const { cap, factory } = mk();
+  cap.start();
+  factory.openError = new Error("gone");
+  assert.equal(await cap.restart(), false);
+  assert.match(String(cap.status()["lastError"]), /gone/);
+  factory.openError = null;
+  assert.equal(await cap.restart(), true);
+  assert.equal(cap.status()["lastError"], null);
+});
+
+test("dropped backlog frames are reported as skipping, not as xruns", () => {
+  const { cap, clock } = mk();
+  cap.start();
+  cap.block();
+  clock.advance(2.0);
+  for (let v = 0; v < 30; v++) cap.onAudio(fullFrame(cap.ndev, 0.1));
+  cap.block();
+  assert.equal(cap.overload(), false);
+  assert.equal(cap.skippingFrames(), true);
+  assert.equal(cap.status()["skipping"], true);
+  assert.equal(cap.status()["overload"], false);
+});
+
+const offsetDevices = [
+  { id: 7, name: "Out Only", maxInputChannels: 0, maxOutputChannels: 2, defaultSampleRate: 48000, hostAPIName: "MME" },
+  { id: 9, name: "Wide In", maxInputChannels: 8, maxOutputChannels: 0, defaultSampleRate: 48000, hostAPIName: "MME" },
+];
+
+test("the native device id is used, not the position in the device list", () => {
+  const { native, opened } = fakeNative(offsetDevices);
+  const f = new NativeAudioInputFactory(native);
+  f.open({ device: 1, channels: 2, sampleRate: 48000, blockSize: 1024 }, () => undefined);
+  f.open({ device: "Wide", channels: 2, sampleRate: 48000, blockSize: 1024 }, () => undefined);
+  assert.equal(opened[0]!.options.inOptions.deviceId, 9);
+  assert.equal(opened[1]!.options.inOptions.deviceId, 9);
+});
+
+test("input chunks are trimmed to whole frames of every channel", () => {
+  const { native, opened } = fakeNative();
+  const got: number[] = [];
+  new NativeAudioInputFactory(native).open({ device: 1, channels: 3, sampleRate: 48000, blockSize: 4 }, (d) => got.push(d.length));
+  const bytes = new Uint8Array(4 * 3 * 2 + 8);
+  opened[0]!.handlers["data"]!(bytes);
+  assert.deepEqual(got, [6]);
+});
+
+test("a failing output stream is recorded, released, and rethrown", async () => {
+  const failing = fakeNative(offsetDevices, {
+    write: () => {
+      throw new Error("write refused");
+    },
+  });
+  const sink = new NativeAudioInputFactory(failing.native).outputSink()!;
+  await assert.rejects(Promise.resolve().then(() => sink.play(new Float32Array(2), 48000, 0)), /write refused/);
+  assert.equal(failing.opened[0]!.quit, 1);
+  assert.equal(failing.opened[0]!.options.outOptions.deviceId, 7);
+
+  const ok = fakeNative(offsetDevices);
+  const sink2 = new NativeAudioInputFactory(ok.native).outputSink()!;
+  await sink2.play(new Float32Array(2), 48000, 0);
+  ok.opened[0]!.handlers["error"]!(new Error("stream underflow"));
+  assert.equal(sink2.lastError, "stream underflow");
+  const cap = new DeviceCapture({ factory: new FakeFactory(), clock: new ManualClock(0), outputSink: sink2 });
+  assert.equal(cap.status()["outputError"], "stream underflow");
+  await sink2.play(new Float32Array(2), 48000, 0);
+  assert.equal(sink2.lastError, null);
 });

@@ -1,6 +1,7 @@
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
-import { argNumber, decodePacket } from "./oscwire.ts";
+import { argNumber, argText } from "./oscargs.ts";
+import { decodePacket } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
 import type { ShowTemplate } from "./template.ts";
 import type { UdpEndpoint, UdpFactory } from "./transport.ts";
@@ -56,6 +57,7 @@ export class SimShowClock extends ShowClock {
   private readonly clock: Clock;
   private i = -1;
   private running = false;
+  private generation = 0;
 
   constructor(template: ShowTemplate, clock: Clock, onChange: ShowChangeHandler | null = null, interval: number = 15.0) {
     super(onChange);
@@ -76,32 +78,27 @@ export class SimShowClock extends ShowClock {
   override start(): Promise<void> {
     if (this.running) return Promise.resolve();
     this.running = true;
+    const gen = ++this.generation;
     this.advance();
-    void this.loop();
+    void this.loop(gen);
     return Promise.resolve();
   }
 
-  private async loop(): Promise<void> {
-    while (this.running) {
+  private async loop(gen: number): Promise<void> {
+    while (this.running && gen === this.generation) {
       await this.clock.sleep(this.interval);
-      if (!this.running) return;
+      if (!this.running || gen !== this.generation) return;
       this.advance();
     }
   }
 
   override stop(): void {
     this.running = false;
+    this.generation++;
   }
 }
 
-const strOf = (a: OscArg | undefined): string => {
-  if (!a) return "";
-  if (a.t === "f") return Number.isInteger(a.v) ? `${a.v}.0` : String(a.v);
-  if (a.t === "b") return `b'${[...a.v].map((x) => String.fromCharCode(x)).join("")}'`;
-  return String(a.v);
-};
-
-const asStr = (args: OscArg[]): string => (args.length ? strOf(args[0]).trim() : "");
+const asStr = (args: OscArg[]): string => (args.length ? argText(args[0]!).trim() : "");
 
 const asFloat = (args: OscArg[]): number | null => (args.length ? argNumber(args[0]) : null);
 
@@ -115,6 +112,9 @@ export class AbleSetReceiver extends ShowClock {
   private running = false;
   private cur: ShowState = newShowState();
   private lastKey: string | null = null;
+  private generation = 0;
+  private pending: Promise<void> = Promise.resolve();
+  lastError: unknown = null;
 
   constructor(factory: UdpFactory, onChange: ShowChangeHandler | null = null, ip: string = "0.0.0.0", port: number = C.ABLESET_PORT) {
     super(onChange);
@@ -165,20 +165,42 @@ export class AbleSetReceiver extends ShowClock {
     }
   }
 
-  override async start(): Promise<void> {
+  override start(): Promise<void> {
+    const gen = ++this.generation;
+    const run = this.pending.then(() => this.bindFor(gen));
+    this.pending = run.catch(() => undefined);
+    return run;
+  }
+
+  private async bindFor(gen: number): Promise<void> {
+    if (gen !== this.generation || this.endpoint !== null) return;
     const ep = await this.factory.bind(this.port, this.ip);
+    if (gen !== this.generation) {
+      ep.close();
+      return;
+    }
     this.endpoint = ep;
     this.running = true;
     ep.onMessage((data) => {
-      for (const m of decodePacket(data)) this.handle(m.address, m.args);
+      try {
+        for (const m of decodePacket(data)) this.handle(m.address, m.args);
+      } catch (e) {
+        this.lastError = e;
+      }
     });
   }
 
   override stop(): void {
+    this.generation++;
     this.running = false;
-    if (this.endpoint) {
-      this.endpoint.close();
-      this.endpoint = null;
+    const ep = this.endpoint;
+    this.endpoint = null;
+    if (ep !== null) {
+      try {
+        ep.close();
+      } catch (e) {
+        this.lastError = e;
+      }
     }
   }
 }

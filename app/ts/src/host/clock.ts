@@ -6,7 +6,7 @@ export class SystemClock implements Clock {
     return performance.now() / 1000;
   }
 
-  perfCounter(): number {
+  highResolution(): number {
     return performance.now() / 1000;
   }
 

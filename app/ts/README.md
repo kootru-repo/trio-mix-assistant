@@ -1,6 +1,6 @@
 # Trio Mix-Assistant
 
-The application: Node 22 or newer is the only requirement. The runtime has no npm dependencies;
+The application: Node 22.13 or newer is the only requirement. The runtime has no npm dependencies;
 `typescript` and `@types/node` are needed only to build and check.
 
 ## Layout

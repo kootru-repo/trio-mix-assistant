@@ -64,3 +64,15 @@ test("mode names", () => {
   assert.equal(modeName({ emulate: false, hardware: true }), "hardware");
   assert.equal(modeName({ emulate: false, hardware: false }), "simulation");
 });
+
+test("ports, gain and the advisor interval are range-checked", () => {
+  for (const bad of [["--port", "0"], ["--port", "99999"], ["--ableset-port", "70000"], ["--input-gain", "Infinity"], ["--input-gain", "0x10"], ["--advisor-interval", "0"], ["--advisor-interval", "1e10"]]) {
+    assert.throws(() => parseCliArgs(bad), UsageError, bad.join(" "));
+  }
+  assert.equal(parseCliArgs(["--port", "1"]).port, 1);
+  assert.equal(parseCliArgs(["--advisor-interval", "5"]).advisorInterval, 5);
+});
+
+test("an empty --pin means no PIN", () => {
+  assert.equal(parseCliArgs(["--pin="]).pin, "");
+});

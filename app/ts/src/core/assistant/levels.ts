@@ -1,7 +1,8 @@
 import { C } from "../config.ts";
 import type { ChannelFeatures } from "../dsp.ts";
 import { fixed, roundTo, signed } from "../numfmt.ts";
-import { chan, clamp, need } from "./base.ts";
+import { clamp } from "../util.ts";
+import { chan, need } from "./base.ts";
 import { ProtectJobs } from "./protect.ts";
 
 export class LevelJobs extends ProtectJobs {
@@ -12,11 +13,15 @@ export class LevelJobs extends ProtectJobs {
     this.inEma.set(ch, ema);
     if (now < (this.manualHoldUntil.get(ch) ?? -1e9)) return;
     if (now - need(this.lastRideT, ch) < minInterval) return;
-    const outputEst = ema + need(this.faderDb, ch);
+    const start = need(this.faderDb, ch);
+    if (!(start >= C.FADER_MIN_DB && start <= C.FADER_MAX_DB)) {
+      this.lastRideT.set(ch, now);
+      return;
+    }
+    const outputEst = ema + start;
     const err = targetOut - outputEst;
     if (Math.abs(err) <= C.LEAD_TOLERANCE) return;
     const step = clamp(err, -C.MAX_STEP_DB, C.MAX_STEP_DB);
-    const start = need(this.faderDb, ch);
     const newf = clamp(start + step, C.FADER_MIN_DB, C.FADER_MAX_DB);
     this.lastRideT.set(ch, now);
     if (Math.abs(newf - start) < 0.05) return;

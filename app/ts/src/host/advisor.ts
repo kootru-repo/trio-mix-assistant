@@ -18,6 +18,8 @@ export const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 export const REQUEST_TIMEOUT_MS = 20000;
 export const CONTEXT_CAP = 6000;
 export const MAX_TOKENS = 300;
+export const MAX_RESPONSE_CHARS = 65536;
+export const MAX_BACKOFF_FACTOR = 10;
 
 export type AdvisorAdvice = {
   performer_prompt: string;
@@ -35,6 +37,7 @@ export interface AdvisorOptions {
   apiKey?: string | null;
   model?: string;
   interval?: number;
+  onError?: (message: string) => void;
   caller?: AdvisorCaller | null;
   fetch?: FetchFn;
   env?: Record<string, string | undefined>;
@@ -89,6 +92,8 @@ export class Advisor implements AdvisorPort {
   readonly caller: AdvisorCaller;
   available: boolean;
   lastError: string | null = null;
+  private failures = 0;
+  private readonly onError: ((message: string) => void) | null;
   calls = 0;
   private readonly injected: boolean;
   private readonly fetchFn: FetchFn;
@@ -102,6 +107,7 @@ export class Advisor implements AdvisorPort {
     this.apiKey = opts.apiKey || env["ANTHROPIC_API_KEY"] || null;
     this.model = opts.model ?? DEFAULT_MODEL;
     this.interval = opts.interval ?? 30;
+    this.onError = opts.onError ?? null;
     this.injected = opts.caller !== undefined && opts.caller !== null;
     this.fetchFn = opts.fetch ?? ((url, init) => fetch(url, init));
     this.caller = opts.caller ?? ((ctx) => this.httpCall(ctx));
@@ -128,12 +134,17 @@ export class Advisor implements AdvisorPort {
       const ctx = await this.getContext();
       const advice = await this.caller(ctx);
       this.calls += 1;
+      this.failures = 0;
+      this.lastError = null;
       if (typeof advice === "object" && advice !== null && !Array.isArray(advice)) {
         this.onAdvice(advice as AdvisorAdvice);
         return advice as AdvisorAdvice;
       }
     } catch (e) {
-      this.lastError = describeError(e);
+      this.failures += 1;
+      const message = describeError(e);
+      if (message !== this.lastError && this.onError) this.onError(message);
+      this.lastError = message;
     }
     return null;
   }
@@ -156,7 +167,9 @@ export class Advisor implements AdvisorPort {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
-    const resp: unknown = await res.json();
+    const raw = await res.text();
+    if (raw.length > MAX_RESPONSE_CHARS) throw new RangeError("response too large");
+    const resp: unknown = JSON.parse(raw);
     if (typeof resp !== "object" || resp === null || Array.isArray(resp)) throw new TypeError("bad response");
     const content = (resp as Record<string, unknown>)["content"] ?? [];
     if (!Array.isArray(content)) throw new TypeError("bad content");
@@ -194,7 +207,7 @@ export class Advisor implements AdvisorPort {
   private arm(): void {
     const timer = setTimeout(() => {
       void this.cycle();
-    }, this.interval * 1000);
+    }, this.interval * Math.min(2 ** this.failures, MAX_BACKOFF_FACTOR) * 1000);
     timer.unref();
     this.timer = timer;
   }

@@ -55,7 +55,7 @@ Get the code first: on this repository's page choose **Code → Download ZIP** a
 ```bash
 cd app/ts
 npm install
-npm run start
+npm run run
 ```
 
 Then open **http://127.0.0.1:8770/**, toggle the jobs, and watch the behaviour change.
@@ -70,7 +70,7 @@ The app has three modes, and each needs different things. Simulation needs almos
 
 | | Simulation | Emulation (rehearse the full rig) | Production (live show) |
 |---|---|---|---|
-| **Node.js** | 22+ | 22+ | 22+ |
+| **Node.js** | 22.13+ | 22.13+ | 22.13+ |
 | **Packages** | none | none | none (live audio input needs one optional native module, see below) |
 | **Install** | nothing (`npm install` only to build or test) | nothing | nothing |
 
@@ -99,13 +99,13 @@ The app is written in TypeScript and runs on Node.js. It has no runtime dependen
 > Build the package once with `npm run package` in `app/ts`, then copy the unzipped `TrioMixAssistant` folder to the FOH laptop. Nothing else on the machine is touched.
 
 ### Windows
-1. Install **Node.js 22+** from [nodejs.org](https://nodejs.org/).
+1. Install **Node.js 22.13+** from [nodejs.org](https://nodejs.org/).
 2. Double‑click **`list-devices.bat`** and note your audio device number.
 3. Open **`show.conf`** in Notepad and set `CONSOLE_IP` and `AUDIO_DEVICE` (or set `AUTO=yes` to auto‑detect). On shared or venue WiFi also set `PIN`.
 4. Double‑click **`start.bat`**. The dashboard opens in your browser.
 
 ### macOS
-1. Install **Node.js 22+** from [nodejs.org](https://nodejs.org/) (or `brew install node`).
+1. Install **Node.js 22.13+** from [nodejs.org](https://nodejs.org/) (or `brew install node`).
 2. Open Terminal, `cd` into the folder, then `bash list-devices.command` and note your audio device number.
 3. `open show.conf`, set `CONSOLE_IP` and `AUDIO_DEVICE` (or `AUTO=yes`), and save. On shared or venue WiFi also set `PIN`.
 4. `bash start.command`.
@@ -118,18 +118,18 @@ The app is written in TypeScript and runs on Node.js. It has no runtime dependen
 
 ## Operating it
 
-All commands run from the **`app/`** folder. The double‑click scripts above wrap these; the CLI gives full control.
+The commands below run from the **`app/ts`** folder (after `npm install`), as `npm run run -- <flags>`. The double‑click scripts above wrap these; the CLI gives full control.
 
 ### Run modes
 
 | Mode | Command | What it does |
 |---|---|---|
 | **Simulation** | `npm run run` | Closed‑loop synthetic stage. Learn the UI, demo, no gear. |
-| **Emulate (no console)** | `npm run run -- --emulate --lan` | Real production stack vs. a built‑in M32C emulator. |
-| **Emulate + real mic** | `npm run run -- --emulate --lan --auto` | Same, but listens on your real USB mic, so you can run a true room calibration & feedback test. |
-| **Production** | `npm run run -- --hardware --console-ip 192.168.1.50 --auto --lan` | Drive the real M32C. `--auto` detects the mic; or use `--audio-device N`. |
+| **Emulate (no console)** | `npm run run -- --emulate --lan --pin 123456` | Real production stack vs. a built‑in M32C emulator. |
+| **Emulate + real mic** | `npm run run -- --emulate --lan --pin 123456 --auto` | Same, but listens on your real USB mic, so you can run a true room calibration & feedback test. |
+| **Production** | `npm run run -- --hardware --console-ip 192.168.1.50 --auto --lan --pin 123456` | Drive the real M32C. `--auto` detects the mic; or use `--audio-device N`. |
 
-Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets + print a QR), `--https` (TLS, enables the tablet PWA + screen wake‑lock), `--pin "1234"` (require a PIN to open the dashboard + control the console; recommended on untrusted WiFi, paired with `--https`), `--template set.json` (per‑song scenes), `--venue "The Cellar"` (session log + learning), `--advisor` (optional Claude notes; needs `ANTHROPIC_API_KEY`).
+Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets + print a QR), `--https` (TLS, enables the tablet PWA + screen wake‑lock), `--pin "123456"` (a PIN of at least 6 characters to open the dashboard + control the console; required whenever the dashboard is served to the network, paired with `--https`; `--insecure-open` allows an open dashboard), `--template set.json` (per‑song scenes), `--venue "The Cellar"` (session log + learning), `--advisor` (optional Claude notes; needs `ANTHROPIC_API_KEY`).
 
 ### On the dashboard
 - **AUTOMATIC JOBS**: toggle Feedback notch, Clip protection, Vocal ride, Balance hold.
@@ -146,7 +146,7 @@ Run with `--lan --https`. At startup the terminal prints the dashboard's **LAN U
 
 <img src="docs/screenshots/tablet-qr.png" width="170" align="right" alt="Example connect QR for https://192.168.1.50:8770/">
 
-1. **FOH laptop:** `npm run run -- --emulate --lan --https` (or your production command). The start window prints the URL + QR (this is what `--lan` does; `--https` enables the PWA + wake‑lock).
+1. **FOH laptop:** `npm run run -- --emulate --lan --pin 123456 --https` (or your production command). The start window prints the URL + QR (this is what `--lan` does; `--https` enables the PWA + wake‑lock).
 2. **Tablet:** join the **same WiFi** as the laptop.
 3. **Scan the QR** in the terminal with the tablet camera, or open the printed `https://<laptop‑ip>:8770/` URL.
 4. Accept the **self‑signed certificate** warning once, then **Add to Home Screen** for a full‑screen app.
@@ -155,7 +155,7 @@ The QR at right is an *example* (`https://192.168.1.50:8770/`); yours encodes th
 
 ### Locking it down (untrusted networks)
 
-On a trusted FOH LAN the dashboard is open (no login). On shared/venue WiFi, set **`PIN=1234`** in `show.conf` or add **`--pin "1234"`** (ideally with `--https`): the dashboard then asks for the PIN before it opens, and every control endpoint and the telemetry stream require it, so a stranger on the WiFi can't touch the console. The PIN is entered once per device (a `HttpOnly; SameSite=Strict` session cookie), Five wrong tries lock out only the device that made them, for 30 seconds, and devices already signed in keep control throughout. At most 20 unsuccessful sign-in attempts a minute are accepted across all devices; past that, new sign-ins are refused until the minute passes. With or without a PIN, the server validates the `Host` header (DNS‑rebinding guard) and refuses control requests and WebSocket connections that come from another website (`Origin` check), so a page open in the operator's browser cannot drive the console.
+Serving the dashboard to the network (`--lan`) needs a PIN of at least 6 characters, and the app refuses to start without one unless you pass **`--insecure-open`** (or `ALLOW_OPEN=yes` in `show.conf`) on a network you fully trust. Set **`PIN=123456`** in `show.conf` or add **`--pin "123456"`** (ideally with `--https`): the dashboard then asks for the PIN before it opens, and every control endpoint and the telemetry stream require it, so a stranger on the WiFi can't touch the console. The PIN is entered once per device (a `HttpOnly; SameSite=Strict` session cookie), Five wrong tries lock out only the device that made them, for 30 seconds, and devices already signed in keep control throughout. At most 20 unsuccessful sign-in attempts a minute are accepted across all devices; past that, new sign-ins are refused until the minute passes. With or without a PIN, the server validates the `Host` header (DNS‑rebinding guard) and refuses control requests and WebSocket connections that come from another website (`Origin` check), so a page open in the operator's browser cannot drive the console.
 
 **Zero cert warnings:** a self‑signed cert always shows a one‑time browser warning (it's encrypted but not *trusted*). To remove it completely, launch with **`--trust`**: the app runs a local root CA and serves a cert signed by it, then prints steps to install that root **once per device** (browse to `/ca.pem`, or copy `app/.certs/ca.pem`). After the one‑time install, every https connection is fully trusted: green padlock, no warning. (There's no server‑only way to skip the per‑device install; that's how certificate trust works. The alternative is plain http, with no cert and no warning, but also no PWA/Wake‑Lock, and the PIN travels in clear.)
 
@@ -181,7 +181,7 @@ The M32C has no faders or screen of its own. It is a stage box, controlled entir
 
 The emulator answers Mixing Station's full discovery + sync + metering protocol, so you can rehearse the exact show‑day setup on a couch:
 
-1. `npm run run -- --emulate --lan` on the laptop.
+1. `npm run run -- --emulate --lan --pin 123456` on the laptop.
 2. Phone/tablet on the same WiFi → Mixing Station → **Behringer X32** → the emulated desk appears as **MixAssist** in the search list (or enter the laptop's IP manually) → **Connect**, access **Full**.
 3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list (recall one and the app follows). The assistant's moves mirror live; your fader moves win instantly. Push test moves: `npm run osc-demo -- --animate`.
 
@@ -214,7 +214,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 
 **Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends every automatic move, covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
-Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is logged and reversible. 330 automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
+Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is logged and reversible. automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 
 ## Project layout
 
@@ -226,11 +226,17 @@ trio-mix-assistant/
 │   ├── static/               ← dashboard page + compiled JS (committed)
 │   ├── web/                  ← TypeScript source for the dashboard (npm run build)
 │   ├── show.conf             ← the file partners edit
+│   ├── templates/            ← example show templates (songs, scenes, channel maps)
+│   ├── x32_default_nodes.scn ← the emulated desk's parameter tree
+│   ├── START-HERE.txt        ← quick start shipped in the package
 │   ├── README.md             ← developer docs (architecture, internals)
 │   ├── RUNBOOK.md            ← show-day guide (Windows & macOS)
+│   ├── HARDWARE_SETUP.md     ← what to buy and how to wire the listening rig
 │   └── HARDWARE_BRINGUP.md   ← one-time OSC validation against the real desk
 └── docs/
     ├── screenshots/          ← the images above
+    ├── feedback-board.html   ← open in a browser to see musicians' feedback
+    ├── ux-design.md          ← operator and performer experience design
     └── mix-assistant-design.html  ← design infographic
 ```
 
@@ -242,7 +248,7 @@ trio-mix-assistant/
 cd app/ts
 npm install
 npm run check      # type-check; src/core must stay free of platform APIs
-npm test           # 226 tests, run directly by Node
+npm test           # run directly by Node
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same two commands, and builds the dashboard to check the committed JavaScript matches its TypeScript source. The recorded fixtures the tests compare against are in `app/ts/fixtures`.

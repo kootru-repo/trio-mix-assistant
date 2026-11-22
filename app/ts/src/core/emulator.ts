@@ -2,6 +2,7 @@ import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
 import { dbToFader, faderToDb } from "./console.ts";
 import { argFloat, argInt, argText } from "./oscargs.ts";
+import { parseInteger, zeroPad } from "./util.ts";
 import { encodeMeterBlob, encodeMessage, decodePacket, oscBlob, oscFloat, oscInt, oscStr } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
 import { fixed, signed } from "./numfmt.ts";
@@ -30,14 +31,21 @@ interface MeterSub {
   last: number;
 }
 
-const pad2 = (n: number): string => String(n).padStart(2, "0");
 const peerKey = (p: Peer): string => `${p.host}:${p.port}`;
+
+const MAX_ENTRIES = 4096;
+const MAX_METER_SUBS = 64;
+const MAX_ADDR_LEN = 256;
+const MAX_REMOTES = 16;
+const SUBSCRIPTION_TTL_S = 10.0;
+const MIN_METER_HZ = 0.1;
+const MAX_METER_HZ = 1000;
 
 function chFromAddr(addr: string): number | null {
   const parts = addr.split("/");
-  if (parts.length >= 5 && parts[1] === "ch" && parts[3] === "mix") {
-    const p = parts[2]!;
-    return /^\s*[+-]?\d+\s*$/.test(p) ? Number.parseInt(p.trim(), 10) : null;
+  if (parts.length === 5 && parts[1] === "ch" && parts[3] === "mix") {
+    const ch = parseInteger(parts[2]!);
+    return ch !== null && ch >= 1 && ch <= 32 ? ch : null;
   }
   return null;
 }
@@ -142,7 +150,6 @@ export class EmulatedDesk {
   fader = new Map<number, number>();
   mute = new Map<number, boolean>();
   scene: number | null = null;
-  subscribed = false;
   recvCount = 0;
   echoCount = 0;
   metersSent = 0;
@@ -152,6 +159,7 @@ export class EmulatedDesk {
   meterSubs = new Map<string, MeterSub>();
   reqSeen = new Set<string>();
   reqLog: string[] = [];
+  lastError: unknown = null;
   onTrace: ((line: string) => void) | null;
   localIp: string;
   nodeScn: string | null;
@@ -161,8 +169,12 @@ export class EmulatedDesk {
   private endpoint: UdpEndpoint | null = null;
   private appSender: AppSender | null = null;
   private stopped = false;
+  private subscribedFlag = false;
+  private subscribedAt: number | null = null;
+  private readonly remoteSeen = new Map<string, number>();
+  private generation = 0;
+  private pending: Promise<void> = Promise.resolve();
   private meterTask: Promise<void> | null = null;
-  private extTask: Promise<void> | null = null;
   private tick = 0;
 
   constructor(udp: UdpFactory, clock: Clock, opts: EmulatedDeskOptions = {}) {
@@ -172,13 +184,56 @@ export class EmulatedDesk {
     this.listenHost = opts.listenHost ?? "0.0.0.0";
     this.appHost = opts.appIp ?? "127.0.0.1";
     this.appPort = opts.appPort ?? C.LOCAL_PORT;
-    this.meterHz = opts.meterHz ?? 10.0;
+    const hz = opts.meterHz ?? 10.0;
+    this.meterHz = Number.isFinite(hz) ? Math.min(MAX_METER_HZ, Math.max(MIN_METER_HZ, hz)) : 10.0;
     this.nMeters = opts.nMeters ?? 16;
     this.externalMoves = opts.externalMoves ?? false;
     this.localIp = opts.localIp ?? "127.0.0.1";
     this.nodeScn = opts.nodeScn ?? null;
     this.onTrace = opts.onTrace ?? null;
     this.seedParams();
+  }
+
+  get subscribed(): boolean {
+    this.expire(this.clock.monotonic());
+    return this.subscribedFlag;
+  }
+
+  set subscribed(v: boolean) {
+    this.subscribedFlag = v;
+    this.subscribedAt = null;
+  }
+
+  private expire(now: number): void {
+    if (this.subscribedFlag && this.subscribedAt !== null && now - this.subscribedAt > SUBSCRIPTION_TTL_S) {
+      this.subscribedFlag = false;
+      this.subscribedAt = null;
+    }
+    for (const [key, seen] of [...this.remoteSeen]) {
+      if (now - seen > SUBSCRIPTION_TTL_S) {
+        this.remoteSeen.delete(key);
+        this.remotes.delete(key);
+      }
+    }
+  }
+
+  private addRemote(client: Peer, now: number): void {
+    const key = peerKey(client);
+    if (!this.remotes.has(key) && this.remotes.size >= MAX_REMOTES) return;
+    this.remotes.set(key, client);
+    this.remoteSeen.set(key, now);
+  }
+
+  private setParam(addr: string, args: readonly OscArg[]): boolean {
+    if (addr.length > MAX_ADDR_LEN) return false;
+    if (!this.params.has(addr) && this.params.size >= MAX_ENTRIES) return false;
+    this.params.set(addr, [...args]);
+    return true;
+  }
+
+  private markSubscribed(): void {
+    this.subscribedFlag = true;
+    this.subscribedAt = this.clock.monotonic();
   }
 
   get meterTaskStarted(): boolean {
@@ -195,7 +250,12 @@ export class EmulatedDesk {
   }
 
   private sendApp(addr: string, args: OscArg[]): void {
-    if (this.appSender !== null) this.appSender(addr, args);
+    if (this.appSender === null) return;
+    try {
+      this.appSender(addr, args);
+    } catch (e) {
+      this.lastError = e;
+    }
   }
 
   handleFader(addr: string, args: readonly OscArg[]): void {
@@ -203,11 +263,11 @@ export class EmulatedDesk {
     this.recvCount++;
     if (ch !== null && args.length > 0) {
       const pos = argFloat(args[0]);
-      if (pos === null) return;
+      if (pos === null || !Number.isFinite(pos)) return;
       this.fader.set(ch, pos);
       if (this.subscribed && this.appSender !== null) {
         this.echoCount++;
-        this.sendApp(`/ch/${pad2(ch)}/mix/fader`, [oscFloat(pos)]);
+        this.sendApp(`/ch/${zeroPad(ch, 2)}/mix/fader`, [oscFloat(pos)]);
       }
     }
   }
@@ -217,12 +277,12 @@ export class EmulatedDesk {
     this.recvCount++;
     if (ch !== null && args.length > 0) {
       const v = argFloat(args[0]);
-      if (v === null) return;
+      if (v === null || !Number.isFinite(v)) return;
       this.mute.set(ch, v === 0);
     }
   }
 
-  handleScene(_addr: string, args: readonly OscArg[]): void {
+  handleScene(args: readonly OscArg[]): void {
     this.recvCount++;
     if (args.length > 0) {
       const n = argInt(args[0]);
@@ -245,7 +305,10 @@ export class EmulatedDesk {
     if (!m) return;
     const count = METER_COUNTS.get(Number.parseInt(m[1]!, 10)) ?? 96;
     if (!alias.startsWith("/")) alias = "/" + alias;
-    this.meterSubs.set(`${peerKey(client)}|${alias}`, {
+    if (alias.length > MAX_ADDR_LEN) return;
+    const subKey = `${peerKey(client)}|${alias}`;
+    if (!this.meterSubs.has(subKey) && this.meterSubs.size >= MAX_METER_SUBS) return;
+    this.meterSubs.set(subKey, {
       client,
       alias,
       path,
@@ -255,18 +318,18 @@ export class EmulatedDesk {
     this.startMeters();
   }
 
-  handleSubscribe(_addr: string, _args: readonly OscArg[] = []): void {
+  handleSubscribe(): void {
     this.recvCount++;
-    this.subscribed = true;
+    this.markSubscribed();
     this.startMeters();
   }
 
-  handleXremote(_addr: string, _args: readonly OscArg[] = []): void {
+  handleXremote(): void {
     this.recvCount++;
-    this.subscribed = true;
+    this.markSubscribed();
   }
 
-  handleDefault(_addr: string, _args: readonly OscArg[] = []): void {
+  handleDefault(): void {
     this.recvCount++;
   }
 
@@ -274,7 +337,7 @@ export class EmulatedDesk {
     for (let ch = 1; ch <= 32; ch++) {
       const role = C.CHANNELS.get(ch);
       const name = role ? Array.from(C.ROLE_LABELS.get(role) ?? role).slice(0, 12).join("") : "";
-      const p = `/ch/${pad2(ch)}`;
+      const p = `/ch/${zeroPad(ch, 2)}`;
       this.params.set(`${p}/config/name`, [oscStr(name)]);
       this.params.set(`${p}/config/color`, [oscInt((ch % 8) + 1)]);
       this.params.set(`${p}/config/icon`, [oscInt(1)]);
@@ -292,12 +355,13 @@ export class EmulatedDesk {
     if (ep === null) return;
     try {
       ep.send(encodeMessage(addr, args), client);
-    } catch {
-      return;
+    } catch (e) {
+      this.lastError = e;
     }
   }
 
   private push(addr: string, args: readonly OscArg[], exclude: Peer | null = null): void {
+    this.expire(this.clock.monotonic());
     const skip = exclude === null ? null : peerKey(exclude);
     for (const [key, r] of [...this.remotes]) {
       if (key === skip) continue;
@@ -307,7 +371,8 @@ export class EmulatedDesk {
 
   private logReq(addr: string, args: readonly OscArg[]): void {
     const key = addr === "/node" && args.length > 0 ? `${addr} ${argText(args[0]!)}` : addr;
-    if (!this.reqSeen.has(key)) {
+    if (key.length > MAX_ADDR_LEN) return;
+    if (!this.reqSeen.has(key) && this.reqSeen.size < MAX_ENTRIES) {
       this.reqSeen.add(key);
       if (this.reqLog.length < 1000) this.reqLog.push(key);
       if (this.onTrace !== null) this.onTrace(`  [emu] editor asked: ${key}`);
@@ -330,8 +395,12 @@ export class EmulatedDesk {
 
   private replyNode(client: Peer, args: readonly OscArg[]): void {
     const first = args[0];
-    const path = (first ? argText(first) : "").replace(/^\/+|\/+$/g, "");
-    const full = "/" + path;
+    const text = first ? argText(first) : "";
+    let from = 0;
+    let to = text.length;
+    while (from < to && text[from] === "/") from++;
+    while (to > from && text[to - 1] === "/") to--;
+    const full = "/" + text.slice(from, to);
     this.reply(client, "node", [oscStr(this.nodeBody(full) + "\n")]);
   }
 
@@ -374,7 +443,7 @@ export class EmulatedDesk {
     const kids = [...this.params.keys()].filter((a) => a.startsWith(full + "/"));
     if (kids.length > 0) {
       const parts: string[] = [];
-      for (const k of kids.sort(codePointCompare)) {
+      for (const k of kids.sort(compareKeys)) {
         const v = this.params.get(k)!;
         if (v.length > 0) parts.push(fmtParam(v[0]!));
       }
@@ -384,6 +453,7 @@ export class EmulatedDesk {
   }
 
   handleAny(client: Peer, addr: string, args: readonly OscArg[]): void {
+    this.expire(this.clock.monotonic());
     this.logReq(addr, args);
     const isApp = client.host === this.appHost && client.port === this.appPort;
 
@@ -415,17 +485,22 @@ export class EmulatedDesk {
     }
     if (addr === "/xremote" || addr === "/formatsubscribe" || addr === "/batchsubscribe" || addr === "/meters") {
       if (!isApp) {
-        this.remotes.set(peerKey(client), client);
+        this.addRemote(client, this.clock.monotonic());
         this.addMeterSub(client, addr, args);
       }
-      if (addr === "/batchsubscribe") this.handleSubscribe(addr, args);
-      else if (addr !== "/meters") this.handleXremote(addr, args);
+      if (addr === "/batchsubscribe") this.handleSubscribe();
+      else if (addr !== "/meters") this.handleXremote();
       return;
     }
     if (addr === "/unsubscribe" || addr === "/renew") {
       this.recvCount++;
       const now = this.clock.monotonic();
       const who = peerKey(client);
+      if (addr === "/unsubscribe") {
+        this.subscribed = false;
+        this.remotes.delete(who);
+        this.remoteSeen.delete(who);
+      }
       for (const [key, sub] of [...this.meterSubs]) {
         if (peerKey(sub.client) === who) {
           if (addr === "/renew") sub.last = now;
@@ -444,12 +519,13 @@ export class EmulatedDesk {
     const ch = chFromAddr(addr);
     if (ch !== null && addr.endsWith("/mix/fader")) {
       if (args.length > 0) {
+        const echoedBefore = this.echoCount;
         this.handleFader(addr, args);
         const pos = argFloat(args[0]);
-        if (pos === null) return;
-        this.params.set(addr, [oscFloat(pos)]);
+        if (pos === null || !Number.isFinite(pos)) return;
+        this.setParam(addr, [oscFloat(pos)]);
         this.push(addr, [oscFloat(pos)], client);
-        if (!isApp) this.sendApp(addr, [oscFloat(pos)]);
+        if (!isApp && this.echoCount === echoedBefore) this.sendApp(addr, [oscFloat(pos)]);
       } else {
         const cur = this.fader.get(ch) ?? argFloat(this.param(addr, oscFloat(0.0))) ?? 0.0;
         this.reply(client, addr, [oscFloat(cur)]);
@@ -460,8 +536,8 @@ export class EmulatedDesk {
       if (args.length > 0) {
         this.handleMute(addr, args);
         const v = argFloat(args[0]);
-        if (v === null) return;
-        this.params.set(addr, [oscInt(Math.trunc(v))]);
+        if (v === null || !Number.isFinite(v)) return;
+        this.setParam(addr, [oscInt(Math.trunc(v))]);
         this.push(addr, [oscInt(Math.trunc(v))], client);
       } else {
         this.reply(client, addr, [oscInt(this.mute.get(ch) ? 0 : 1)]);
@@ -469,7 +545,7 @@ export class EmulatedDesk {
       return;
     }
     if (addr === "/-action/goscene") {
-      if (args.length > 0) this.handleScene(addr, args);
+      if (args.length > 0) this.handleScene(args);
       return;
     }
 
@@ -477,48 +553,53 @@ export class EmulatedDesk {
       let val = this.params.get(addr);
       if (val === undefined) {
         val = defaultFor(addr);
-        this.params.set(addr, val);
+        this.setParam(addr, val);
       }
       this.reply(client, addr, val);
       this.recvCount++;
       return;
     }
-    this.params.set(addr, [...args]);
+    if (!this.setParam(addr, args)) return;
     this.push(addr, args, client);
-    this.handleDefault(addr, args);
+    this.handleDefault();
   }
 
   moveFaderExternally(ch: number, db: number): void {
     const pos = dbToFader(db);
     this.fader.set(ch, pos);
-    const addr = `/ch/${pad2(ch)}/mix/fader`;
-    this.params.set(addr, [oscFloat(pos)]);
+    const addr = `/ch/${zeroPad(ch, 2)}/mix/fader`;
+    this.setParam(addr, [oscFloat(pos)]);
     this.sendApp(addr, [oscFloat(pos)]);
     this.push(addr, [oscFloat(pos)]);
   }
 
   private startMeters(): void {
-    if (this.meterTask === null) this.meterTask = this.meterLoop();
+    if (this.meterTask !== null || this.stopped) return;
+    const gen = this.generation;
+    const task: Promise<void> = this.meterLoop(gen).finally(() => {
+      if (this.meterTask === task) this.meterTask = null;
+    });
+    this.meterTask = task;
   }
 
-  private async waitOrStop(seconds: number): Promise<boolean> {
+  private async waitOrStop(seconds: number, gen: number): Promise<boolean> {
     let remaining = seconds;
     while (remaining > 1e-9) {
-      if (this.stopped) return true;
+      if (this.stopped || gen !== this.generation) return true;
       const slice = Math.min(remaining, 0.25);
       await this.clock.sleep(slice);
       remaining -= slice;
     }
-    return this.stopped;
+    return this.stopped || gen !== this.generation;
   }
 
-  private async meterLoop(): Promise<void> {
+  private async meterLoop(gen: number): Promise<void> {
     const period = 1.0 / this.meterHz;
-    while (!(await this.waitOrStop(period))) {
+    while (!(await this.waitOrStop(period, gen))) {
       try {
         this.meterStep();
-      } catch {
-        continue;
+      } catch (e) {
+        this.lastError = e;
       }
     }
   }
@@ -532,12 +613,8 @@ export class EmulatedDesk {
       return out;
     };
     if (this.subscribed) {
-      try {
-        this.sendApp("/meters/1", [oscBlob(encodeMeterBlob(bank(this.nMeters)))]);
-        this.metersSent++;
-      } catch {
-        this.metersSent += 0;
-      }
+      this.sendApp("/meters/1", [oscBlob(encodeMeterBlob(bank(this.nMeters)))]);
+      this.metersSent++;
     }
     const now = this.clock.monotonic();
     for (const [key, sub] of [...this.meterSubs]) {
@@ -554,9 +631,9 @@ export class EmulatedDesk {
     return chans.length > 0 ? (chans[k % chans.length] ?? null) : null;
   }
 
-  private async extLoop(): Promise<void> {
+  private async extLoop(gen: number): Promise<void> {
     let k = 0;
-    while (!(await this.waitOrStop(12.0))) {
+    while (!(await this.waitOrStop(12.0, gen))) {
       if (!this.subscribed) continue;
       const ch = EmulatedDesk.extPick(k);
       if (ch === null) continue;
@@ -565,8 +642,21 @@ export class EmulatedDesk {
     }
   }
 
-  async start(): Promise<this> {
+  start(): Promise<this> {
+    const gen = ++this.generation;
+    this.stopped = false;
+    const run = this.pending.then(() => this.bindFor(gen));
+    this.pending = run.catch(() => undefined);
+    return run.then(() => this);
+  }
+
+  private async bindFor(gen: number): Promise<void> {
+    if (gen !== this.generation || this.endpoint !== null) return;
     const ep = await this.udp.bind(this.listenPort, this.listenHost);
+    if (gen !== this.generation) {
+      ep.close();
+      return;
+    }
     this.endpoint = ep;
     this.listenPort = ep.port;
     const appPeer: Peer = { host: this.appHost, port: this.appPort };
@@ -574,40 +664,30 @@ export class EmulatedDesk {
     ep.onMessage((data, from) => {
       try {
         for (const m of decodePacket(data)) this.handleAny(from, m.address, m.args);
-      } catch {
-        return;
+      } catch (e) {
+        this.lastError = e;
       }
     });
-    if (this.externalMoves) this.extTask = this.extLoop();
-    return this;
+    if (this.externalMoves) void this.extLoop(gen);
   }
 
   stop(): void {
+    this.generation++;
     this.stopped = true;
+    this.meterTask = null;
     const ep = this.endpoint;
     this.endpoint = null;
+    this.appSender = null;
     if (ep !== null) {
       try {
         ep.close();
-      } catch {
-        this.appSender = null;
+      } catch (e) {
+        this.lastError = e;
       }
     }
-    this.appSender = null;
-  }
-
-  get extLoopStarted(): boolean {
-    return this.extTask !== null;
   }
 }
 
-function codePointCompare(a: string, b: string): number {
-  const ia = Array.from(a);
-  const ib = Array.from(b);
-  const n = Math.min(ia.length, ib.length);
-  for (let i = 0; i < n; i++) {
-    const d = ia[i]!.codePointAt(0)! - ib[i]!.codePointAt(0)!;
-    if (d !== 0) return d;
-  }
-  return ia.length - ib.length;
+function compareKeys(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }

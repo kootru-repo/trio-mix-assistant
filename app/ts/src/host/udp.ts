@@ -1,25 +1,50 @@
 import dgram from "node:dgram";
 import type { DatagramHandler, Peer, UdpEndpoint, UdpFactory } from "../core/transport.ts";
 
-class NodeUdpEndpoint implements UdpEndpoint {
+export class NodeUdpEndpoint implements UdpEndpoint {
   readonly port: number;
   private readonly socket: dgram.Socket;
   private closed = false;
+  private errorCount = 0;
+  private errorLast: unknown = null;
 
   constructor(socket: dgram.Socket, port: number) {
     this.socket = socket;
     this.port = port;
-    socket.on("error", () => undefined);
+    socket.on("error", (e) => this.record(e));
+  }
+
+  get lastError(): unknown {
+    return this.errorLast;
+  }
+
+  get failures(): number {
+    return this.errorCount;
+  }
+
+  private record(e: unknown): void {
+    this.errorCount++;
+    this.errorLast = e;
   }
 
   send(data: Uint8Array, to: Peer): void {
     if (this.closed) return;
-    this.socket.send(data, to.port, to.host, () => undefined);
+    try {
+      this.socket.send(data, to.port, to.host, (err) => {
+        if (err) this.record(err);
+      });
+    } catch (e) {
+      this.record(e);
+    }
   }
 
   onMessage(handler: DatagramHandler): void {
     this.socket.on("message", (msg, rinfo) => {
-      handler(new Uint8Array(msg), { host: rinfo.address, port: rinfo.port });
+      try {
+        handler(new Uint8Array(msg), { host: rinfo.address, port: rinfo.port });
+      } catch (e) {
+        this.record(e);
+      }
     });
   }
 
@@ -28,8 +53,8 @@ class NodeUdpEndpoint implements UdpEndpoint {
     this.closed = true;
     try {
       this.socket.close();
-    } catch {
-      return;
+    } catch (e) {
+      this.record(e);
     }
   }
 }

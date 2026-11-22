@@ -1,11 +1,18 @@
 import { C } from "../config.ts";
 import { fixed, signed } from "../numfmt.ts";
 import { chan } from "../assistant/base.ts";
-import { clampf, EngineBase, numOf, truthy } from "./base.ts";
+import { clamp } from "../util.ts";
+import { asBool, EngineBase, numOf } from "./base.ts";
 
 export class EngineControls extends EngineBase {
   setEnabled(job: string, on: boolean): void {
-    if (!(job in this.assistant.enabled)) return;
+    if (!Object.hasOwn(this.assistant.enabled, job)) return;
+    if (this.status === "takeover") {
+      if (this.enabledBackup !== null) this.enabledBackup[job] = Boolean(on);
+      this.assistant.emit("system", on ? `${job} will enable when takeover is released` : `${job} disabled`);
+      this.rebuildTelemetry();
+      return;
+    }
     this.assistant.enabled[job] = Boolean(on);
     if (job === "balance" && on) this.assistant.captureBalance(this.outputLevels());
     if (job === "unmask" && !on) this.assistant.releaseUnmask();
@@ -25,6 +32,7 @@ export class EngineControls extends EngineBase {
     } catch {
       return;
     }
+    v = clamp(v, -40, 10);
     this.assistant.leadTarget = v;
     this.assistant.emit("system", `lead target set to ${signed(v, 1)} dB`);
     this.rebuildTelemetry();
@@ -69,15 +77,23 @@ export class EngineControls extends EngineBase {
     if (!bands) return;
     const b = bands.get(Math.trunc(band));
     if (b === undefined) return;
+    let nh = b.hz;
+    let ng = b.gain;
+    let nq = b.q;
+    let non = b.on;
     try {
-      if (hz !== null && hz !== undefined) b.hz = clampf(numOf(hz), 20.0, 20000.0);
-      if (gain !== null && gain !== undefined) b.gain = clampf(numOf(gain), -15.0, 15.0);
-      if (q !== null && q !== undefined) b.q = clampf(numOf(q), 0.3, 10.0);
-      if (on !== null && on !== undefined) b.on = truthy(on);
+      if (hz !== null && hz !== undefined) nh = clamp(numOf(hz), 20.0, 20000.0);
+      if (gain !== null && gain !== undefined) ng = clamp(numOf(gain), -15.0, 15.0);
+      if (q !== null && q !== undefined) nq = clamp(numOf(q), 0.3, 10.0);
+      if (on !== null && on !== undefined) non = asBool(on);
     } catch {
       return;
     }
-    this.con.setEqBand(ch, Math.trunc(band), b.hz, b.gain, b.q, Boolean(b.on));
+    this.con.setEqBand(ch, Math.trunc(band), nh, ng, nq, non);
+    b.hz = nh;
+    b.gain = ng;
+    b.q = nq;
+    b.on = non;
     this.assistant.emit(
       "manual",
       `${chan(ch)} EQ b${band}: ${fixed(b.hz, 0)} Hz ${signed(b.gain, 1)} dB Q${fixed(b.q, 1)} ${b.on ? "on" : "off"}`,
@@ -108,7 +124,7 @@ export class EngineControls extends EngineBase {
     if (!sends || !C.FX_BUSES.has(Math.trunc(fx))) return;
     let v: number;
     try {
-      v = clampf(numOf(db), -90.0, 10.0);
+      v = clamp(numOf(db), -90.0, 10.0);
     } catch {
       return;
     }
@@ -123,7 +139,7 @@ export class EngineControls extends EngineBase {
     if (!C.FX_BUSES.has(k)) return;
     let v: number;
     try {
-      v = clampf(numOf(db), -90.0, 10.0);
+      v = clamp(numOf(db), -90.0, 10.0);
     } catch {
       return;
     }
@@ -160,7 +176,7 @@ export class EngineControls extends EngineBase {
   }
 
   reconcileFader(ch: number, db: number): void {
-    if (!C.CHANNELS.has(ch)) return;
+    if (!C.CHANNELS.has(ch) || !Number.isFinite(db)) return;
     const now = this.clock.monotonic();
     this.lastRxT = now;
     if (now - (this.assistant.lastMoveT.get(ch) ?? -1e9) < 0.8) return;
@@ -184,13 +200,16 @@ export class EngineControls extends EngineBase {
       this.enabledBackup = { ...this.assistant.enabled };
       for (const k of Object.keys(this.assistant.enabled)) this.assistant.enabled[k] = false;
       this.assistant.releaseUnmask();
+      this.con.cancelRamps();
       this.con.setMainMute(true);
       this.status = "takeover";
+      this.takeoverEpoch += 1;
       this.assistant.emit("panic", "TAKEOVER — main muted, all jobs held");
     } else if (!on && this.status === "takeover") {
       this.con.setMainMute(false);
       if (this.enabledBackup !== null) Object.assign(this.assistant.enabled, this.enabledBackup);
       this.status = "live";
+      this.takeoverEpoch += 1;
       this.assistant.emit("panic", "takeover released — back to live");
     }
     this.rebuildTelemetry();

@@ -1,5 +1,6 @@
 import { C } from "./config.ts";
 import { hanning, irfft, magnitude, rfft } from "./fft.ts";
+import { roundTo } from "./numfmt.ts";
 import type { Rng } from "./rng.ts";
 
 export type Samples = ArrayLike<number>;
@@ -42,7 +43,11 @@ const argmax = (xs: ArrayLike<number>): number => {
   return best;
 };
 
-export function analyseBlock(samples: Samples, sr: number = C.SAMPLE_RATE): ChannelFeatures {
+export interface AnalyseOptions {
+  ring?: boolean;
+}
+
+export function analyseBlock(samples: Samples, sr: number = C.SAMPLE_RATE, opts: AnalyseOptions = {}): ChannelFeatures {
   const n = samples.length;
   if (n === 0) return emptyFeatures();
   let sumSq = 0;
@@ -53,6 +58,7 @@ export function analyseBlock(samples: Samples, sr: number = C.SAMPLE_RATE): Chan
     const a = Math.abs(v);
     if (a > peakAbs) peakAbs = a;
   }
+  if (!Number.isFinite(sumSq)) return emptyFeatures();
   const rms = Math.sqrt(sumSq / n) + 1e-12;
   const peak = peakAbs + 1e-12;
   const f: ChannelFeatures = {
@@ -72,11 +78,12 @@ export function analyseBlock(samples: Samples, sr: number = C.SAMPLE_RATE): Chan
     const db = toDb(mag);
     let maxDb = db[0]!;
     for (let i = 1; i < db.length; i++) if (db[i]! > maxDb) maxDb = db[i]!;
-    f.contrastDb = maxDb - median(db);
-    const k = findRingBin(db);
+    const floor = median(db);
+    f.contrastDb = maxDb - floor;
+    const k = opts.ring === false ? null : findRingBin(db);
     if (k !== null) {
       f.fbFreq = binToHz(parabolicPeak(db, k), mag.length, sr);
-      f.harmonicity = harmonicityOf(db, k);
+      f.harmonicity = harmonicityOf(db, k, floor);
     }
   }
   return f;
@@ -109,8 +116,7 @@ export function findRingBin(db: Float64Array): number | null {
   return db[k]! - median(neighbourhood) > C.FB_RING_DB ? k : null;
 }
 
-export function harmonicityOf(db: Float64Array, k: number): number {
-  const floor = median(db);
+export function harmonicityOf(db: Float64Array, k: number, floor: number = median(db)): number {
   const fund = db[k]! - floor;
   if (fund <= 0) return 0;
   const partials: number[] = [];
@@ -120,21 +126,6 @@ export function harmonicityOf(db: Float64Array, k: number): number {
   }
   if (partials.length < 2) return 0;
   return Math.min(1, Math.min(...partials) / fund);
-}
-
-export function detectRing(mag: Float64Array, sr: number = C.SAMPLE_RATE): number | null {
-  if (mag.length < 16) return null;
-  const db = toDb(mag);
-  const k = findRingBin(db);
-  if (k === null) return null;
-  return binToHz(parabolicPeak(db, k), mag.length, sr);
-}
-
-export function ringHarmonicity(mag: Float64Array): number {
-  if (mag.length < 16) return 0;
-  const db = toDb(mag);
-  const k = findRingBin(db);
-  return k === null ? 0 : harmonicityOf(db, k);
 }
 
 export class RollingRingDetector {
@@ -287,19 +278,12 @@ export function octaveBandLevels(samples: Samples, sr: number = C.SAMPLE_RATE): 
 
 export type BandPair = [number, number];
 
-const round1 = (x: number): number => {
-  if (Number.isInteger(x * 4) && !Number.isInteger(x * 2)) {
-    const t = Math.floor(x * 10);
-    return (t % 2 === 0 ? t : t + 1) / 10;
-  }
-  return Number(x.toFixed(1));
-};
-
 export function findResonantPeaks(
   captured: Samples,
   sr: number = C.SAMPLE_RATE,
+  precomputed: Map<number, number> | null = null,
 ): { corrections: BandPair[]; watchlist: BandPair[] } {
-  const bands = octaveBandLevels(captured, sr);
+  const bands = precomputed ?? octaveBandLevels(captured, sr);
   const fcs = [...bands.keys()];
   const vals = fcs.map((f) => bands.get(f)!);
   const corrections: BandPair[] = [];
@@ -310,8 +294,8 @@ export function findResonantPeaks(
     const excess = vals[i]! - avg;
     if (excess > C.CAL_PEAK_THRESH) {
       const cut = Math.max(C.CAL_MAX_CUT_DB, -excess);
-      corrections.push([fcs[i]!, round1(cut)]);
-      watch.push([fcs[i]!, round1(excess)]);
+      corrections.push([fcs[i]!, roundTo(cut, 1)]);
+      watch.push([fcs[i]!, roundTo(excess, 1)]);
     }
   }
   watch.sort((a, b) => b[1] - a[1]);

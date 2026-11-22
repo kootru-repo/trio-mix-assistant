@@ -3,6 +3,7 @@ import type { CaptureStatus, Frame } from "./capture.ts";
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
 import { roundHalfEven, roundTo } from "./numfmt.ts";
+import { parseInteger } from "./util.ts";
 
 export type AudioDeviceId = number | string;
 
@@ -38,9 +39,11 @@ export interface AudioInputFactory {
   listHostApis(): AudioHostApiInfo[];
   defaultInputIndex(): number | null;
   open(options: AudioInputOptions, callback: AudioInputCallback): AudioInputStream;
+  outputSink?(): AudioOutputSink | null;
 }
 
 export interface AudioOutputSink {
+  readonly lastError?: string | null;
   play(samples: Float32Array, sampleRate: number, device: AudioDeviceId | null): void | Promise<void>;
 }
 
@@ -52,10 +55,10 @@ export interface RankedInput {
   hostapi: string;
 }
 
-export class InvalidValueError extends Error {
+export class InvalidArgumentError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "InvalidValueError";
+    this.name = "InvalidArgumentError";
   }
 }
 
@@ -82,11 +85,17 @@ const QUEUE_MAX = 32;
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 const errName = (e: unknown): string => (e instanceof Error ? e.name : typeof e);
 
-const reprText = (v: AudioDeviceId | null): string => {
-  if (v === null) return "(default)";
-  if (typeof v === "number") return String(v);
-  return `'${v}'`;
+const deviceLabel = (v: AudioDeviceId | null): string => (v === null ? "(default)" : JSON.stringify(v));
+
+const quietly = (fn: () => void): void => {
+  try {
+    fn();
+  } catch {
+    return;
+  }
 };
+
+const SILENT_LEVEL_DB = -90;
 
 const strOf = (v: AudioDeviceId | null): string => (v === null ? "default" : String(v));
 
@@ -106,10 +115,13 @@ export class DeviceCapture extends CaptureSourceBase {
   readonly ndev: number;
   autoDb: number | null = null;
   overruns = 0;
+  skipped = 0;
+  lastError: string | null = null;
   underruns = 0;
   silentSince: number | null = null;
   ovrMarkT: number | null = null;
   ovrMarkVal = 0;
+  skipMarkVal = 0;
 
   private gain: number;
   private readonly factory: AudioInputFactory;
@@ -117,10 +129,13 @@ export class DeviceCapture extends CaptureSourceBase {
   private readonly outputSink: AudioOutputSink | null;
   private q: QueuedFrame[] = [];
   private stream: AudioInputStream | null = null;
+  private streamGen = 0;
+  private outputOk: boolean;
   private last: QueuedFrame | null = null;
   private consecUnderruns = 0;
   private peak = 0;
   private overloadFlag = false;
+  private skippedFlag = false;
   private devName: string | null = null;
 
   constructor(opts: DeviceCaptureOptions) {
@@ -129,7 +144,8 @@ export class DeviceCapture extends CaptureSourceBase {
     this.clock = opts.clock;
     this.device = opts.device ?? null;
     this.outputDevice = opts.outputDevice ?? null;
-    this.outputSink = opts.outputSink ?? null;
+    this.outputSink = opts.outputSink ?? opts.factory.outputSink?.() ?? null;
+    this.outputOk = this.outputSink !== null;
     this.gainDb = Number(opts.gainDb ?? 0.0);
     this.gain = 10.0 ** (this.gainDb / 20.0);
     this.samplerate = opts.sampleRate ?? C.SAMPLE_RATE;
@@ -154,7 +170,7 @@ export class DeviceCapture extends CaptureSourceBase {
       for (let i = 0; i < data.length; i++) data[i] = data[i]! * this.gain;
     }
     if (this.q.length >= QUEUE_MAX) {
-      this.overruns += 1;
+      this.skipped += 1;
       this.q.shift();
     }
     this.q.push({ data, ncols: this.ndev });
@@ -163,7 +179,14 @@ export class DeviceCapture extends CaptureSourceBase {
   override start(): void {
     if (this.stream !== null) return;
     const stream = this.makeInputStream();
-    stream.start();
+    try {
+      stream.start();
+    } catch (e) {
+      quietly(() => stream.close());
+      this.streamGen++;
+      if (e instanceof CaptureError) throw e;
+      throw new CaptureError(`could not start audio device ${deviceLabel(this.device)} (${errName(e)}: ${errText(e)}).`);
+    }
     this.stream = stream;
   }
 
@@ -182,19 +205,22 @@ export class DeviceCapture extends CaptureSourceBase {
     } catch (e) {
       if (e instanceof CaptureError) throw e;
       throw new CaptureError(
-        `audio device ${reprText(this.device)} could not be opened ` +
+        `audio device ${deviceLabel(this.device)} could not be opened ` +
           `(${errName(e)}: ${errText(e)}). Run --list-devices and check --audio-device.`,
       );
     }
     try {
+      const gen = ++this.streamGen;
       return this.factory.open(
         { device: this.device, channels: this.ndev, sampleRate: this.samplerate, blockSize: this.blocksize },
-        (indata, xrun) => this.onAudio(indata, xrun),
+        (indata, xrun) => {
+          if (gen === this.streamGen) this.onAudio(indata, xrun);
+        },
       );
     } catch (e) {
       if (e instanceof CaptureError) throw e;
       throw new CaptureError(
-        `could not open audio device ${reprText(this.device)} at ${this.samplerate} Hz ` +
+        `could not open audio device ${deviceLabel(this.device)} at ${this.samplerate} Hz ` +
           `(${errName(e)}: ${errText(e)}). It may be in use by another app, or not ` +
           `support ${this.samplerate} Hz.`,
       );
@@ -202,15 +228,12 @@ export class DeviceCapture extends CaptureSourceBase {
   }
 
   override stop(): void {
-    if (this.stream !== null) {
-      try {
-        this.stream.stop();
-        this.stream.close();
-      } catch {
-        this.stream = null;
-      }
-      this.stream = null;
-    }
+    const stream = this.stream;
+    this.stream = null;
+    this.streamGen++;
+    if (stream === null) return;
+    quietly(() => stream.stop());
+    quietly(() => stream.close());
   }
 
   private mapFrame(frame: QueuedFrame): Frame {
@@ -231,8 +254,10 @@ export class DeviceCapture extends CaptureSourceBase {
     let frame: QueuedFrame | null = null;
     if (this.q.length > 0) {
       frame = this.q[this.q.length - 1]!;
+      this.skipped += this.q.length - 1;
       this.q = [];
     }
+    this.sampleOverload();
     if (frame !== null) {
       this.consecUnderruns = 0;
       this.last = frame;
@@ -250,12 +275,16 @@ export class DeviceCapture extends CaptureSourceBase {
   }
 
   private trackSilence(frame: QueuedFrame): void {
+    const n = Math.floor(frame.data.length / frame.ncols);
     let peak = 0;
-    for (let i = 0; i < frame.data.length; i++) {
-      const a = Math.abs(frame.data[i]!);
-      if (a > peak) peak = a;
+    for (const dev of this.channelMap.values()) {
+      if (dev >= frame.ncols) continue;
+      for (let i = 0; i < n; i++) {
+        const a = Math.abs(frame.data[i * frame.ncols + dev]!);
+        if (a > peak) peak = a;
+      }
     }
-    this.peak = peak;
+    this.peak = peak / this.gain;
     if (this.peak >= this.SILENCE_FLOOR) {
       this.silentSince = null;
     } else if (this.silentSince === null) {
@@ -272,21 +301,32 @@ export class DeviceCapture extends CaptureSourceBase {
     return this.clock.monotonic() - this.silentSince > this.SILENCE_HOLD_S;
   }
 
-  overload(): boolean {
+  private sampleOverload(): void {
     const now = this.clock.monotonic();
     if (this.ovrMarkT === null) {
       this.ovrMarkT = now;
       this.ovrMarkVal = this.overruns;
-      return false;
+      this.skipMarkVal = this.skipped;
+      return;
     }
     const dt = now - this.ovrMarkT;
     if (dt >= 2.0) {
       const rate = (this.overruns - this.ovrMarkVal) / dt;
+      const skipRate = (this.skipped - this.skipMarkVal) / dt;
       this.ovrMarkT = now;
       this.ovrMarkVal = this.overruns;
+      this.skipMarkVal = this.skipped;
       this.overloadFlag = rate > this.OVERLOAD_RATE;
+      this.skippedFlag = skipRate > this.OVERLOAD_RATE;
     }
+  }
+
+  overload(): boolean {
     return this.overloadFlag;
+  }
+
+  skippingFrames(): boolean {
+    return this.skippedFlag;
   }
 
   override restart(): Promise<boolean> {
@@ -295,8 +335,10 @@ export class DeviceCapture extends CaptureSourceBase {
       this.start();
       this.consecUnderruns = 0;
       this.silentSince = null;
+      this.lastError = null;
       return Promise.resolve(true);
-    } catch {
+    } catch (e) {
+      this.lastError = errText(e);
       return Promise.resolve(false);
     }
   }
@@ -314,6 +356,7 @@ export class DeviceCapture extends CaptureSourceBase {
   override async captureMeas(seconds: number): Promise<Float32Array | null> {
     const dev = this.channelMap.get(this.measCh);
     if (dev === undefined) return null;
+    this.q = [];
     const need = Math.trunc(seconds * this.samplerate);
     const chunks: Float32Array[] = [];
     let got = 0;
@@ -329,7 +372,7 @@ export class DeviceCapture extends CaptureSourceBase {
         got += n;
       }
     }
-    if (chunks.length === 0) return null;
+    if (chunks.length === 0 || got < need * 0.9) return null;
     const out = new Float32Array(Math.min(got, need));
     let pos = 0;
     for (const c of chunks) {
@@ -355,6 +398,7 @@ export class DeviceCapture extends CaptureSourceBase {
     const rms = Math.sqrt(acc / rec.length) + 1e-9;
     const levelDb = 20.0 * Math.log10(rms);
     this.autoDb = levelDb;
+    if (levelDb < SILENT_LEVEL_DB) return 0.0;
     const boost = Math.max(0.0, Math.min(maxDb, targetDbfs - levelDb));
     this.gainDb = roundTo(boost, 1);
     this.gain = 10.0 ** (this.gainDb / 20.0);
@@ -363,10 +407,15 @@ export class DeviceCapture extends CaptureSourceBase {
 
   override async emitPinkNoise(samples: Float32Array): Promise<boolean> {
     try {
-      if (this.outputSink === null) return false;
+      if (this.outputSink === null) {
+        this.outputOk = false;
+        return false;
+      }
       await this.outputSink.play(samples, this.samplerate, this.outputDevice);
+      this.outputOk = true;
       return true;
     } catch {
+      this.outputOk = false;
       return false;
     }
   }
@@ -375,14 +424,19 @@ export class DeviceCapture extends CaptureSourceBase {
     return {
       kind: "audio",
       overruns: this.overruns,
+      skipped: this.skipped,
       underruns: this.underruns,
       dead: this.dead(),
       silent: this.silent(),
       overload: this.overload(),
+      skipping: this.skippingFrames(),
+      lastError: this.lastError,
       peak: roundTo(this.peak, 5),
       name: this.devName,
       device: strOf(this.device),
       channels: this.ndev,
+      outputUnavailable: !this.outputOk,
+      outputError: this.outputSink?.lastError ?? null,
     };
   }
 }
@@ -454,28 +508,20 @@ export function autodetectInputs(factory: AudioInputFactory, preferSr: number = 
   }
 }
 
-const INT_RE = /^[+-]?\d+(_\d+)*$/;
-
-const argInt = (s: string): number | null => {
-  const t = s.trim();
-  if (!INT_RE.test(t)) return null;
-  return Number(t.replace(/_/g, ""));
-};
-
 export function parseChannelMap(spec: string): Map<number, number> {
   const out = new Map<number, number>();
   for (const raw of spec.split(",")) {
     const pair = raw.trim();
     if (pair === "") continue;
     const k = pair.indexOf(":");
-    if (k < 0) throw new InvalidValueError(`entry '${pair}' must be console:device (e.g. 8:9)`);
-    const ch = argInt(pair.slice(0, k));
-    const dev = argInt(pair.slice(k + 1));
-    if (ch === null || dev === null) throw new InvalidValueError(`entry '${pair}' has non-integer channel/column`);
-    if (ch < 1 || dev < 0) throw new InvalidValueError(`entry '${pair}': console channel >= 1, device column >= 0`);
+    if (k < 0) throw new InvalidArgumentError(`entry '${pair}' must be console:device (e.g. 8:9)`);
+    const ch = parseInteger(pair.slice(0, k));
+    const dev = parseInteger(pair.slice(k + 1));
+    if (ch === null || dev === null) throw new InvalidArgumentError(`entry '${pair}' has non-integer channel/column`);
+    if (ch < 1 || dev < 0) throw new InvalidArgumentError(`entry '${pair}': console channel >= 1, device column >= 0`);
     out.set(ch, dev);
   }
-  if (out.size === 0) throw new InvalidValueError("channel-map is empty");
+  if (out.size === 0) throw new InvalidArgumentError("channel-map is empty");
   return out;
 }
 

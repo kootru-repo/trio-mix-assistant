@@ -27,6 +27,7 @@ const OID_KEY_USAGE = "2.5.29.15";
 const OID_EXT_KEY_USAGE = "2.5.29.37";
 const OID_SKI = "2.5.29.14";
 const OID_AKI = "2.5.29.35";
+const OID_NAME_CONSTRAINTS = "2.5.29.30";
 export const OID_SERVER_AUTH = "1.3.6.1.5.5.7.3.1";
 
 export function isIp(host: string): boolean {
@@ -75,6 +76,41 @@ export function basicConstraintsExt(ca: boolean, pathLength: number | null): Buf
   if (ca) parts.push(boolean(true));
   if (ca && pathLength !== null) parts.push(integerFromNumber(pathLength));
   return extension(OID_BASIC_CONSTRAINTS, true, sequence(...parts));
+}
+
+export interface IpRange {
+  readonly address: string;
+  readonly prefix: number;
+}
+
+function maskBytes(length: number, prefix: number): Buffer {
+  const mask = Buffer.alloc(length);
+  for (let i = 0; i < length; i++) {
+    const bits = Math.max(0, Math.min(8, prefix - i * 8));
+    mask[i] = (0xff << (8 - bits)) & 0xff;
+  }
+  return mask;
+}
+
+export function ipInRange(host: string, range: IpRange): boolean {
+  const addr = ipBytes(host);
+  const base = ipBytes(range.address);
+  if (addr.length !== base.length) return false;
+  const mask = maskBytes(base.length, range.prefix);
+  return addr.every((b, i) => (b & mask[i]!) === (base[i]! & mask[i]!));
+}
+
+export function nameConstraintsExt(dnsNames: readonly string[], ranges: readonly IpRange[]): Buffer {
+  const dns = dnsNames.map((d) => sequence(implicitPrimitive(2, Buffer.from(d, "ascii"))));
+  const ips = ranges.map((r) => {
+    const base = ipBytes(r.address);
+    return sequence(implicitPrimitive(7, Buffer.concat([base, maskBytes(base.length, r.prefix)])));
+  });
+  return extension(OID_NAME_CONSTRAINTS, true, sequence(explicit(0, ...dns, ...ips)));
+}
+
+export function hasCriticalNameConstraints(certDer: Uint8Array): boolean {
+  return Buffer.from(certDer).includes(Buffer.concat([oid(OID_NAME_CONSTRAINTS), boolean(true)]));
 }
 
 export function keyUsageExt(kind: "server" | "ca"): Buffer {

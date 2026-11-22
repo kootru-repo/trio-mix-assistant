@@ -26,14 +26,14 @@ capture/underrun/dead paths, all without gear.
 What the emulator **cannot** tell you: whether those formats are *correct for your
 firmware*. The emulator encodes the same assumptions the app does, so it can only
 prove self-consistency. The checklist below (especially section 1) is exactly the
-set of assumptions to confirm against the real desk. Each is also a `VERIFY:` line in
-`ts/test/emulator.test.ts` and `ts/test/osc.test.ts`; once you have a capture, pin those expected values to the
+set of assumptions to confirm against the real desk. Each is pinned by the
+expected values in `ts/test/emulator.test.ts` and `ts/test/osc.test.ts`; once you have a capture, replace those expected values with the
 real bytes and the test suite becomes a true regression gate.
 
 ---
 
 ## 0. Prep
-- [ ] Node.js 22+ installed, and the optional native audio module `naudiodon2` if you want live audio input (not bundled, not yet verified on hardware)
+- [ ] Node.js 22.13+ installed, and the optional native audio module `naudiodon2` if you want live audio input (not bundled, not yet verified on hardware)
 - [ ] Console and laptop on the same wired/Wi-Fi LAN; note the console IP.
 - [ ] A sniffer ready: Wireshark (UDP 10023/10024) or the X32 OSC monitor / `OSC` debug.
 
@@ -70,8 +70,8 @@ move it on the console and confirm the value the app reports matches.
 ## 2. `/meters` ingestion + fader reconciliation
 - [ ] Start the app in hardware mode; in the sniffer confirm the console is sending
       `/meters/1` blobs to UDP 10024 after the app's `/batchsubscribe` + `/xremote`.
-- [ ] Confirm `metersrv.decode_meter_blob` produces sane values (0..1). If the count
-      or float layout is off for your firmware, adjust `decode_meter_blob`.
+- [ ] Confirm `decodeMeterBlob` (in `oscwire.ts`) produces sane values (0..1). If the count
+      or float layout is off for your firmware, adjust `decodeMeterBlob`.
 - [ ] Move a fader **on the console**; confirm the app log shows
       "moved on console → …" and auto-ride yields (the dashboard shows `console: connected`).
 - [ ] Confirm the app's own ride moves do **not** show up as "moved on console"
@@ -105,8 +105,8 @@ move it on the console and confirm the value the app reports matches.
 ## 5. Show clock → scene recall  (if using AbleSet)
 - [ ] Point AbleSet's OSC output at the app: `--ableset-port <p>`.
 - [ ] In the sniffer, confirm AbleSet sends `/setlist/activeSongName` etc. If the
-      addresses differ on your AbleSet version, adjust the `disp.map(...)` lines in
-      `showclock.AbleSetReceiver.start`.
+      addresses differ on your AbleSet version, adjust the address `switch` in
+      `AbleSetReceiver.handle` (`ts/src/core/showclock.ts`).
 - [ ] Change songs in AbleSet → the app recalls the template's scene and the song bar
       updates. Verify scene numbers in your `--template` match the console's scenes.
 

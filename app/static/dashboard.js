@@ -336,7 +336,7 @@ function render(s) {
     const cap = s.capture || {}, fa = $("#footaudio");
     if (cap.kind === "audio") {
         const st = cap.dead ? "DEAD" : cap.silent ? "SILENT" : cap.overload ? "XRUN" : "ok";
-        const nm = cap.name ? esc(String(cap.name).slice(0, 20)) + " " : "";
+        const nm = cap.name ? String(cap.name).slice(0, 20) + " " : "";
         fa.textContent = `audio: ${nm}${st}`;
         fa.style.color = (st === "ok") ? "" : "#f5a623";
     }
@@ -493,6 +493,28 @@ function setConn(ok, txt) {
         }
     }
 }
+let badFrames = 0;
+function badFrame(e) {
+    if (badFrames++ === 0)
+        console.warn("dashboard: dropped an unreadable telemetry frame", e);
+    $("#conn").title = "ignored " + badFrames + " unreadable frame(s)";
+}
+function onFrame(data) {
+    try {
+        render(JSON.parse(data));
+    }
+    catch (e) {
+        badFrame(e);
+    }
+}
+let sessionCheck = false;
+function checkSession() {
+    if (sessionCheck)
+        return;
+    sessionCheck = true;
+    fetch("/state").then(r => { if (r.status === 401)
+        location.reload(); }).catch(() => { }).finally(() => { sessionCheck = false; });
+}
 function action(obj) {
     if (wsReady && ws) {
         try {
@@ -628,11 +650,8 @@ function useSSE() {
         return;
     es = new EventSource("/events");
     es.onopen = () => setConn(true, "connected · SSE");
-    es.onerror = () => setConn(false, "reconnecting…");
-    es.onmessage = ev => { try {
-        render(JSON.parse(ev.data));
-    }
-    catch (e) { } };
+    es.onerror = () => { setConn(false, "reconnecting…"); checkSession(); };
+    es.onmessage = ev => onFrame(ev.data);
 }
 function connectWS() {
     closeSSE();
@@ -647,19 +666,18 @@ function connectWS() {
         return;
     }
     sock.onopen = () => { opened = true; wsReady = true; setConn(true, "connected"); };
-    sock.onmessage = ev => { try {
-        render(JSON.parse(ev.data));
-    }
-    catch (e) { } };
+    sock.onmessage = ev => onFrame(ev.data);
     sock.onerror = () => { };
     sock.onclose = () => {
         wsReady = false;
         ws = null;
         if (!opened) {
+            checkSession();
             useSSE();
         }
         else {
             setConn(false, "reconnecting…");
+            checkSession();
             if (!retryT)
                 retryT = setTimeout(() => { retryT = null; connectWS(); }, 1500);
         }

@@ -6,44 +6,20 @@ import type { CaptureSource } from "../capture.ts";
 import { SimCapture } from "../capture.ts";
 import type { Clock } from "../clock.ts";
 import { C } from "../config.ts";
-import { ConsoleBase, SimConsole } from "../console.ts";
+import { ConsoleBase, OscConsole, SimConsole } from "../console.ts";
 import { RollingRingDetector } from "../dsp.ts";
 import type { ChannelFeatures } from "../dsp.ts";
 import type { AdvisorPort, MeterReceiverPort, SessionLogPort } from "../ports.ts";
-import { fixed, roundHalfEven, roundTo } from "../numfmt.ts";
+import { roundHalfEven, roundTo } from "../numfmt.ts";
 import { SeededRng } from "../rng.ts";
 import type { Rng } from "../rng.ts";
 import type { ShowClockPort } from "../showclock.ts";
 import { defaultTemplate } from "../template.ts";
 import type { ShowTemplate } from "../template.ts";
+import { NEG_INF, perChannel } from "../util.ts";
 import type { VenueModel, VenueStore } from "../venue.ts";
 
-export const numOf = (x: unknown): number => {
-  let v: number;
-  if (typeof x === "number") v = x;
-  else if (typeof x === "boolean") v = x ? 1 : 0;
-  else if (typeof x === "string" && /^\s*[+-]?(\d+\.?\d*([eE][+-]?\d+)?|\.\d+([eE][+-]?\d+)?|inf(inity)?|nan)\s*$/i.test(x)) {
-    v = Number(x.trim().toLowerCase().replace(/^([+-]?)inf(inity)?$/, "$1Infinity"));
-  } else throw new TypeError("not a number");
-  if (!Number.isFinite(v)) throw new RangeError("non-finite number");
-  return v;
-};
-
-export const intOf = (x: unknown): number => {
-  if (typeof x === "number" && Number.isFinite(x)) return Math.trunc(x);
-  if (typeof x === "boolean") return x ? 1 : 0;
-  if (typeof x === "string" && /^\s*[+-]?\d+\s*$/.test(x)) return Number(x.trim());
-  throw new TypeError("not an integer");
-};
-
-export const truthy = (x: unknown): boolean => {
-  if (x === null || x === undefined || x === false || x === 0 || x === "") return false;
-  if (Array.isArray(x)) return x.length > 0;
-  if (typeof x === "object") return Object.keys(x as object).length > 0;
-  return true;
-};
-
-export const clampf = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));
+export { asBool, intOf, numOf } from "../util.ts";
 
 export interface EqBandState {
   hz: number;
@@ -93,9 +69,6 @@ export interface EngineOptions {
 
 export type Telemetry = Record<string, unknown>;
 
-const NEG = -1000000000;
-const perChannel = <T>(value: T): Map<number, T> => new Map([...C.CHANNELS.keys()].map((c) => [c, value]));
-
 export class EngineBase {
   clock: Clock;
   sim: boolean;
@@ -142,6 +115,9 @@ export class EngineBase {
   protected perf = { tick_ms: 0, jitter_ms: 0, max_ms: 0 };
   protected latency = new Map<string, LatencyEntry>();
   protected lastAudioRestart = -1e9;
+  protected takeoverEpoch = 0;
+  protected lastAudioFailure: string | null = null;
+  protected readonly rampErrorsSeen = new Set<string>();
   events: AssistantEvent[] = [];
   telemetry: Telemetry = {};
 
@@ -159,9 +135,10 @@ export class EngineBase {
       onLatency: (kind, seconds) => this.noteLatencyEv(kind, seconds),
     });
     this.calibrator = new Calibrator(this.con);
+    this.con.onError = (exc) => this.noteRampError(exc);
     this.t0 = this.clock.monotonic();
-    this.lastNotchT = perChannel(NEG);
-    this.lastClipT = perChannel(NEG);
+    this.lastNotchT = perChannel(NEG_INF);
+    this.lastClipT = perChannel(NEG_INF);
     this.muted = perChannel(false);
     const mixChans = [...C.CHANNELS.keys()].filter((c) => c !== C.MEAS_MIC_CH);
     const freqs = [...C.EQ_DEFAULT_FREQS];
@@ -208,6 +185,26 @@ export class EngineBase {
     this.perf.max_ms = roundTo(Math.max(this.perf.max_ms * 0.999, computeMs), 2);
   }
 
+  protected noteRampError(exc: unknown): void {
+    const msg = `console ramp failed: ${exc instanceof Error ? exc.message : String(exc)}`;
+    if (this.rampErrorsSeen.has(msg)) return;
+    if (this.rampErrorsSeen.size >= 32) this.rampErrorsSeen.clear();
+    this.rampErrorsSeen.add(msg);
+    this.assistant.emit("system", msg);
+    this.rebuildTelemetry();
+  }
+
+  protected consoleTelemetry(connected: boolean): Record<string, unknown> {
+    const out: Record<string, unknown> = { meters: this.meterCount, connected };
+    if (this.con instanceof OscConsole) {
+      const failures = this.con.sendFailures;
+      if (failures !== null) out["send_failures"] = failures;
+    }
+    const rxErr = this.meterRx?.lastError;
+    if (rxErr !== undefined && rxErr !== null) out["meter_error"] = rxErr instanceof Error ? rxErr.message : String(rxErr);
+    return out;
+  }
+
   protected noteError(exc: unknown): void {
     const now = this.clock.monotonic();
     if (now - this.lastErrT < 5.0) return;
@@ -224,7 +221,7 @@ export class EngineBase {
   static levelFor(ev: AssistantEvent): string {
     const kind = ev.kind;
     const msg = ev.msg.toLowerCase();
-    const words = ["failed", "unavailable", "stopped", "deaf", "near-silence", "lost", "aborted"];
+    const words = ["failed", "unavailable", "stopped", "deaf", "near-silence", "lost", "aborted", "could not restart"];
     if (words.some((w) => msg.includes(w))) {
       return msg.includes("deaf") || msg.includes("stopped") ? "critical" : "warn";
     }
@@ -260,8 +257,8 @@ export class EngineBase {
       const rms = feat ? feat.rmsDbfs : -90;
       const peak = feat ? feat.peakDbfs : -90;
       const streak = this.assistant.fbStreak.get(ch) ?? 0;
-      const notchedRecent = now - (this.lastNotchT.get(ch) ?? NEG) < 2.0;
-      const clipRecent = now - (this.lastClipT.get(ch) ?? NEG) < 1.5;
+      const notchedRecent = now - (this.lastNotchT.get(ch) ?? NEG_INF) < 2.0;
+      const clipRecent = now - (this.lastClipT.get(ch) ?? NEG_INF) < 1.5;
       const fbState = notchedRecent ? "notched" : streak >= 2 ? "building" : "ok";
       const notchFreqs = this.con instanceof SimConsole ? this.con.notchFreqs(ch) : [];
       const label = C.ROLE_LABELS.get(roleName);
@@ -324,6 +321,8 @@ export class EngineBase {
       });
     } else if (cap["overload"]) {
       alerts.push({ level: "warn", msg: "audio interface is dropping samples (xruns) — raise the device buffer size" });
+    } else if (cap["skipping"]) {
+      alerts.push({ level: "warn", msg: "audio frames are arriving faster than the engine reads them" });
     }
     if (!this.sim && this.meterRx !== null && !connected) {
       const ip = this.con.ip;
@@ -385,7 +384,7 @@ export class EngineBase {
       scenes: this.sceneList(),
       mode: this.sim ? "simulation" : "live-hardware",
       capture: this.source ? this.source.status() : { kind: "none" },
-      console: { meters: this.meterCount, connected },
+      console: this.consoleTelemetry(connected),
       uptime: r1(now - this.t0),
       perf: { ...this.perf },
       latency: Object.fromEntries([...this.latency].map(([k, v]) => [k, { ...v }])),
@@ -444,8 +443,3 @@ export class EngineBase {
     return this.telemetry;
   }
 }
-
-export const fmtSigned = (x: number, digits: number): string => {
-  const s = fixed(x, digits);
-  return s.startsWith("-") ? s : "+" + s;
-};

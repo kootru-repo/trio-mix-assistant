@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createPrivateKey, generateKeyPairSync, X509Certificate } from "node:crypto";
+import { createPrivateKey, createPublicKey, generateKeyPairSync, X509Certificate } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,9 +17,24 @@ import {
   issuedBy,
   TLSUnavailable,
   tlsHosts,
-  trustInstructions,
+  CA_DAYS,
+  hostPermittedByCa,
 } from "../src/host/tls.ts";
-import { OID_SERVER_AUTH, basicConstraintsExt, buildCertificate, commonName, subjectAltNameExt, toPem } from "../src/host/tls/x509.ts";
+import {
+  OID_SERVER_AUTH,
+  authorityKeyIdExt,
+  basicConstraintsExt,
+  buildCertificate,
+  commonName,
+  hasCriticalNameConstraints,
+  keyIdentifier,
+  keyUsageExt,
+  nameConstraintsExt,
+  serverAuthExt,
+  subjectAltNameExt,
+  subjectOf,
+  toPem,
+} from "../src/host/tls/x509.ts";
 
 const DAY_MS = 86_400_000;
 
@@ -257,8 +272,8 @@ function writeForeignCa(dir: string, key: { publicKey: import("node:crypto").Key
     publicKey: key.publicKey,
     signingKey: key.privateKey,
     notBefore: new Date(t - DAY_MS),
-    notAfter: new Date(t + 3650 * DAY_MS),
-    extensions: [basicConstraintsExt(true, 0)],
+    notAfter: new Date(t + CA_DAYS * DAY_MS),
+    extensions: [basicConstraintsExt(true, 0), nameConstraintsExt(["localhost"], [])],
   });
   writeFileSync(join(dir, "ca.pem"), toPem(der, "CERTIFICATE"));
 }
@@ -291,7 +306,7 @@ test("file layout and key permissions", withDir("autofoh_ca_", (d) => {
 }));
 
 test("certificates parse back with the expected fields", withDir("autofoh_ca_", (d) => {
-  const hosts = ["localhost", "127.0.0.1", "192.168.1.50", "::1", "fe80::1:2", "venue.local"];
+  const hosts = ["localhost", "127.0.0.1", "192.168.1.50", "::1", "venue.local"];
   const [cert, key, ca] = ensureTrustedCert(d, hosts);
   const leaf = load(cert);
   const caC = load(ca);
@@ -304,14 +319,13 @@ test("certificates parse back with the expected fields", withDir("autofoh_ca_", 
   const san = sanEntries(leaf);
   assert.ok(san.includes("DNS:localhost") && san.includes("DNS:venue.local"));
   assert.ok(san.includes("IP Address:127.0.0.1") && san.includes("IP Address:192.168.1.50"));
-  assert.ok(san.some((s) => s.startsWith("IP Address:") && s.includes("1:2")));
   assert.equal(san.length, hosts.length);
   const nb = new Date(leaf.validFrom).getTime();
   const na = new Date(leaf.validTo).getTime();
   assert.ok(Math.abs(nb - (Date.now() - DAY_MS)) < 60_000);
   assert.ok(Math.abs(na - (Date.now() + CERT_DAYS * DAY_MS)) < 60_000);
   const caNa = new Date(caC.validTo).getTime();
-  assert.ok(Math.abs(caNa - (Date.now() + 3650 * DAY_MS)) < 60_000);
+  assert.ok(Math.abs(caNa - (Date.now() + CA_DAYS * DAY_MS)) < 60_000);
   assert.equal(leaf.verify(caC.publicKey), true);
   assert.equal(leaf.checkIssued(caC), true);
   assert.equal(caC.verify(caC.publicKey), true);
@@ -359,19 +373,11 @@ test("lan ip listing and host list dedupe", () => {
   assert.ok(Array.isArray(allLanIps()));
 });
 
-test("trust instructions are returned as data", () => {
-  const withIp = trustInstructions({ cafile: "C:/x/.certs/ca.pem", scheme: "https", port: 8080, ip: "192.168.1.50", host: "0.0.0.0" });
-  assert.equal(withIp.steps.length, 3);
-  assert.equal(withIp.steps[0]?.lines[0], "C:/x/.certs/ca.pem");
-  assert.match(withIp.steps[0]?.lines[1] ?? "", /https:\/\/192\.168\.1\.50:8080\/ca\.pem/);
-  assert.match(withIp.steps[2]?.title ?? "", /https:\/\/192\.168\.1\.50:8080\//);
-  assert.equal(withIp.steps[1]?.lines.length, 4);
-  const noIp = trustInstructions({ cafile: "ca.pem", scheme: "https", port: 1, ip: null, host: "127.0.0.1" });
-  assert.equal(noIp.steps[0]?.lines.length, 1);
-  assert.match(noIp.steps[2]?.title ?? "", /127\.0\.0\.1:1/);
-});
+const registerIf = (condition: boolean, name: string, body: () => void): void => {
+  if (condition) test(name, body);
+};
 
-test("openssl verifies the chain and reads the extensions", { skip: !opensslAvailable() }, withDir("autofoh_ssl_", (d) => {
+registerIf(opensslAvailable(), "openssl verifies the chain and reads the extensions", withDir("autofoh_ssl_", (d) => {
   const [cert, , ca] = ensureTrustedCert(d, ["localhost", "127.0.0.1", "192.168.1.50"]);
   const v = spawnSync("openssl", ["verify", "-CAfile", ca, cert], { encoding: "utf8" });
   assert.equal(v.status, 0, v.stdout + v.stderr);
@@ -395,4 +401,132 @@ test("openssl verifies the chain and reads the extensions", { skip: !opensslAvai
   const self = ensureCert(join(d, "self"), ["127.0.0.1"]);
   const sv = spawnSync("openssl", ["verify", "-CAfile", self[0], self[0]], { encoding: "utf8" });
   assert.match(sv.stdout, /OK/);
+}));
+
+test("the root CA is short lived and name constrained, and an old unconstrained CA is replaced", withDir("autofoh_ca_", (d) => {
+  const [cert, , ca] = ensureTrustedCert(d, ["127.0.0.1"]);
+  const c = load(ca);
+  assert.ok(lifetimeDays(c) <= CA_DAYS + 2);
+  assert.ok(hasCriticalNameConstraints(c.raw));
+  assert.ok(new Date(load(cert).validTo).getTime() <= new Date(c.validTo).getTime());
+  const key = createPrivateKey(readFileSync(join(d, "ca-key.pem")));
+  const name = commonName("AutoFOH Mix-Assistant Local CA");
+  const t = Math.floor(Date.now() / 1000) * 1000;
+  const old = buildCertificate({
+    subject: name,
+    issuer: name,
+    publicKey: createPublicKey(key),
+    signingKey: key,
+    notBefore: new Date(t - DAY_MS),
+    notAfter: new Date(t + 3650 * DAY_MS),
+    extensions: [basicConstraintsExt(true, 0), keyUsageExt("ca")],
+  });
+  writeFileSync(ca, toPem(old, "CERTIFICATE"));
+  assert.equal(certIsCa(ca, join(d, "ca-key.pem")), false);
+  ensureTrustedCert(d, ["127.0.0.1"]);
+  assert.ok(certIsCa(ca, join(d, "ca-key.pem")));
+  assert.ok(hasCriticalNameConstraints(load(ca).raw));
+  assert.ok(issuedBy(cert, ca));
+}));
+
+test("the CA permits only local names and private ranges", () => {
+  for (const h of ["localhost", "mixer.local", "127.0.0.1", "10.2.3.4", "172.16.0.1", "172.31.255.1", "192.168.1.50", "::1"]) {
+    assert.equal(hostPermittedByCa(h), true, h);
+  }
+  for (const h of ["example.com", "local", "172.32.0.1", "8.8.8.8", "100.64.0.1", "fe80::1", "169.254.1.1", "evil.localhost.com"]) {
+    assert.equal(hostPermittedByCa(h), false, h);
+  }
+});
+
+test("hosts outside the CA constraints are left out of the trusted leaf", withDir("autofoh_ca_", (d) => {
+  const [cert] = ensureTrustedCert(d, ["localhost", "127.0.0.1", "192.168.1.50", "100.64.1.2", "example.com"]);
+  const san = sanEntries(load(cert));
+  assert.deepEqual(san.sort(), ["DNS:localhost", "IP Address:127.0.0.1", "IP Address:192.168.1.50"].sort());
+  assert.equal(certIsCurrent(cert, ["localhost", "127.0.0.1", "192.168.1.50"]), true);
+}));
+
+test("localhost and LAN addresses verify against the constrained CA over real handshakes", withDir("autofoh_ca_", async (d) => {
+  const [cert, key, ca] = ensureTrustedCert(d, ["localhost", "127.0.0.1", "192.168.1.50", "10.4.5.6"]);
+  const server = tls.createServer({ cert: readFileSync(cert), key: readFileSync(key) }, (s) => s.end());
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const addr = server.address();
+  assert.ok(addr !== null && typeof addr !== "string");
+  try {
+    for (const name of ["127.0.0.1", "192.168.1.50", "10.4.5.6", "localhost"]) {
+      await new Promise<void>((resolve, reject) => {
+        const c = tls.connect({ host: "127.0.0.1", port: addr.port, ca: readFileSync(ca), servername: name, checkServerIdentity: (_h, p) => tls.checkServerIdentity(name, p) }, () => {
+          c.destroy();
+          resolve();
+        });
+        c.on("error", reject);
+      });
+    }
+  } finally {
+    server.close();
+  }
+}));
+
+test("a leaf naming a host outside the constraints is rejected by the TLS stack", withDir("autofoh_ca_", async (d) => {
+  const [, , ca] = ensureTrustedCert(d, ["127.0.0.1"]);
+  const caCert = load(ca);
+  const caKey = createPrivateKey(readFileSync(join(d, "ca-key.pem")));
+  const leaf = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const t = Math.floor(Date.now() / 1000) * 1000;
+  const der = buildCertificate({
+    subject: commonName("rogue"),
+    issuer: subjectOf(caCert.raw),
+    publicKey: leaf.publicKey,
+    signingKey: caKey,
+    notBefore: new Date(t - DAY_MS),
+    notAfter: new Date(t + 30 * DAY_MS),
+    extensions: [
+      subjectAltNameExt(["127.0.0.1", "bank.example.com"]),
+      basicConstraintsExt(false, null),
+      keyUsageExt("server"),
+      serverAuthExt(),
+      authorityKeyIdExt(keyIdentifier(caCert.publicKey)),
+    ],
+  });
+  const server = tls.createServer(
+    { cert: toPem(der, "CERTIFICATE") + readFileSync(ca, "utf8"), key: leaf.privateKey.export({ type: "pkcs1", format: "pem" }) },
+    (s) => s.end(),
+  );
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const addr = server.address();
+  assert.ok(addr !== null && typeof addr !== "string");
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const c = tls.connect({ host: "127.0.0.1", port: addr.port, ca: readFileSync(ca) }, () => {
+        c.destroy();
+        reject(new Error("handshake should have failed"));
+      });
+      c.on("error", (e: NodeJS.ErrnoException) => {
+        assert.match(`${e.code ?? ""} ${e.message}`, /PERMITTED_SUBTREE_VIOLATION|permitted subtree/i);
+        resolve();
+      });
+    });
+  } finally {
+    server.close();
+  }
+}));
+
+registerIf(opensslAvailable(), "openssl accepts the constrained chain and shows the constraint", withDir("autofoh_ssl_", (d) => {
+  const [cert, , ca] = ensureTrustedCert(d, ["localhost", "127.0.0.1", "192.168.1.50"]);
+  const v = spawnSync("openssl", ["verify", "-CAfile", ca, cert], { encoding: "utf8" });
+  assert.equal(v.status, 0, v.stdout + v.stderr);
+  const text = spawnSync("openssl", ["x509", "-text", "-noout", "-in", ca], { encoding: "utf8" }).stdout.replace(/\r/g, "");
+  assert.match(text, /X509v3 Name Constraints: critical/);
+  assert.match(text, /DNS:localhost/);
+  assert.match(text, /IP:192\.168\.0\.0\/255\.255\.0\.0/);
+  assert.match(text, /IP:172\.16\.0\.0\/255\.240\.0\.0/);
+}));
+
+registerIf(process.platform === "win32", "key files are restricted to the current user on Windows", withDir("autofoh_acl_", (d) => {
+  const [, key] = ensureTrustedCert(d, ["127.0.0.1"]);
+  const user = (process.env["USERNAME"] ?? "").toLowerCase();
+  for (const file of [key, join(d, "ca-key.pem")]) {
+    const out = spawnSync("icacls", [file], { encoding: "utf8" }).stdout.toLowerCase();
+    assert.ok(out.includes(user), out);
+    assert.ok(!/everyone|builtin\\users|authenticated users|\(i\)/.test(out), out);
+  }
 }));

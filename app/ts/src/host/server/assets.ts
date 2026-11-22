@@ -45,6 +45,6 @@ button{width:100%;margin-top:12px;padding:12px;font-size:15px;font-weight:700;bo
 .err{color:#ff9ba3;font-size:13px;min-height:18px;margin-top:10px}
 </style></head><body><form class="card" id="f">
 <h1>🎚️ Mix-Assistant</h1><p>Enter the access PIN to continue</p>
-<input id="pin" type="password" inputmode="numeric" autocomplete="one-time-code"
+<input id="pin" type="password" autocomplete="one-time-code"
  autofocus aria-label="PIN"><button>Unlock</button><div class="err" id="err"></div>
 </form><script src="/login.js"></script></body></html>`;

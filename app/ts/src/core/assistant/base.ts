@@ -5,6 +5,7 @@ import { C } from "../config.ts";
 import type { ConsoleBase } from "../console.ts";
 import type { ChannelFeatures } from "../dsp.ts";
 import { fixed, percent, roundTo, signed } from "../numfmt.ts";
+import { NEG_INF, perChannel } from "../util.ts";
 
 export interface AssistantEvent {
   time: string;
@@ -31,7 +32,6 @@ export type EventHandler = (ev: AssistantEvent) => void;
 export type LatencyHandler = (kind: string, seconds: number) => void;
 
 export interface AssistantOptions {
-  calib?: CalibrationResult | null;
   onEvent?: EventHandler | null;
   onLatency?: LatencyHandler | null;
 }
@@ -46,11 +46,7 @@ export interface PhaseStatus {
   inv_b: boolean;
 }
 
-export const NEG_INF = -1000000000;
-
 export const role = (ch: number | null): string | null => (ch === null ? null : (C.CHANNELS.get(ch) ?? null));
-
-export const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));
 
 export function need<T>(m: Map<number, T>, ch: number): T {
   const v = m.get(ch);
@@ -64,10 +60,10 @@ export const chan = (ch: number): string => {
   return r;
 };
 
+export const roleLabel = (ch: number): string => C.CHANNELS.get(ch) ?? `ch${ch}`;
+
 export const coachKey = (kind: string, ch: number | null): string => `${kind}|${ch === null ? "" : ch}`;
 export const pairKey = (a: number, b: number): string => `${a},${b}`;
-
-const perChannel = <T>(value: T): Map<number, T> => new Map([...C.CHANNELS.keys()].map((c) => [c, value]));
 
 export class AssistantBase {
   clock: Clock;
@@ -128,8 +124,6 @@ export class AssistantBase {
   watchFreqs: number[] = [];
   venueWatchFreqs: number[] = [];
 
-  log: AssistantEvent[] = [];
-
   constructor(console: ConsoleBase, clock: Clock, opts: AssistantOptions = {}) {
     this.clock = clock;
     this.con = console;
@@ -149,7 +143,6 @@ export class AssistantBase {
     this.lastMoveT = perChannel(NEG_INF);
     this.manualHoldUntil = perChannel(NEG_INF);
     this.polarity = perChannel(false);
-    this.setCalibration(opts.calib ?? null);
   }
 
   setCalibration(calib: CalibrationResult | null): void {
@@ -159,8 +152,6 @@ export class AssistantBase {
 
   emit(kind: string, msg: string, ch: number | null = null): void {
     const ev: AssistantEvent = { time: this.clock.hhmmss(), kind, ch, role: role(ch), msg };
-    this.log.push(ev);
-    if (this.log.length > 200) this.log.shift();
     if (this.onEvent) this.onEvent(ev);
   }
 
@@ -244,7 +235,7 @@ export class AssistantBase {
   }
 
   noteLatency(kind: string): void {
-    if (this.onLatency) this.onLatency(kind, this.clock.perfCounter() - this.blockT0);
+    if (this.onLatency) this.onLatency(kind, this.clock.highResolution() - this.blockT0);
   }
 
   noteManual(ch: number, now: number, hold: number = 5.0): void {
@@ -284,19 +275,5 @@ export class AssistantBase {
         C.MEAS_MIC_CH,
       );
     }
-  }
-
-  snapshot(): Record<string, unknown> {
-    const round1 = (m: Map<number, number>): Record<string, number> =>
-      Object.fromEntries([...m].map(([c, v]) => [String(c), roundTo(v, 1)]));
-    return {
-      enabled: { ...this.enabled },
-      coach_mode: this.coachMode,
-      fader_db: round1(this.faderDb),
-      gain_db: round1(this.gainDb),
-      notch_bands: Object.fromEntries([...C.CHANNELS.keys()].map((c) => [String(c), need(this.usedNotchBand, c)])),
-      lead_target: this.leadTarget,
-      balance_targets: round1(this.balanceTargets),
-    };
   }
 }

@@ -14,11 +14,6 @@ export const oscFloat = (v: number): OscArg => ({ t: "f", v });
 export const oscStr = (v: string): OscArg => ({ t: "s", v });
 export const oscBlob = (v: Uint8Array): OscArg => ({ t: "b", v });
 
-export function argNumber(a: OscArg | undefined): number | null {
-  if (!a || (a.t !== "i" && a.t !== "f")) return null;
-  return a.v;
-}
-
 export function utf8Encode(s: string): Uint8Array {
   const out: number[] = [];
   for (const ch of s) {
@@ -33,34 +28,44 @@ export function utf8Encode(s: string): Uint8Array {
 
 export function utf8Decode(b: Uint8Array): string {
   let s = "";
-  for (let i = 0; i < b.length; ) {
+  let i = 0;
+  while (i < b.length) {
     const c = b[i]!;
-    let cp: number;
-    let len: number;
     if (c < 0x80) {
-      cp = c;
-      len = 1;
-    } else if ((c & 0xe0) === 0xc0) {
-      cp = c & 0x1f;
-      len = 2;
-    } else if ((c & 0xf0) === 0xe0) {
-      cp = c & 0x0f;
-      len = 3;
-    } else if ((c & 0xf8) === 0xf0) {
-      cp = c & 0x07;
-      len = 4;
-    } else {
-      s += "�";
+      s += String.fromCharCode(c);
       i++;
       continue;
     }
-    if (i + len > b.length) {
-      s += "�";
-      break;
+    let len = 0;
+    let cp = 0;
+    let min = 0;
+    if (c >= 0xc2 && c <= 0xdf) {
+      len = 2;
+      cp = c & 0x1f;
+      min = 0x80;
+    } else if ((c & 0xf0) === 0xe0) {
+      len = 3;
+      cp = c & 0x0f;
+      min = 0x800;
+    } else if (c >= 0xf0 && c <= 0xf4) {
+      len = 4;
+      cp = c & 0x07;
+      min = 0x10000;
     }
-    for (let j = 1; j < len; j++) cp = (cp << 6) | (b[i + j]! & 0x3f);
-    s += String.fromCodePoint(cp);
-    i += len;
+    let ok = len > 0 && i + len <= b.length;
+    for (let j = 1; ok && j < len; j++) {
+      const cc = b[i + j]!;
+      if ((cc & 0xc0) !== 0x80) ok = false;
+      else cp = (cp << 6) | (cc & 0x3f);
+    }
+    if (ok && (cp < min || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))) ok = false;
+    if (ok) {
+      s += String.fromCodePoint(cp);
+      i += len;
+    } else {
+      s += "�";
+      i++;
+    }
   }
   return s;
 }
@@ -114,11 +119,13 @@ function readString(b: Uint8Array, at: number): { s: string; next: number } | nu
   return { s: utf8Decode(b.subarray(at, end)), next };
 }
 
-export function decodeMessage(b: Uint8Array): OscMessage | null {
+function decodeBody(b: Uint8Array, allowBare: boolean): OscMessage | null {
   const addr = readString(b, 0);
-  if (!addr || !addr.s.startsWith("/")) return null;
+  if (!addr) return null;
+  if (!addr.s.startsWith("/") && !(allowBare && addr.s === "node")) return null;
   const tags = readString(b, addr.next);
   if (!tags) {
+    for (let i = addr.next; i < b.length; i++) if (b[i] !== 0) return null;
     return { address: addr.s, args: [] };
   }
   if (!tags.s.startsWith(",")) return null;
@@ -164,8 +171,19 @@ export function decodeMessage(b: Uint8Array): OscMessage | null {
   return { address: addr.s, args };
 }
 
-export function decodePacket(b: Uint8Array): OscMessage[] {
+export function decodeMessage(b: Uint8Array): OscMessage | null {
+  return decodeBody(b, false);
+}
+
+export function decodeReply(b: Uint8Array): OscMessage | null {
+  return decodeBody(b, true);
+}
+
+const MAX_BUNDLE_DEPTH = 8;
+
+function decodeNested(b: Uint8Array, depth: number): OscMessage[] {
   if (b.length >= 8 && utf8Decode(b.subarray(0, 7)) === "#bundle") {
+    if (depth >= MAX_BUNDLE_DEPTH) return [];
     const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
     const out: OscMessage[] = [];
     let off = 16;
@@ -173,13 +191,17 @@ export function decodePacket(b: Uint8Array): OscMessage[] {
       const len = dv.getInt32(off, false);
       off += 4;
       if (len <= 0 || off + len > b.length) break;
-      out.push(...decodePacket(b.subarray(off, off + len)));
+      for (const m of decodeNested(b.subarray(off, off + len), depth + 1)) out.push(m);
       off += len;
     }
     return out;
   }
   const m = decodeMessage(b);
   return m ? [m] : [];
+}
+
+export function decodePacket(b: Uint8Array): OscMessage[] {
+  return decodeNested(b, 0);
 }
 
 export function decodeMeterBlob(blob: Uint8Array): number[] {

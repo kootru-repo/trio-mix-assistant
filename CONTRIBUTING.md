@@ -13,7 +13,7 @@ engineer. Players, sound people and programmers are all welcome.
 - **Report a bug** or **send a pull request.**
 
 You do not need a console to take part. `npm run run` (in `app/ts`) runs a full simulation,
-and `npm run run -- --emulate --lan` runs the real stack against a built-in desk
+and `npm run run -- --emulate --lan --pin 123456` runs the real stack against a built-in desk
 emulator (see the [README](README.md)).
 
 ## Seeing the feedback

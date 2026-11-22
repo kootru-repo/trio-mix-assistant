@@ -2,6 +2,7 @@ import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
 import { encodeMessage, oscFloat, oscInt, oscStr } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
+import { clamp, zeroPad } from "./util.ts";
 
 export function dbToFader(db: number): number {
   if (db <= -90) return 0;
@@ -33,10 +34,8 @@ export function qToParam(q: number): number {
   return (Math.log10(10) - Math.log10(c)) / (Math.log10(10) - Math.log10(0.3));
 }
 
-const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));
-const pad = (n: number, w: number): string => {
-  const digits = String(Math.abs(Math.trunc(n)));
-  return n < 0 ? "-" + digits.padStart(w - 1, "0") : digits.padStart(w, "0");
+const finite = (...xs: number[]): void => {
+  for (const x of xs) if (!Number.isFinite(x)) throw new RangeError("non-finite value");
 };
 
 export type Recorded =
@@ -60,6 +59,8 @@ interface RampJob {
   endDb: number;
   ms: number;
   steps: number;
+  gen: number;
+  epoch: number;
 }
 
 export interface ConsoleOptions {
@@ -71,7 +72,11 @@ export abstract class ConsoleBase {
   protected readonly rampClock: Clock | null;
   readonly ip: string | null;
   private rampChain: Promise<void> = Promise.resolve();
+  private rampGen = new Map<number, number>();
+  private rampEpoch = 0;
   private closed = false;
+  lastRampError: unknown = null;
+  onError: ((exc: unknown) => void) | null = null;
 
   constructor(opts: ConsoleOptions = {}) {
     this.rampClock = opts.clock ?? null;
@@ -86,17 +91,44 @@ export abstract class ConsoleBase {
     this.closed = true;
   }
 
-  setFaderDb(ch: number, db: number): number {
-    const v = clamp(db, C.FADER_MIN_DB, C.FADER_MAX_DB);
-    this.send(`/ch/${pad(ch, 2)}/mix/fader`, oscFloat(dbToFader(v)));
+  private bumpRamp(ch: number): number {
+    const gen = (this.rampGen.get(ch) ?? 0) + 1;
+    this.rampGen.set(ch, gen);
+    return gen;
+  }
+
+  cancelRamps(): void {
+    this.rampEpoch += 1;
+  }
+
+  private writeFader(ch: number, db: number, lo: number, hi: number): number {
+    finite(db);
+    const v = clamp(db, lo, hi);
+    this.send(`/ch/${zeroPad(ch, 2)}/mix/fader`, oscFloat(dbToFader(v)));
     this.record({ kind: "fader", ch, db: v });
     return v;
   }
 
+  setFaderDb(ch: number, db: number): number {
+    finite(db);
+    this.bumpRamp(ch);
+    return this.writeFader(ch, db, C.FADER_MIN_DB, C.FADER_MAX_DB);
+  }
+
   rampFaderDb(ch: number, startDb: number, endDb: number, ms: number = C.RAMP_MS, steps: number = 12): number {
+    finite(startDb, endDb, ms, steps);
     const end = clamp(endDb, C.FADER_MIN_DB, C.FADER_MAX_DB);
-    const job: RampJob = { ch, startDb, endDb: end, ms, steps };
-    this.rampChain = this.rampChain.then(() => this.runRamp(job));
+    const job: RampJob = { ch, startDb, endDb: end, ms, steps, gen: this.bumpRamp(ch), epoch: this.rampEpoch };
+    this.rampChain = this.rampChain.then(() => this.runRamp(job)).catch((exc: unknown) => {
+      this.lastRampError = exc;
+      if (this.onError !== null) {
+        try {
+          this.onError(exc);
+        } catch {
+          return;
+        }
+      }
+    });
     return end;
   }
 
@@ -106,23 +138,25 @@ export abstract class ConsoleBase {
 
   private async runRamp(job: RampJob): Promise<void> {
     for (let i = 1; i <= job.steps; i++) {
-      if (this.closed) return;
-      this.setFaderDb(job.ch, job.startDb + (job.endDb - job.startDb) * (i / job.steps));
+      if (this.closed || job.epoch !== this.rampEpoch || job.gen !== this.rampGen.get(job.ch)) return;
+      this.writeFader(job.ch, job.startDb + (job.endDb - job.startDb) * (i / job.steps), C.FADER_MIN_DB, C.FADER_MAX_DB);
       if (this.rampClock) await this.rampClock.sleep(job.ms / 1000 / job.steps);
     }
   }
 
   nudgeGainDb(ch: number, currentDb: number, deltaDb: number): number {
+    finite(currentDb, deltaDb);
     const next = clamp(currentDb + deltaDb, C.HEADAMP_MIN_DB, C.HEADAMP_MAX_DB);
-    this.send(`/headamp/${pad(ch - 1, 3)}/gain`, oscFloat((next + 12) / 72));
+    this.send(`/headamp/${zeroPad(ch - 1, 3)}/gain`, oscFloat((next + 12) / 72));
     this.record({ kind: "gain", ch, db: next });
     return next;
   }
 
   private eqBand(base: string, hz: number, gainDb: number, q: number): void {
+    finite(hz, gainDb, q);
     this.send(`${base}/type`, oscInt(2));
     this.send(`${base}/f`, oscFloat(freqToEqParam(hz)));
-    this.send(`${base}/g`, oscFloat((gainDb + 15) / 30));
+    this.send(`${base}/g`, oscFloat(clamp((gainDb + 15) / 30, 0, 1)));
     this.send(`${base}/q`, oscFloat(qToParam(q)));
   }
 
@@ -133,8 +167,8 @@ export abstract class ConsoleBase {
     gainDb: number = C.FB_NOTCH_GAIN_DB,
     q: number = C.FB_NOTCH_Q,
   ): void {
-    this.eqBand(`/ch/${pad(ch, 2)}/eq/${band}`, hz, gainDb, q);
-    this.send(`/ch/${pad(ch, 2)}/eq/on`, oscInt(1));
+    this.eqBand(`/ch/${zeroPad(ch, 2)}/eq/${band}`, hz, gainDb, q);
+    this.send(`/ch/${zeroPad(ch, 2)}/eq/on`, oscInt(1));
     this.record({ kind: "notch", ch, band, hz, gainDb, q });
   }
 
@@ -145,22 +179,26 @@ export abstract class ConsoleBase {
   }
 
   setEqBand(ch: number, band: number, hz: number, gainDb: number, q: number, on: boolean = true): void {
-    this.eqBand(`/ch/${pad(ch, 2)}/eq/${band}`, hz, gainDb, q);
-    this.send(`/ch/${pad(ch, 2)}/eq/on`, oscInt(on ? 1 : 0));
-    this.record({ kind: "eq_band", ch, band, hz, gainDb, q, on });
+    const g = on ? gainDb : 0;
+    this.eqBand(`/ch/${zeroPad(ch, 2)}/eq/${band}`, hz, g, q);
+    if (on) this.send(`/ch/${zeroPad(ch, 2)}/eq/on`, oscInt(1));
+    this.record({ kind: "eq_band", ch, band, hz, gainDb: g, q, on });
   }
 
   setSend(ch: number, bus: number, levelDb: number): void {
-    this.send(`/ch/${pad(ch, 2)}/mix/${pad(bus, 2)}/level`, oscFloat(dbToFader(levelDb)));
+    finite(levelDb);
+    this.send(`/ch/${zeroPad(ch, 2)}/mix/${zeroPad(bus, 2)}/level`, oscFloat(dbToFader(levelDb)));
     this.record({ kind: "send", ch, bus, levelDb });
   }
 
   setFxReturn(fx: number, levelDb: number): void {
-    this.send(`/fxrtn/${pad(fx, 2)}/mix/fader`, oscFloat(dbToFader(levelDb)));
+    finite(levelDb);
+    this.send(`/fxrtn/${zeroPad(fx, 2)}/mix/fader`, oscFloat(dbToFader(levelDb)));
     this.record({ kind: "fx_return", fx, levelDb });
   }
 
   recallScene(index: number): void {
+    if (!Number.isInteger(index) || index < 0 || index > 99) throw new RangeError("scene index must be an integer from 0 to 99");
     this.send("/-action/goscene", oscInt(index));
     this.record({ kind: "scene", index });
   }
@@ -171,28 +209,28 @@ export abstract class ConsoleBase {
   }
 
   clearChannelEq(ch: number): void {
-    this.send(`/ch/${pad(ch, 2)}/eq/on`, oscInt(0));
+    this.send(`/ch/${zeroPad(ch, 2)}/eq/on`, oscInt(0));
     this.record({ kind: "eq_clear", ch });
   }
 
   setFaderRaw(ch: number, db: number): number {
-    const v = clamp(db, -90, 10);
-    this.send(`/ch/${pad(ch, 2)}/mix/fader`, oscFloat(dbToFader(v)));
-    this.record({ kind: "fader", ch, db: v });
-    return v;
+    finite(db);
+    this.bumpRamp(ch);
+    return this.writeFader(ch, db, -90, 10);
   }
 
   setChannelMute(ch: number, muted: boolean): void {
-    this.send(`/ch/${pad(ch, 2)}/mix/on`, oscInt(muted ? 0 : 1));
+    this.send(`/ch/${zeroPad(ch, 2)}/mix/on`, oscInt(muted ? 0 : 1));
     this.record({ kind: "ch_mute", ch, muted });
   }
 
   setPolarity(ch: number, inverted: boolean): void {
-    this.send(`/ch/${pad(ch, 2)}/preamp/invert`, oscInt(inverted ? 1 : 0));
+    this.send(`/ch/${zeroPad(ch, 2)}/preamp/invert`, oscInt(inverted ? 1 : 0));
     this.record({ kind: "polarity", ch, inverted });
   }
 
   setMainFader(db: number): number {
+    finite(db);
     const v = clamp(db, -90, 10);
     this.send(`/${C.MAIN_BUS}/mix/fader`, oscFloat(dbToFader(v)));
     this.record({ kind: "master", db: v });
@@ -213,6 +251,7 @@ export abstract class ConsoleBase {
 }
 
 export interface DatagramSink {
+  readonly failures?: number;
   send(data: Uint8Array): void;
   close(): void;
 }
@@ -223,6 +262,10 @@ export class OscConsole extends ConsoleBase {
   constructor(sink: DatagramSink, opts: ConsoleOptions = {}) {
     super(opts);
     this.sink = sink;
+  }
+
+  get sendFailures(): number | null {
+    return this.sink.failures ?? null;
   }
 
   protected override send(addr: string, ...args: OscArg[]): void {
@@ -250,6 +293,7 @@ export interface EqBandRecord {
 }
 
 export class SimConsole extends ConsoleBase {
+  static readonly WIRE_LOG_MAX = 5000;
   wireLog: [string, ...OscArg[]][] = [];
   faderDb = new Map<number, number>();
   gainDb = new Map<number, number>();
@@ -266,6 +310,7 @@ export class SimConsole extends ConsoleBase {
 
   protected override send(addr: string, ...args: OscArg[]): void {
     this.wireLog.push([addr, ...args]);
+    if (this.wireLog.length > SimConsole.WIRE_LOG_MAX) this.wireLog.shift();
   }
 
   protected override record(e: Recorded): void {

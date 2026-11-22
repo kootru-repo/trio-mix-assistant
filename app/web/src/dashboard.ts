@@ -264,7 +264,7 @@ function render(s: Snapshot | null | undefined): void {
   const cap: Partial<CaptureT> = s.capture||{}, fa = $("#footaudio");
   if(cap.kind === "audio"){
     const st = cap.dead ? "DEAD" : cap.silent ? "SILENT" : cap.overload ? "XRUN" : "ok";
-    const nm = cap.name ? esc(String(cap.name).slice(0,20)) + " " : "";
+    const nm = cap.name ? String(cap.name).slice(0,20) + " " : "";
     fa.textContent = `audio: ${nm}${st}`;
     fa.style.color = (st === "ok") ? "" : "#f5a623";
   } else if(cap.kind === "simulation"){ fa.textContent = "audio: sim"; fa.style.color = ""; }
@@ -385,6 +385,20 @@ function setConn(ok: boolean, txt: string): void {
     const bn=$("#banner"); if(bn){ bn.hidden=true; }
   }
 }
+let badFrames = 0;
+function badFrame(e: unknown): void {
+  if(badFrames++ === 0) console.warn("dashboard: dropped an unreadable telemetry frame", e);
+  $("#conn").title = "ignored " + badFrames + " unreadable frame(s)";
+}
+function onFrame(data: string): void {
+  try{ render(JSON.parse(data)); }catch(e){ badFrame(e); }
+}
+let sessionCheck = false;
+function checkSession(): void {
+  if(sessionCheck) return;
+  sessionCheck = true;
+  fetch("/state").then(r => { if(r.status === 401) location.reload(); }).catch(() => {}).finally(() => { sessionCheck = false; });
+}
 function action(obj: Command): void {
   if(wsReady && ws){ try{ ws.send(JSON.stringify(obj)); return; }catch(e){} }
   post("/api/command", obj);
@@ -469,8 +483,8 @@ function useSSE(): void {
   if(es) return;
   es = new EventSource("/events");
   es.onopen = () => setConn(true, "connected · SSE");
-  es.onerror = () => setConn(false, "reconnecting…");
-  es.onmessage = ev => { try{ render(JSON.parse(ev.data)); }catch(e){} };
+  es.onerror = () => { setConn(false, "reconnecting…"); checkSession(); };
+  es.onmessage = ev => onFrame(ev.data);
 }
 function connectWS(): void {
   closeSSE(); closeWS();
@@ -479,12 +493,12 @@ function connectWS(): void {
   try{ sock = ws = new WebSocket((location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws"); }
   catch(e){ useSSE(); return; }
   sock.onopen = () => { opened = true; wsReady = true; setConn(true, "connected"); };
-  sock.onmessage = ev => { try{ render(JSON.parse(ev.data)); }catch(e){} };
+  sock.onmessage = ev => onFrame(ev.data);
   sock.onerror = () => {};
   sock.onclose = () => {
     wsReady = false; ws = null;
-    if(!opened){ useSSE(); }
-    else { setConn(false, "reconnecting…"); if(!retryT) retryT = setTimeout(() => { retryT = null; connectWS(); }, 1500); }
+    if(!opened){ checkSession(); useSSE(); }
+    else { setConn(false, "reconnecting…"); checkSession(); if(!retryT) retryT = setTimeout(() => { retryT = null; connectWS(); }, 1500); }
   };
 }
 

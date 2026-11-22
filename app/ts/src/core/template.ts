@@ -1,5 +1,6 @@
 import { C } from "./config.ts";
 import type { ChannelMapSpec } from "./config.ts";
+import { intOf } from "./util.ts";
 
 export class TemplateError extends Error {
   constructor(message: string) {
@@ -29,36 +30,29 @@ export function songByName(t: ShowTemplate, name: string): Song | null {
   return null;
 }
 
-export const songAt = (t: ShowTemplate, index: number): Song | null =>
-  index >= 0 && index < t.songs.length ? t.songs[index]! : null;
-
 type Json = unknown;
 
 const isObject = (v: Json): v is Record<string, Json> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 const isInt = (v: Json): v is number => typeof v === "number" && Number.isInteger(v);
 
-const reprJson = (v: Json): string => (typeof v === "string" ? `'${v}'` : JSON.stringify(v));
-
-function truthy(v: Json): boolean {
-  if (v === null || v === undefined || v === false || v === 0 || v === "") return false;
-  if (Array.isArray(v)) return v.length > 0;
-  if (isObject(v)) return Object.keys(v).length > 0;
-  return true;
-}
+const quoteJson = (v: Json): string => (typeof v === "string" ? `'${v}'` : JSON.stringify(v));
 
 function numOrNull(v: Json, ctx: string): number | null {
   if (v === null || v === undefined) return null;
-  if (typeof v !== "number") throw new TemplateError(`${ctx}: expected a number, got ${reprJson(v)}`);
+  if (typeof v !== "number") throw new TemplateError(`${ctx}: expected a number, got ${quoteJson(v)}`);
   return v;
 }
 
 function toInt(v: Json): number {
-  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
-  if (typeof v === "string" && /^\s*[+-]?\d+\s*$/.test(v)) return Number(v.trim());
-  if (typeof v === "boolean") return v ? 1 : 0;
-  throw new TemplateError(`invalid integer ${reprJson(v)}`);
+  try {
+    return intOf(v);
+  } catch {
+    throw new TemplateError(`invalid integer ${quoteJson(v)}`);
+  }
 }
+
+const inMap = (nums: Set<number> | null, ch: number): boolean => nums === null || nums.has(ch);
 
 function parseChannels(spec: Json): ChannelMapSpec | null {
   if (spec === null || spec === undefined) return null;
@@ -81,22 +75,31 @@ function parseChannels(spec: Json): ChannelMapSpec | null {
       if (nums !== null && !nums.has(v)) throw new TemplateError(`channels.${key}=${v} is not in channels.map`);
     }
   }
+  const labels = spec["labels"];
+  if (labels !== null && labels !== undefined) {
+    if (!isObject(labels)) throw new TemplateError("channels.labels must be an object");
+    for (const [role, text] of Object.entries(labels)) {
+      if (typeof text !== "string") throw new TemplateError(`channels.labels[${role}] must be a string`);
+    }
+  }
   for (const key of ["balance", "guest"]) {
     const seq = spec[key];
     if (seq !== null && seq !== undefined) {
       if (!Array.isArray(seq)) throw new TemplateError(`channels.${key} must be a list`);
       for (const x of seq) {
-        if (nums !== null && !nums.has(toInt(x))) throw new TemplateError(`channels.${key} channel ${x} is not in channels.map`);
+        if (!inMap(nums, toInt(x))) throw new TemplateError(`channels.${key} channel ${x} is not in channels.map`);
       }
     }
   }
-  const links = spec["stereo_links"];
-  if (links !== null && links !== undefined) {
-    if (!Array.isArray(links)) throw new TemplateError("channels.stereo_links must be a list of pairs");
-    for (const pair of links) {
-      if (!Array.isArray(pair) || pair.length !== 2) throw new TemplateError("channels.stereo_links entries must be [a, b] pairs");
-      if (nums !== null && (!nums.has(toInt(pair[0])) || !nums.has(toInt(pair[1])))) {
-        throw new TemplateError(`channels.stereo_links [${pair.join(", ")}] not in channels.map`);
+  for (const key of ["stereo_links", "phase_pairs"]) {
+    const links = spec[key];
+    if (links !== null && links !== undefined) {
+      if (!Array.isArray(links)) throw new TemplateError(`channels.${key} must be a list of pairs`);
+      for (const pair of links) {
+        if (!Array.isArray(pair) || pair.length !== 2) throw new TemplateError(`channels.${key} entries must be [a, b] pairs`);
+        const a = toInt(pair[0]);
+        const b = toInt(pair[1]);
+        if (!inMap(nums, a) || !inMap(nums, b)) throw new TemplateError(`channels.${key} [${pair.join(", ")}] not in channels.map`);
       }
     }
   }
@@ -125,7 +128,7 @@ export function fromObject(d: Json): ShowTemplate {
     const scene = sd["scene"];
     if (scene !== null && scene !== undefined && !isInt(scene)) throw new TemplateError(`songs[${i}].scene must be an int or omitted`);
     if (isInt(scene) && !(scene >= 0 && scene <= 99)) throw new TemplateError(`songs[${i}].scene ${scene} out of range (0-99)`);
-    const balRaw = truthy(sd["balance"]) ? sd["balance"] : {};
+    const balRaw = sd["balance"] === null || sd["balance"] === undefined ? {} : sd["balance"];
     if (!isObject(balRaw)) throw new TemplateError(`songs[${i}].balance must be an object`);
     const balance = new Map<number, number | null>();
     for (const [chS, lvl] of Object.entries(balRaw)) {
@@ -134,12 +137,16 @@ export function fromObject(d: Json): ShowTemplate {
       if (!validCh.has(ch)) throw new TemplateError(`songs[${i}].balance: channel ${ch} is not in the channel map`);
       balance.set(ch, numOrNull(lvl, `songs[${i}].balance[${ch}]`));
     }
+    const guest = sd["guest"];
+    if (guest !== null && guest !== undefined && typeof guest !== "boolean") {
+      throw new TemplateError(`songs[${i}].guest must be true or false, got ${quoteJson(guest)}`);
+    }
     songs.push({
       name: name.trim(),
       scene: isInt(scene) ? scene : null,
       leadTarget: numOrNull(sd["lead_target"], `songs[${i}].lead_target`),
       balance,
-      guest: truthy(sd["guest"]),
+      guest: guest === true,
     });
   });
   return { name: d["name"] === undefined ? "Show" : String(d["name"]), songs, channels };

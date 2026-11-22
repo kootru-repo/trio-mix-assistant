@@ -24,6 +24,7 @@ export interface Args {
   https: boolean;
   pin: string | null;
   trust: boolean;
+  insecureOpen: boolean;
   template: string | null;
   ablesetPort: number | null;
   noShowClock: boolean;
@@ -38,7 +39,7 @@ export const USAGE = `usage: run [-h] [--host HOST] [--lan] [--port PORT] [--har
            [--console-ip CONSOLE_IP] [--audio-device AUDIO_DEVICE]
            [--output-device OUTPUT_DEVICE] [--input-gain INPUT_GAIN]
            [--channel-map CHANNEL_MAP] [--auto] [--trace-osc] [--list-devices]
-           [--https] [--pin PIN] [--trust] [--template TEMPLATE]
+           [--https] [--pin PIN] [--trust] [--insecure-open] [--template TEMPLATE]
            [--ableset-port ABLESET_PORT] [--no-show-clock] [--venue VENUE]
            [--session-db SESSION_DB] [--advisor] [--advisor-interval ADVISOR_INTERVAL]`;
 
@@ -82,6 +83,8 @@ options:
   --trust               serve a cert signed by a local root CA (implies --https). Install
                         the printed root once per device (browse to /ca.pem) for a
                         fully-trusted, warning-FREE https connection.
+  --insecure-open       allow the dashboard on the network without a PIN (anyone on the
+                        network can then control the console)
   --template TEMPLATE   show-template JSON (songs -> scene + reference levels); omit to use
                         the built-in trio setlist
   --ableset-port ABLESET_PORT
@@ -116,6 +119,7 @@ const OPTIONS = {
   https: { type: "boolean" },
   pin: { type: "string" },
   trust: { type: "boolean" },
+  "insecure-open": { type: "boolean" },
   template: { type: "string" },
   "ableset-port": { type: "string" },
   "no-show-clock": { type: "boolean" },
@@ -125,16 +129,19 @@ const OPTIONS = {
   "advisor-interval": { type: "string" },
 } as const;
 
-function intOption(name: string, raw: string | undefined, fallback: number | null): number | null {
+function intOption(name: string, raw: string | undefined, fallback: number | null, min: number = -Infinity, max: number = Infinity): number | null {
   if (raw === undefined) return fallback;
   if (!/^\s*[+-]?\d+\s*$/.test(raw)) throw new UsageError(`argument --${name}: invalid int value: '${raw}'`);
-  return Number(raw.trim());
+  const v = Number(raw.trim());
+  if (v < min || v > max) throw new UsageError(`argument --${name}: ${v} is outside ${min}..${max}`);
+  return v;
 }
 
-function floatOption(name: string, raw: string | undefined, fallback: number): number {
+function floatOption(name: string, raw: string | undefined, fallback: number, min: number = -Infinity, max: number = Infinity): number {
   if (raw === undefined) return fallback;
-  const v = Number(raw.trim());
-  if (!raw.trim() || Number.isNaN(v)) throw new UsageError(`argument --${name}: invalid float value: '${raw}'`);
+  const v = /^\s*[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?\s*$/.test(raw) ? Number(raw.trim()) : Number.NaN;
+  if (!Number.isFinite(v)) throw new UsageError(`argument --${name}: invalid float value: '${raw}'`);
+  if (v < min || v > max) throw new UsageError(`argument --${name}: ${v} is outside ${min}..${max}`);
   return v;
 }
 
@@ -145,7 +152,7 @@ export function parseCliArgs(argv: readonly string[]): Args {
   } catch (e) {
     throw new UsageError(e instanceof Error ? e.message : String(e));
   }
-  const port = intOption("port", values["port"], 8770) as number;
+  const port = intOption("port", values["port"], 8770, 1, 65535) as number;
   const args: Args = {
     host: values["host"] ?? "127.0.0.1",
     lan: Boolean(values["lan"]),
@@ -155,7 +162,7 @@ export function parseCliArgs(argv: readonly string[]): Args {
     consoleIp: values["console-ip"] ?? null,
     audioDevice: values["audio-device"] ?? null,
     outputDevice: values["output-device"] ?? null,
-    inputGain: floatOption("input-gain", values["input-gain"], 0.0),
+    inputGain: floatOption("input-gain", values["input-gain"], 0.0, -60, 80),
     channelMap: values["channel-map"] ?? null,
     auto: Boolean(values["auto"]),
     traceOsc: Boolean(values["trace-osc"]),
@@ -163,13 +170,14 @@ export function parseCliArgs(argv: readonly string[]): Args {
     https: Boolean(values["https"]),
     pin: values["pin"] ?? null,
     trust: Boolean(values["trust"]),
+    insecureOpen: Boolean(values["insecure-open"]),
     template: values["template"] ?? null,
-    ablesetPort: intOption("ableset-port", values["ableset-port"], null),
+    ablesetPort: intOption("ableset-port", values["ableset-port"], null, 1, 65535),
     noShowClock: Boolean(values["no-show-clock"]),
     venue: values["venue"] ?? "",
     sessionDb: values["session-db"] ?? null,
     advisor: Boolean(values["advisor"]),
-    advisorInterval: floatOption("advisor-interval", values["advisor-interval"], 30.0),
+    advisorInterval: floatOption("advisor-interval", values["advisor-interval"], 30.0, 5, 3600),
     help: Boolean(values["help"]),
   };
   if (args.lan) args.host = "0.0.0.0";

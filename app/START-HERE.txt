@@ -8,15 +8,16 @@ WHAT THIS IS
   truth and a human can take over instantly.
 
 WHAT YOU NEED
-  - This folder (copy it to the FOH laptop, or run it from the shared drive).
-  - Node.js 22 or newer:  https://nodejs.org/
+  - This folder (copy it to the FOH laptop's own disk; the session log does not work on a shared drive).
+  - Node.js 22.13 or newer:  https://nodejs.org/
   - Nothing else to install: there is no setup step.
 
 ------------------------------------------------------------
   WINDOWS
 ------------------------------------------------------------
   1. Double-click   list-devices.bat (note the audio device number)
-  2. Open           show.conf        in Notepad, set CONSOLE_IP and AUDIO_DEVICE
+  2. Open           show.conf        in Notepad, set MODE=hardware, CONSOLE_IP and AUDIO_DEVICE
+                                     (and PIN=, 6 or more characters, if LAN=yes)
   3. Double-click   start.bat        (the dashboard opens in your browser)
 
 ------------------------------------------------------------
@@ -24,7 +25,8 @@ WHAT YOU NEED
 ------------------------------------------------------------
   Open Terminal, drag this folder onto it (or 'cd' into it), then:
   1.  bash list-devices.command  (note the audio device number)
-  2.  open show.conf             (set CONSOLE_IP and AUDIO_DEVICE, save)
+  2.  open show.conf             (set MODE=hardware, CONSOLE_IP and AUDIO_DEVICE, save;
+                                  add PIN=, 6 or more characters, if LAN=yes)
   3.  bash start.command
   The first run, macOS asks for MICROPHONE and NETWORK permission. Allow both
   (System Settings > Privacy & Security > Microphone), or capture stays silent.
@@ -55,7 +57,7 @@ WHAT YOU NEED
 ------------------------------------------------------------
   MIX ON MIXING STATION (no console needed)
 ------------------------------------------------------------
-  Start the app with   node js/host/main.js --emulate --lan   then open the
+  Start the app with   node js/host/main.js --emulate --lan --pin 123456   then open the
   Mixing Station app (Android/iOS/desktop) on the same WiFi: console type
   Behringer X32, pick "MixAssist" from the search list (or type this PC's
   IP), access Full. It syncs the desk with live meters; the assistant's moves

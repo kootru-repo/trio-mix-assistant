@@ -8,6 +8,8 @@ import type { VenueModel } from "../venue.ts";
 import { EngineControls } from "./controls.ts";
 import { intOf } from "./base.ts";
 
+const validScene = (n: number): boolean => Number.isInteger(n) && n >= 0 && n <= 99;
+
 export class EngineShow extends EngineControls {
   onSongChange(state: ShowState): void {
     this.show = {
@@ -44,8 +46,8 @@ export class EngineShow extends EngineControls {
           true,
           { scene: song.scene, song: song.name },
         );
-      } else {
-        this.safeRecall(song.scene);
+      } else if (!validScene(song.scene) || !this.safeRecall(song.scene)) {
+        this.show.scene = null;
       }
     }
     if (song.leadTarget !== null) this.assistant.leadTarget = song.leadTarget;
@@ -62,8 +64,8 @@ export class EngineShow extends EngineControls {
         this.assistant.recommend("guest", gch, `${want ? "Mute" : "Unmute"} ${chan(gch)} for '${song.name}'.`, true, { mute: want });
       } else {
         this.con.setChannelMute(gch, want);
+        this.muted.set(gch, want);
       }
-      this.muted.set(gch, want);
     }
     const bits: string[] = [];
     if (song.scene !== null) bits.push(`scene ${song.scene}`);
@@ -85,17 +87,23 @@ export class EngineShow extends EngineControls {
       this.rebuildTelemetry();
       return;
     }
-    this.safeRecall(idx);
+    if (!validScene(idx)) return;
+    if (!this.safeRecall(idx)) {
+      this.assistant.emit("show", `scene ${idx} recall failed`);
+      this.rebuildTelemetry();
+      return;
+    }
     this.show.scene = idx;
     this.assistant.emit("show", `scene ${idx} recalled (manual)`);
     this.rebuildTelemetry();
   }
 
-  protected safeRecall(idx: number): void {
+  protected safeRecall(idx: number): boolean {
     try {
       this.con.recallScene(idx);
+      return true;
     } catch {
-      return;
+      return false;
     }
   }
 
@@ -119,7 +127,9 @@ export class EngineShow extends EngineControls {
       const path = this.venueStore.save(model);
       this.venueModel = model;
       return path;
-    } catch {
+    } catch (exc) {
+      const reason = exc instanceof Error ? exc.message : String(exc);
+      this.assistant.emit("system", `venue model could not be saved: ${reason}`);
       return null;
     }
   }

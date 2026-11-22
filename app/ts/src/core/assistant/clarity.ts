@@ -1,10 +1,8 @@
 import { C } from "../config.ts";
 import type { ChannelFeatures, PhaseRelation } from "../dsp.ts";
 import { fixed, roundHalfEven, roundTo, signed } from "../numfmt.ts";
-import { coachKey, pairKey } from "./base.ts";
+import { coachKey, pairKey, roleLabel } from "./base.ts";
 import { LevelJobs } from "./levels.ts";
-
-const label = (ch: number): string => C.CHANNELS.get(ch) ?? `ch${ch}`;
 
 export class ClarityJobs extends LevelJobs {
   private phaseWarn(key: string, ch: number, msg: string, now: number): void {
@@ -32,8 +30,8 @@ export class ClarityJobs extends LevelJobs {
     }
     const corr = this.phaseEma.get(key)!;
     const lag = this.phaseLagEma.get(key) ?? 0;
-    const ra = label(a);
-    const rb = label(b);
+    const ra = roleLabel(a);
+    const rb = roleLabel(b);
 
     const inverted = corr < C.PHASE_INVERT_CORR;
     const related = Math.abs(corr) >= C.PHASE_CORR_MIN;
@@ -109,7 +107,7 @@ export class ClarityJobs extends LevelJobs {
     this.voxLevelEma = this.voxLevelEma === null ? voxFeat.rmsDbfs : (1 - a) * this.voxLevelEma + a * voxFeat.rmsDbfs;
     const targets = this.unmaskTargets();
     if (this.coachMode) {
-      const roles = targets.map((c) => label(c)).join(", ");
+      const roles = targets.map((c) => roleLabel(c)).join(", ");
       this.recommend(
         "unmask",
         C.LEAD_VOCAL_CH,

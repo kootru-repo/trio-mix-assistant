@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MemNetwork } from "../src/core/memtransport.ts";
-import { chFromFaderAddr, decodeMeterBlob, encodeMeterBlob, MeterReceiver } from "../src/core/metersrv.ts";
+import { chFromFaderAddr, MeterReceiver } from "../src/core/metersrv.ts";
 import { dbToFader, faderToDb } from "../src/core/console.ts";
-import { encodeMessage, oscBlob, oscFloat, oscInt, oscStr } from "../src/core/oscwire.ts";
+import { decodeMeterBlob, encodeMeterBlob, encodeMessage, oscBlob, oscFloat, oscInt, oscStr } from "../src/core/oscwire.ts";
 import type { OscArg } from "../src/core/oscwire.ts";
+import type { UdpFactory } from "../src/core/transport.ts";
 import { NodeUdpFactory } from "../src/host/udp.ts";
 
 function bundle(messages: Uint8Array[]): Uint8Array {
@@ -61,7 +62,7 @@ test("chFromFaderAddr parses only fader addresses", () => {
 test("handlers are no-ops while not running", () => {
   const { faders, meters, rx } = rig();
   rx.running = false;
-  rx.handleMeters("/meters/1", [oscBlob(new Uint8Array(4))]);
+  rx.handleMeters([oscBlob(new Uint8Array(4))]);
   rx.handleFader("/ch/01/mix/fader", [oscFloat(0.5)]);
   assert.deepEqual(faders, []);
   assert.deepEqual(meters, []);
@@ -85,10 +86,10 @@ test("handleFader ignores bad address, missing and non-numeric args", () => {
 test("handleMeters only accepts a blob first argument", () => {
   const { meters, rx } = rig();
   rx.running = true;
-  rx.handleMeters("/meters/1", []);
-  rx.handleMeters("/meters/1", [oscFloat(1)]);
+  rx.handleMeters([]);
+  rx.handleMeters([oscFloat(1)]);
   assert.deepEqual(meters, []);
-  rx.handleMeters("/meters/1", [oscBlob(encodeMeterBlob([0.5, 0.25]))]);
+  rx.handleMeters([oscBlob(encodeMeterBlob([0.5, 0.25]))]);
   assert.deepEqual(meters, [[0.5, 0.25]]);
 });
 
@@ -184,4 +185,73 @@ test("receiver works over a real UDP socket", async () => {
     sender.close();
     rx.stop();
   }
+});
+
+test("routing an adversarial address and many distinct addresses stays cheap", async () => {
+  const { faders, meters, rx } = rig();
+  await rx.start();
+  const attack = encodeMessage("/" + "{,}".repeat(30) + "Z", []);
+  assert.ok(attack.length <= 100);
+  const t0 = performance.now();
+  rx.dispatch(attack);
+  assert.ok(performance.now() - t0 < 50);
+  const packets: Uint8Array[] = [];
+  for (let i = 0; i < 10000; i++) packets.push(encodeMessage(`/ch/${i}/mix/${"x".repeat(i % 40)}/${i}`, [oscFloat(0.5)]));
+  const t1 = performance.now();
+  for (const p of packets) rx.dispatch(p);
+  assert.ok(performance.now() - t1 < 1000);
+  assert.deepEqual(faders, []);
+  assert.deepEqual(meters, []);
+  rx.stop();
+});
+
+test("a start that is stopped before it binds leaves nothing bound", async () => {
+  const net = new MemNetwork();
+  const rx = new MeterReceiver(net, { port: 50123 });
+  const p = rx.start();
+  rx.stop();
+  await p;
+  assert.equal(rx.running, false);
+  const probe = await net.bind(50123, "127.0.0.1");
+  probe.close();
+});
+
+test("a stop that lands while the bind is in flight closes the endpoint", async () => {
+  const net = new MemNetwork();
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const slow: UdpFactory = {
+    bind: async (port, host) => {
+      await gate;
+      return net.bind(port, host);
+    },
+  };
+  const rx = new MeterReceiver(slow, { port: 50124 });
+  const p = rx.start();
+  await Promise.resolve();
+  await Promise.resolve();
+  rx.stop();
+  release();
+  await p;
+  assert.equal(rx.running, false);
+  const probe = await net.bind(50124, "127.0.0.1");
+  probe.close();
+});
+
+test("start works again after stop", async () => {
+  const { faders, net, rx } = rig();
+  rx.port = 50125;
+  const first = rx.start();
+  rx.stop();
+  await first;
+  await rx.start();
+  assert.equal(rx.running, true);
+  const sender = await net.bind(0, "127.0.0.1");
+  sender.send(msg("/ch/02/mix/fader", oscFloat(0.5)), { host: "127.0.0.1", port: 50125 });
+  await net.settle();
+  assert.equal(faders.length, 1);
+  rx.stop();
+  sender.close();
 });

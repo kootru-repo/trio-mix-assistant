@@ -24,7 +24,7 @@ recommendation below follows from them:
 |---|---|---|
 | **One input device carries *all* channels** (console returns **and** the meas mic) | `DeviceCapture` opens a single stream, `channels = max(channel_map)+1` | Use the console's own multichannel USB. A *separate* USB meas mic needs an OS aggregate device. |
 | **48 kHz, float32** | `SAMPLE_RATE = 48000`; a 44.1 kHz-locked device is rejected with a clear message (no auto-resample) | Set the interface to 48 kHz; run the whole rig at 48 k. |
-| **Device column = console channel − 1** (default map) | `channel_map or {ch: ch-1}` | Use the console's default X-USB routing (card sends = inputs 1–N in order), or override with `--channel-map`. |
+| **Device column = console channel − 1** (default map) | the channel map, else `{ch: ch-1}` | Use the console's default X-USB routing (card sends = inputs 1–N in order), or override with `--channel-map`. |
 | **Low-latency host API preferred** | ranker rewards ASIO (+4) > WASAPI / Core Audio / ALSA / JACK (+3), penalizes built-in mic arrays | Windows → **WASAPI** (or ASIO if your PortAudio build has it); macOS → **Core Audio**. |
 
 ---
@@ -68,7 +68,7 @@ clock master, so there is no sample-rate conversion.
 This is the one non-obvious choice. Because the engine opens **one** device, a USB
 measurement mic (e.g. miniDSP UMIK-1) is a *second* device and forces you into a
 fragile OS aggregate. Instead use an **analog** measurement mic into a console preamp,
-so it arrives on the same USB stream as `meas_mic`:
+so it arrives on the same USB stream as the measurement mic:
 
 | Mic | Notes |
 |---|---|
@@ -119,7 +119,7 @@ round-trip and hardware for no benefit over the desk's own USB, so prefer X-USB.
 ## 5. System requirements (summary)
 
 - **OS:** Windows 10/11 or macOS 12+.
-- **Node.js:** 22+.
+- **Node.js:** 22.13+.
 - **Packages:** none. Live audio input needs the optional native module `naudiodon2` (not bundled, not yet verified on hardware).
 - **Audio:** one input device exposing all channels at **48 kHz** (console X-USB).
 - **Control:** IP reachability to the console on **UDP 10023/10024** (wired).

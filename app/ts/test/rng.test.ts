@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SeededRng } from "../src/core/rng.ts";
+import { SeededRng, seedState } from "../src/core/rng.ts";
+import { ZIG_FI, ZIG_KI, ZIG_WI } from "../src/core/ziggurat.ts";
 import { closeArray, f64, fixture } from "./helpers.ts";
 
 const fx = fixture<{ seed: string; random: string; normal: string; grid: string }[]>("rng");
@@ -39,4 +40,77 @@ test("the normal stream has the right mean and spread", () => {
   }
   assert.ok(Math.abs(sum / n) < 0.02);
   assert.ok(Math.abs(sq / n - 1) < 0.03);
+});
+
+const M128 = (1n << 128n) - 1n;
+const M64 = (1n << 64n) - 1n;
+
+class ReferencePcg {
+  private state: bigint;
+  private readonly inc: bigint;
+
+  constructor(seed: bigint) {
+    const [s0, s1, i0, i1] = seedState(seed) as [bigint, bigint, bigint, bigint];
+    this.inc = ((((i0 << 64n) | i1) << 1n) | 1n) & M128;
+    this.state = 0n;
+    this.step();
+    this.state = (this.state + ((s0 << 64n) | s1)) & M128;
+    this.step();
+  }
+
+  private step(): void {
+    this.state = (this.state * 0x2360ed051fc65da44385df649fccf645n + this.inc) & M128;
+  }
+
+  u64(): bigint {
+    this.step();
+    const s = this.state;
+    const x = (s >> 64n) ^ (s & M64);
+    const rot = s >> 122n;
+    return ((x >> rot) | (x << ((64n - rot) & 63n))) & M64;
+  }
+
+  next(): number {
+    return Number(this.u64() >> 11n) / 9007199254740992;
+  }
+
+  normal(): number {
+    for (;;) {
+      let r = this.u64();
+      const idx = Number(r & 0xffn);
+      r >>= 8n;
+      const sign = Number(r & 1n);
+      const rabs = (r >> 1n) & 0xfffffffffffffn;
+      const rabsN = Number(rabs);
+      let x = rabsN * ZIG_WI[idx]!;
+      if (sign) x = -x;
+      if (rabsN < ZIG_KI[idx]!) return x;
+      if (idx === 0) {
+        for (;;) {
+          const xx = -0.2736612373297583 * Math.log1p(-this.next());
+          const yy = -Math.log1p(-this.next());
+          if (yy + yy > xx * xx) return Number((rabs >> 8n) & 1n) ? -(3.6541528853610088 + xx) : 3.6541528853610088 + xx;
+        }
+      } else if ((ZIG_FI[idx - 1]! - ZIG_FI[idx]!) * this.next() + ZIG_FI[idx]! < Math.exp(-0.5 * x * x)) {
+        return x;
+      }
+    }
+  }
+}
+
+test("the limb-arithmetic generator is bit-identical to a plain BigInt reference over 1e5 draws", () => {
+  for (const seed of [0n, 1n, 7n, 12345n, 2n ** 70n + 3n]) {
+    const fast = new SeededRng(seed);
+    const ref = new ReferencePcg(seed);
+    for (let i = 0; i < 50000; i++) {
+      const a = fast.next();
+      const b = ref.next();
+      if (a !== b) assert.fail(`seed ${seed} next() draw ${i}: ${a} vs ${b}`);
+    }
+    for (let i = 0; i < 50000; i++) {
+      const a = fast.standardNormal();
+      const b = ref.normal();
+      if (a !== b) assert.fail(`seed ${seed} standardNormal() draw ${i}: ${a} vs ${b}`);
+    }
+  }
 });

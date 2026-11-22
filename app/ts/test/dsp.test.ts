@@ -121,3 +121,72 @@ test("rfft of a pure tone peaks at the right bin, and the window handles its edg
   assert.equal(hanning(0).length, 0);
   close(hanning(5)[2]!, 1, 0, 1e-12);
 });
+
+test("a single NaN or infinite sample yields empty features instead of poisoning the block", () => {
+  const block = new Float32Array(1024).fill(0.1);
+  block[100] = Number.NaN;
+  const f = analyseBlock(block);
+  assert.equal(f.rmsDbfs, -90);
+  assert.equal(f.peakDbfs, -90);
+  assert.equal(f.fbFreq, null);
+  block[100] = Infinity;
+  assert.equal(analyseBlock(block).rmsDbfs, -90);
+});
+
+test("skipping ring detection leaves every other feature unchanged", () => {
+  for (const c of fx.analyse) {
+    const input = f32(c.input);
+    const full = analyseBlock(input);
+    const lean = analyseBlock(input, C.SAMPLE_RATE, { ring: false });
+    assert.equal(lean.fbFreq, null);
+    assert.equal(lean.harmonicity, 0);
+    assert.equal(lean.rmsDbfs, full.rmsDbfs);
+    assert.equal(lean.peakDbfs, full.peakDbfs);
+    assert.equal(lean.contrastDb, full.contrastDb);
+    assert.deepEqual(lean.spectrum, full.spectrum);
+  }
+});
+
+test("resonant peaks from precomputed band levels equal the ones found from the samples", () => {
+  const noise = generatePinkNoise(1, new SeededRng(9));
+  for (let i = 0; i < noise.length; i++) noise[i] = noise[i]! + (i % 480 < 3 ? 0.3 : 0);
+  const bands = octaveBandLevels(noise);
+  assert.deepEqual(findResonantPeaks(noise, C.SAMPLE_RATE, bands), findResonantPeaks(noise));
+});
+
+test("the cached Bluestein plan gives the same spectrum on repeated and interleaved lengths", () => {
+  const dft = (x: number[]): { re: number[]; im: number[] } => {
+    const n = x.length;
+    const re = new Array<number>(n).fill(0);
+    const im = new Array<number>(n).fill(0);
+    for (let k = 0; k < n; k++)
+      for (let t = 0; t < n; t++) {
+        const a = (-2 * Math.PI * k * t) / n;
+        re[k] = re[k]! + x[t]! * Math.cos(a);
+        im[k] = im[k]! + x[t]! * Math.sin(a);
+      }
+    return { re, im };
+  };
+  const rng = new SeededRng(4);
+  const make = (n: number): number[] => Array.from({ length: n }, () => rng.next() - 0.5);
+  const a = make(45);
+  const b = make(50);
+  const first = rfft(a);
+  rfft(b);
+  const again = rfft(a);
+  assert.deepEqual(again, first);
+  const ref = dft(a);
+  closeArray(again.re, ref.re.slice(0, again.re.length), 1e-9, 1e-9, "re");
+  closeArray(again.im, ref.im.slice(0, again.im.length), 1e-9, 1e-9, "im");
+  const back = irfft(again, 45);
+  closeArray(back, a, 1e-9, 1e-9, "roundtrip");
+});
+
+test("the hanning window is cached per length and is correct", () => {
+  const w = hanning(8);
+  assert.equal(hanning(8), w);
+  assert.equal(w[0], 0);
+  assert.ok(Math.abs(w[3]! - (0.5 - 0.5 * Math.cos((2 * Math.PI * 3) / 7))) < 1e-15);
+  assert.deepEqual([...hanning(1)], [1]);
+  assert.equal(hanning(0).length, 0);
+});

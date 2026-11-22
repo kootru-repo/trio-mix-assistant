@@ -52,7 +52,7 @@ compensates. Toggle the jobs and watch the behaviour change.
 
 ```bash
 npm run run -- --hardware --console-ip 192.168.1.50 --list-devices   # find your interface
-npm run run -- --hardware --console-ip 192.168.1.50 --audio-device 2 --lan
+npm run run -- --hardware --console-ip 192.168.1.50 --audio-device 2 --lan --pin 123456
 ```
 
 Live audio input needs the optional native module `naudiodon2`, which is not bundled and has not yet been run against real hardware.
@@ -106,7 +106,7 @@ npm run run -- --advisor --venue "The Cellar"
   reference levels and an optional `guest` flag. Omit it for the built-in trio set.
   In simulation the clock walks the setlist automatically so you can watch scenes
   recall live; `--no-show-clock` disables that.
-- **Claude advisor** (`--advisor`): a background Claude (Haiku) worker that periodically
+- **Claude advisor** (`--advisor`): a background Claude (Haiku) check that periodically
   reads recent events and posts a short note ("guitar is masking the vocal, ease
   off"). It runs entirely off the real-time path and is **advisory only**. With no
   `ANTHROPIC_API_KEY` it's simply disabled, and everything else still works.
@@ -118,9 +118,9 @@ npm run run -- --advisor --venue "The Cellar"
 
 The trio (8-channel) map is the default; the config is the single place to grow it.
 In `ts/src/core/config.ts`: extend `CHANNELS`/`ROLE_LABELS`, then set `GUEST_CHANNELS`
-(unmuted on `guest` songs), `STEREO_LINKS` (e.g. `((2, 3),)` so harmony L/R move
+(unmuted on `guest` songs), `STEREO_LINKS` (e.g. `[[2, 3]]` so harmony L/R move
 together), and `STAGE_MIC_CH` (a second ambient mic that flags a sustained rise in
-stage loudness). All default to empty/None, so the trio is unaffected.
+stage loudness). All default to empty or null, so the trio is unaffected.
 
 ## Run on a tablet (iPad / Galaxy Tab S7): one web app for both
 
@@ -129,8 +129,8 @@ Safari (iPad) and Chrome (Android), with no native app and no App Store. The eng
 runs on the FOH laptop; the tablet is a thin client over the LAN.
 
 ```bash
-npm run run -- --lan            # bind to the LAN; prints the tablet URL + QR code
-npm run run -- --lan --https    # + TLS, so Wake Lock & PWA install work
+npm run run -- --lan --pin 123456            # bind to the LAN; prints the tablet URL + QR code
+npm run run -- --lan --pin 123456 --https    # + TLS, so Wake Lock & PWA install work
 # on the tablet (same WiFi): scan the printed QR (or open the URL) -> Add to Home Screen
 ```
 
@@ -208,7 +208,7 @@ npm run check    # type-check; core must stay free of platform APIs
 npm test
 ```
 
-226 tests covering OSC scaling round-trips + guardrail clamps, DSP/detection,
+The tests cover OSC scaling round-trips + guardrail clamps, DSP/detection,
 the four decision loops (incl. that a steady sung note is *not* notched and a
 rising ring *is*), calibration, the HTTP/SSE/WebSocket endpoints, the
 **hardware** path (capture buffering/mapping/meas with an injected stream, meter
@@ -223,33 +223,30 @@ loop with an injected caller, advisory-only safety, **venue learning** model
 build/save/load + watch-list seeding), the **extensions** (guest mode, stereo
 links, stage-mic detection), a **contract** suite that pins the X32/M32 wire
 layout + a full real-socket round-trip against the desk emulator, and a
-**robustness** suite: a multi-thread concurrency stress test, malformed/NaN/
+**robustness** suite: concurrent-client stress tests, malformed/NaN/
 deeply-nested input rejection, the calibration-vs-takeover guard, the main-bus
 band allocator, scaling-domain safety, and WebSocket fragmentation / masking /
 body-size limits.
 
-### Robustness & threading
+### Robustness
 
-- **One reentrant lock owns all state**: engine, assistant, console mirror,
-  event log, telemetry. The loop thread and every HTTP/WebSocket handler thread
-  go through it, so there are no races (no torn reads, no
-  deque-mutated-during-iteration, no dict-changed-size-during-build).
+- **One thread owns all state**: the engine, assistant, console mirror, event log
+  and telemetry run on Node's single event loop, so there are no races or torn
+  reads. Anything slow is asynchronous: fader ramps are queued steps on the
+  injected clock, and calibration awaits its capture.
 - **The loop self-heals**: a bad block is caught, logged (throttled), and the
   engine keeps running instead of dying silently.
-- **Nothing slow runs under the lock**: fader ramps run on a background worker,
-  and calibration's heavy FFT analysis runs off-lock (only the fast OSC apply is
-  locked), so client feeds never freeze.
 - **Untrusted input can't crash or wedge the server** (it binds to the LAN):
-  bodies are size-capped, JSON `NaN/Infinity` and deeply-nested (`RecursionError`)
-  payloads are rejected (and the connection closed so keep-alive can't desync),
-  the WebSocket parser caps frame size, requires client masking, and handles
-  fragmentation, and a connection-count semaphore + socket timeouts bound
-  thread/stall DoS. Malformed control messages are ignored, never fatal.
+  bodies are size-capped, JSON `NaN/Infinity` and deeply nested payloads are
+  rejected (and the connection closed so keep-alive can't desync), the
+  WebSocket parser caps frame size, requires client masking, and handles
+  fragmentation, and a stream-count cap plus socket timeouts bound
+  stall DoS. Malformed control messages are ignored, never fatal.
 - **Shared-resource coordination**: calibration resets the whole main-bus EQ
   before applying, and a band allocator keeps live feedback notches off the bands
   calibration claimed (so they never clobber each other and `reset` only clears
   feedback bands); calibration refuses to run during a takeover and pauses the
-  assistant during its sweep; the OSC socket and ramp worker close cleanly.
+  assistant during its sweep; the OSC socket and queued ramps close cleanly.
 - **Clean rejection**: an over-cap request body is *drained* before the 400 so
   closing can't RST and lose the response.
 - **Front-end resilience**: one transport at a time (WebSocket primary, SSE

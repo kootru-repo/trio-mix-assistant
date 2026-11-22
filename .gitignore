@@ -8,7 +8,7 @@
 *.db-journal
 **/sessions.db
 **/venues/
-**/.tls/
+**/.certs/
 *.pem
 *.log
 
@@ -16,15 +16,9 @@
 *.exe
 *.pdf
 
-# --- Internal design source kept at repo root (a published copy lives in docs/) ---
-/mix-assistant-design.html
-/notes.md
 
-# --- Local QA clone of this repo (nested checkout; never commit) ---
-/trio-mix-assistant-qa/
 
 # --- Secrets / credentials (NEVER commit) ---
-spinoza1791-pat.md
 *-pat.md
 *.pat
 *.token

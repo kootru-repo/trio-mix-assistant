@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { slug } from "../core/venue.ts";
 import type { FeedbackFreq, VenueModel, VenueStore as VenueStorePort } from "../core/venue.ts";
@@ -63,6 +63,7 @@ export function modelPath(venueDir: string, venue: string): string {
 
 export class VenueStore implements VenueStorePort {
   readonly dir: string;
+  lastProblem: string | null = null;
 
   constructor(dir: string) {
     this.dir = dir;
@@ -71,7 +72,9 @@ export class VenueStore implements VenueStorePort {
   save(model: VenueModel): string {
     mkdirSync(this.dir, { recursive: true });
     const path = modelPath(this.dir, model.venue);
-    writeFileSync(path, serializeModel(model), "utf8");
+    const tmp = path + ".tmp";
+    writeFileSync(tmp, serializeModel(model), "utf8");
+    renameSync(tmp, path);
     return path;
   }
 
@@ -80,18 +83,38 @@ export class VenueStore implements VenueStorePort {
     if (!existsSync(path)) return null;
     try {
       const d: unknown = JSON.parse(readFileSync(path, "utf8"));
-      if (!isRecord(d)) return null;
+      if (!isRecord(d)) return this.setAside(path);
       const freqs = "feedback_freqs" in d ? d["feedback_freqs"] : [];
-      if (!Array.isArray(freqs)) return null;
+      if (!Array.isArray(freqs)) return this.setAside(path);
+      const entries: FeedbackFreq[] = [];
+      for (const f of freqs) {
+        if (!isRecord(f)) return this.setAside(path);
+        const hz = f["hz"];
+        const count = f["count"];
+        if (typeof hz !== "number" || typeof count !== "number" || !Number.isFinite(hz) || !Number.isFinite(count)) return this.setAside(path);
+        entries.push({ hz, count });
+      }
+      const named = "venue" in d ? d["venue"] : venue;
       return {
-        venue: "venue" in d ? (d["venue"] as string) : venue,
+        venue: typeof named === "string" ? named : venue,
         shows: argInt("shows" in d ? d["shows"] : 0),
-        feedback_freqs: [...freqs] as FeedbackFreq[],
+        feedback_freqs: entries,
         confidence: argFloat("confidence" in d ? d["confidence"] : 0),
         updated: argFloat("updated" in d ? d["updated"] : 0),
       };
     } catch {
-      return null;
+      return this.setAside(path);
     }
+  }
+
+  private setAside(path: string): null {
+    const bad = path + ".bad";
+    try {
+      renameSync(path, bad);
+      this.lastProblem = `the saved venue model could not be read; it was set aside as ${bad}`;
+    } catch {
+      this.lastProblem = "the saved venue model could not be read";
+    }
+    return null;
   }
 }

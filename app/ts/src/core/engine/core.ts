@@ -1,15 +1,30 @@
 import { CaptureError } from "../capture.ts";
 import { C } from "../config.ts";
 import { analyseBlock, phaseRelation } from "../dsp.ts";
-import { intOf, numOf, truthy } from "./base.ts";
+import { asBool, intOf, numOf } from "./base.ts";
 import { EngineCalibration } from "./calibration.ts";
+
+class BadCommand extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BadCommand";
+  }
+}
+
+const parsed = <T>(read: () => T): T => {
+  try {
+    return read();
+  } catch (exc) {
+    if (exc instanceof TypeError || exc instanceof RangeError) throw new BadCommand(exc.message);
+    throw exc;
+  }
+};
 
 const isRecord = (d: unknown): d is Record<string, unknown> => typeof d === "object" && d !== null && !Array.isArray(d);
 
 export class Engine extends EngineCalibration {
-  private loop: Promise<void> | null = null;
-  private renewLoop: Promise<void> | null = null;
   private running = false;
+  private loopGen = 0;
 
   async start(): Promise<void> {
     if (this.running) return;
@@ -46,8 +61,9 @@ export class Engine extends EngineCalibration {
     }
     this.stopped = false;
     this.running = true;
-    this.loop = this.run();
-    if (this.meterRx !== null) this.renewLoop = this.renew();
+    const gen = ++this.loopGen;
+    void this.run(gen);
+    if (this.meterRx !== null) void this.renew(gen);
     if (this.showClock !== null) {
       try {
         await this.showClock.start();
@@ -64,10 +80,10 @@ export class Engine extends EngineCalibration {
     }
   }
 
-  private async renew(): Promise<void> {
-    while (!this.stopped) {
+  private async renew(gen: number): Promise<void> {
+    while (!this.stopped && gen === this.loopGen) {
       await this.clock.sleep(8.0);
-      if (this.stopped) return;
+      if (this.stopped || gen !== this.loopGen) return;
       try {
         this.con.subscribeMeters();
       } catch {
@@ -79,6 +95,7 @@ export class Engine extends EngineCalibration {
   async stop(): Promise<void> {
     this.stopped = true;
     this.running = false;
+    this.loopGen++;
     if (this.advisor !== null) this.advisor.stop();
     if (this.showClock !== null) this.showClock.stop();
     if (this.meterRx !== null) this.meterRx.stop();
@@ -90,14 +107,10 @@ export class Engine extends EngineCalibration {
     this.con.close();
   }
 
-  loopsDone(): Promise<void> {
-    return Promise.all([this.loop, this.renewLoop]).then(() => undefined);
-  }
-
-  private async run(): Promise<void> {
+  private async run(gen: number): Promise<void> {
     let nextT = this.clock.monotonic();
     let lastNow = this.clock.monotonic();
-    while (!this.stopped) {
+    while (!this.stopped && gen === this.loopGen) {
       const now = this.clock.monotonic();
       this.step(now, lastNow);
       lastNow = now;
@@ -110,16 +123,22 @@ export class Engine extends EngineCalibration {
     try {
       if (this.source !== null && this.status !== "calibrating") {
         const frame = this.source.block();
-        this.assistant.blockT0 = this.clock.perfCounter();
+        this.assistant.blockT0 = this.clock.highResolution();
         for (const [ch, samples] of frame) {
-          const feat = analyseBlock(samples);
-          if (ch === C.MEAS_MIC_CH) {
-            const [fbFreq, harmonicity] = this.measRing.update(samples);
-            feat.fbFreq = fbFreq;
-            feat.harmonicity = harmonicity;
+          if (!C.CHANNELS.has(ch)) continue;
+          try {
+            const isMeas = ch === C.MEAS_MIC_CH;
+            const feat = analyseBlock(samples, C.SAMPLE_RATE, { ring: !isMeas });
+            if (isMeas) {
+              const [fbFreq, harmonicity] = this.measRing.update(samples);
+              feat.fbFreq = fbFreq;
+              feat.harmonicity = harmonicity;
+            }
+            this.feat.set(ch, feat);
+            this.assistant.onFeatures(ch, feat, now);
+          } catch (exc) {
+            this.noteError(exc);
           }
-          this.feat.set(ch, feat);
-          this.assistant.onFeatures(ch, feat, now);
         }
         if (this.assistant.enabled["phase"]) {
           for (const [pa, pb] of C.PHASE_PAIRS) {
@@ -146,44 +165,59 @@ export class Engine extends EngineCalibration {
     if (now - this.lastAudioRestart < Engine.AUDIO_RESTART_S) return;
     this.lastAudioRestart = now;
     let recovered = false;
+    let reason: string | null = null;
     try {
       recovered = await src.restart();
-    } catch {
+    } catch (exc) {
       recovered = false;
+      reason = exc instanceof Error ? exc.message : String(exc);
     }
     if (recovered) {
+      this.lastAudioFailure = null;
       this.assistant.emit("system", "audio capture recovered — listening again");
       this.rebuildTelemetry();
+      return;
     }
+    if (reason === null) {
+      const last = src.status()["lastError"];
+      reason = typeof last === "string" && last ? last : "the audio device could not be re-opened";
+    }
+    const msg = `audio capture could not restart: ${reason}`;
+    if (msg === this.lastAudioFailure) return;
+    this.lastAudioFailure = msg;
+    this.assistant.emit("system", msg);
+    this.rebuildTelemetry();
   }
 
   command(d: unknown): void {
     if (!isRecord(d)) return;
     const t = d["type"];
+    const need = (k: string): unknown => {
+      if (!Object.hasOwn(d, k)) throw new BadCommand(`missing ${k}`);
+      return d[k];
+    };
+    const int = (k: string): number => parsed(() => intOf(need(k)));
+    const num = (k: string): number => parsed(() => numOf(need(k)));
+    const bool = (k: string): boolean => parsed(() => asBool(need(k)));
     try {
-      const need = (k: string): unknown => {
-        if (!(k in d)) throw new RangeError(`missing ${k}`);
-        return d[k];
-      };
-      if (t === "fader") this.setFader(intOf(need("ch")), numOf(need("db")));
-      else if (t === "mute") this.setMute(intOf(need("ch")), truthy(need("on")));
-      else if (t === "master") this.setMaster(numOf(need("db")));
-      else if (t === "toggle") this.setEnabled(String(need("job")), truthy(need("on")));
-      else if (t === "coach") this.setCoachMode(truthy(need("on")));
-      else if (t === "panic") this.panic(truthy(need("on")));
+      if (t === "fader") this.setFader(int("ch"), num("db"));
+      else if (t === "mute") this.setMute(int("ch"), bool("on"));
+      else if (t === "master") this.setMaster(num("db"));
+      else if (t === "toggle") this.setEnabled(String(need("job")), bool("on"));
+      else if (t === "coach") this.setCoachMode(bool("on"));
+      else if (t === "panic") this.panic(bool("on"));
       else if (t === "calibrate") this.runCalibration();
-      else if (t === "lead_target") this.setLeadTarget(numOf(need("db")));
+      else if (t === "lead_target") this.setLeadTarget(num("db"));
       else if (t === "balance_capture") this.captureBalanceNow();
       else if (t === "reset_notches") this.resetNotches();
       else if (t === "scene") this.recallSceneManual(need("index"));
-      else if (t === "eq") {
-        this.setEq(intOf(need("ch")), intOf(need("band")), d["hz"] ?? null, d["gain"] ?? null, d["q"] ?? null, d["on"] ?? null);
-      } else if (t === "eq_reset") this.resetChannelEq(intOf(need("ch")));
-      else if (t === "send") this.setSend(intOf(need("ch")), intOf(need("fx")), numOf(need("db")));
-      else if (t === "fx") this.setFxWet(intOf(need("fx")), numOf(need("db")));
+      else if (t === "eq") this.setEq(int("ch"), int("band"), d["hz"] ?? null, d["gain"] ?? null, d["q"] ?? null, d["on"] ?? null);
+      else if (t === "eq_reset") this.resetChannelEq(int("ch"));
+      else if (t === "send") this.setSend(int("ch"), int("fx"), num("db"));
+      else if (t === "fx") this.setFxWet(int("fx"), num("db"));
     } catch (exc) {
-      if (exc instanceof TypeError || exc instanceof RangeError) return;
-      throw exc;
+      if (exc instanceof BadCommand) return;
+      this.noteError(exc);
     }
   }
 }

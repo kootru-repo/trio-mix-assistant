@@ -3,7 +3,7 @@ import test from "node:test";
 import { Calibrator } from "../src/core/calibration.ts";
 import type { CalibrationResult } from "../src/core/calibration.ts";
 import { ManualClock } from "../src/core/clock.ts";
-import { applyChannelMap, channelMapState, restoreChannelMapState } from "../src/core/config.ts";
+import { applyChannelMap, autoChannelMap, C, channelMapState, restoreChannelMapState } from "../src/core/config.ts";
 import type { ChannelMapSpec } from "../src/core/config.ts";
 import { SimConsole } from "../src/core/console.ts";
 import type { ChannelFeatures } from "../src/core/dsp.ts";
@@ -136,7 +136,6 @@ class Replay {
     const a = this.a;
     const c = this.con;
     return {
-      snapshot: a.snapshot(),
       enabled: a.enabled,
       fader_db: obj(a.faderDb),
       gain_db: obj(a.gainDb),
@@ -153,7 +152,6 @@ class Replay {
       room: [a.roomLevelDb, a.roomContrastDb, a.roomConfidence],
       stage_baseline: a.stageBaseline,
       lead_target: a.leadTarget,
-      log_len: a.log.length,
       coach_recs: [...a.coachRecs.values()]
         .map((r) => [r.kind, r.ch])
         .sort((x, y) => (x[0]! < y[0]! ? -1 : x[0]! > y[0]! ? 1 : (x[1] as number ?? -1) - ((y[1] as number) ?? -1))),
@@ -204,5 +202,79 @@ test("the scenarios exercise every job", () => {
   const kinds = new Set(scenarios.flatMap((s) => s.events.map((e) => e.kind)));
   for (const k of ["feedback", "clip", "vocal", "balance", "phase", "unmask", "coach", "system"]) {
     assert.ok(kinds.has(k), `no ${k} events recorded`);
+  }
+});
+
+function fresh(): { a: MixAssistant; con: SimConsole; clock: ManualClock; events: AssistantEvent[] } {
+  const clock = new ManualClock(0, 1_700_000_000);
+  const con = new SimConsole();
+  const events: AssistantEvent[] = [];
+  const a = new MixAssistant(con, clock, { onEvent: (e) => events.push(e) });
+  return { a, con, clock, events };
+}
+
+const feat = (over: Partial<ChannelFeatures>): ChannelFeatures => ({
+  rmsDbfs: -30,
+  peakDbfs: -20,
+  fbFreq: null,
+  contrastDb: 0,
+  harmonicity: 0,
+  spectrum: new Float64Array(0),
+  ...over,
+});
+
+test("a ride never starts from a believed fader outside the authority range", () => {
+  const { a, con } = fresh();
+  a.enabled["vocal_ride"] = true;
+  a.faderDb.set(1, -40);
+  for (let i = 0; i < 20; i++) a.onFeatures(1, feat({ rmsDbfs: -10 }), 10 + i);
+  assert.equal(con.wireLog.length, 0);
+  assert.equal(a.faderDb.get(1), -40);
+  const coach = fresh();
+  coach.a.setCoachMode(true);
+  coach.a.enabled["vocal_ride"] = true;
+  coach.a.faderDb.set(1, 30);
+  for (let i = 0; i < 20; i++) coach.a.onFeatures(1, feat({ rmsDbfs: -60 }), 10 + i);
+  assert.equal(coach.a.coachRecs.size, 0);
+});
+
+test("a clip trim waits out its cooldown instead of firing on every block", () => {
+  const { a, con } = fresh();
+  const hot = feat({ peakDbfs: -0.2 });
+  for (let i = 0; i < 6; i++) a.onFeatures(2, hot, 5 + i * 0.021);
+  assert.equal(con.wireLog.filter(([addr]) => addr.startsWith("/headamp")).length, 1);
+  assert.equal(a.gainDb.get(2), 18);
+  a.onFeatures(2, hot, 5.3);
+  assert.equal(a.gainDb.get(2), 16);
+});
+
+test("with every main-bus band claimed a room feedback notch overwrites nothing", () => {
+  const { a, con, events } = fresh();
+  a.calBusBands = new Set([1, 2, 3, 4, 5, 6]);
+  for (let i = 0; i < 12; i++) a.onFeatures(8, feat({ rmsDbfs: -40 + i, fbFreq: 1000, contrastDb: 30 }), 10 + i * 0.02);
+  assert.equal(con.wireLog.length, 0);
+  assert.ok(events.some((e) => e.msg.includes("no free main-bus band")));
+  assert.equal(a.allocBusBand(), -1);
+});
+
+test("a steady constant tone with no harmonics is deliberately not notched", () => {
+  const { a, con } = fresh();
+  for (let i = 0; i < 200; i++) a.onFeatures(4, feat({ rmsDbfs: -30, fbFreq: 880, contrastDb: 30 }), 10 + i * 0.021);
+  assert.equal(con.notchFreqs(4).length, 0);
+});
+
+test("a channel map that drops the lead or measurement channel falls back to a channel that exists", () => {
+  const saved = channelMapState();
+  try {
+    applyChannelMap({ map: { "3": "a", "5": "b", "9": "c" } });
+    assert.equal(C.LEAD_VOCAL_CH, 3);
+    assert.equal(C.MEAS_MIC_CH, 9);
+    const auto = autoChannelMap(4);
+    assert.equal(auto.lead, 1);
+    assert.equal(auto.meas_mic, 4);
+    assert.equal(C.LEAD_VOCAL_CH, 1);
+    assert.equal(C.MEAS_MIC_CH, 4);
+  } finally {
+    restoreChannelMapState(saved);
   }
 });

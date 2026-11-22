@@ -1,18 +1,18 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { C, applyChannelMap, autoChannelMap } from "../core/config.ts";
 import type { Clock } from "../core/clock.ts";
 import { ConsoleBase, OscConsole } from "../core/console.ts";
 import type { AudioInputFactory } from "../core/devicecapture.ts";
-import { DeviceCapture, autodetectInputs, listAudioDevices, parseChannelMap, InvalidValueError } from "../core/devicecapture.ts";
+import { DeviceCapture, autodetectInputs, listAudioDevices, parseChannelMap, InvalidArgumentError } from "../core/devicecapture.ts";
 import { EmulatedDesk } from "../core/emulator.ts";
 import { Engine } from "../core/engine/index.ts";
 import { MeterReceiver } from "../core/metersrv.ts";
 import { fixed } from "../core/numfmt.ts";
 import { qrAscii, qrEncode } from "../core/qr.ts";
 import { AbleSetReceiver, SimShowClock } from "../core/showclock.ts";
-import { TemplateError, defaultTemplate, fromObject } from "../core/template.ts";
+import { defaultTemplate, fromObject } from "../core/template.ts";
 import type { ShowTemplate } from "../core/template.ts";
 import { TimedAudioFactory } from "../core/timedaudio.ts";
 import { HELP, UsageError, modeName, parseCliArgs, parseDevice, USAGE } from "./args.ts";
@@ -24,9 +24,10 @@ import { SystemClock } from "./clock.ts";
 import { findLayout } from "./layout.ts";
 import type { Layout } from "./layout.ts";
 import { lanIp } from "./netinfo.ts";
-import { createServer } from "./server.ts";
+import { createServer, OpenDashboardRefused } from "./server.ts";
+import type { DashboardServer } from "./server.ts";
 import { SessionLog } from "./sessionlog.ts";
-import { allLanIps, ensureCert, ensureTrustedCert, tlsHosts } from "./tls.ts";
+import { allLanIps, ensureCert, ensureTrustedCert, hostPermittedByCa, tlsHosts } from "./tls.ts";
 import { NodeUdpFactory } from "./udp.ts";
 import { UdpSink } from "./udpsink.ts";
 import { VenueStore } from "./venuestore.ts";
@@ -56,6 +57,7 @@ export interface Io {
   udp: NodeUdpFactory;
   waitForStop: () => Promise<void>;
   layout: Layout;
+  onListening?: (url: string) => void;
 }
 
 function fail(io: Io, ...lines: string[]): never {
@@ -67,15 +69,11 @@ function loadShowTemplate(args: Args, io: Io): ShowTemplate {
   let t: ShowTemplate;
   try {
     t = args.template ? fromObject(JSON.parse(readFileSync(args.template, "utf8"))) : defaultTemplate();
+    if (t.channels) applyChannelMap(t.channels);
   } catch (exc) {
-    const msg = exc instanceof Error ? exc.message : String(exc);
-    if (exc instanceof TemplateError || exc instanceof SyntaxError || (exc as NodeJS.ErrnoException).code) {
-      return fail(io, `  [!] show template error: ${msg}`);
-    }
-    throw exc;
+    return fail(io, `  [!] show template error: ${exc instanceof Error ? exc.message : String(exc)}`);
   }
   if (t.channels) {
-    applyChannelMap(t.channels);
     io.out(`  Channel map: ${C.CHANNELS.size} channels from template '${t.name}'`);
   }
   return t;
@@ -87,7 +85,7 @@ function loadChannelMap(args: Args, io: Io): Map<number, number> | null {
   try {
     map = parseChannelMap(args.channelMap);
   } catch (exc) {
-    if (exc instanceof InvalidValueError) return fail(io, `  [!] --channel-map: ${exc.message}`);
+    if (exc instanceof InvalidArgumentError) return fail(io, `  [!] --channel-map: ${exc.message}`);
     throw exc;
   }
   const missing = [...C.CHANNELS.keys()].filter((ch) => !map.has(ch));
@@ -230,8 +228,17 @@ function buildSimulation(args: Args, template: ShowTemplate, io: Io): Engine {
 function attachSessionLog(engine: Engine, args: Args, templateName: string, io: Io): void {
   const db = args.sessionDb !== null ? args.sessionDb : join(io.layout.appDir, "sessions.db");
   if (db.toLowerCase() === "off") return;
-  const slog = new SessionLog(db);
-  slog.startSession(args.venue, templateName, modeName(args));
+  let slog: SessionLog;
+  try {
+    slog = new SessionLog(db);
+    slog.startSession(args.venue, templateName, modeName(args));
+  } catch (exc) {
+    return fail(
+      io,
+      `  [!] Could not open the session log '${db}': ${exc instanceof Error ? exc.message : String(exc)}`,
+      "      Pick a writable path with --session-db, or turn logging off with --session-db off.",
+    );
+  }
   engine.sessionLog = slog;
   io.out(`  Session log: ${db}` + (args.venue ? `  (venue: ${args.venue})` : ""));
 }
@@ -242,6 +249,7 @@ function attachVenue(engine: Engine, args: Args, io: Io): void {
   engine.venue = args.venue;
   engine.venueStore = store;
   const model = store.load(args.venue);
+  if (store.lastProblem) io.out(`  [!] Venue '${args.venue}': ${store.lastProblem}`);
   if (model === null) {
     io.out(`  Venue '${args.venue}': no model yet — will learn after this show.`);
     return;
@@ -256,12 +264,22 @@ function attachAdvisor(engine: Engine, args: Args, io: Io): void {
     getContext: () => engine.advisorContext(),
     onAdvice: (a) => engine.onAdvice(a),
     interval: args.advisorInterval,
+    onError: (m) => engine.assistant.emit("system", `advisor unavailable: ${m}`),
   });
   if (adv.available) {
     engine.advisor = adv;
     io.out("  Claude advisor: ON (advisory notes only)");
   } else {
     io.out("  [!] --advisor requested but ANTHROPIC_API_KEY is not set; advisor disabled.");
+  }
+}
+
+function fileStamp(path: string): string {
+  try {
+    const s = statSync(path);
+    return `${s.mtimeMs}:${s.size}`;
+  } catch {
+    return "";
   }
 }
 
@@ -279,7 +297,11 @@ async function prepareTls(args: Args, ip: string | null, io: Io): Promise<TlsPla
     let certfile: string;
     let keyfile: string;
     if (args.trust) {
+      const caBefore = fileStamp(join(certdir, "ca.pem"));
       const [c, k, ca] = ensureTrustedCert(certdir, hosts);
+      if (fileStamp(ca) !== caBefore) {
+        io.out("  [i] A new local root CA was created: install it again on every device (see the steps below).");
+      }
       certfile = c;
       keyfile = k;
       caPem = readFileSync(ca, "utf8");
@@ -317,6 +339,14 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
   }
 }
 
+async function attempt(step: () => Promise<void>): Promise<void> {
+  try {
+    await step();
+  } catch (exc) {
+    console.error(`  [!] shutdown step failed: ${exc instanceof Error ? exc.message : String(exc)}`);
+  }
+}
+
 async function runChecked(args: Args, io: Io): Promise<number> {
   io.factory = await io.audio();
   if (args.listDevices) {
@@ -333,71 +363,100 @@ async function runChecked(args: Args, io: Io): Promise<number> {
   const auto = args.auto ? await autodetectSource(io) : null;
 
   let emu: EmulatedDesk | null = null;
-  let engine: Engine;
-  if (args.emulate) {
-    const built = buildEmulated(args, template, chanMap, auto, io);
-    engine = built.engine;
-    emu = built.emu;
-  } else if (args.hardware) {
-    engine = buildHardware(args, template, chanMap, auto, io);
-  } else {
-    engine = buildSimulation(args, template, io);
-  }
+  let engine: Engine | null = null;
+  let server: DashboardServer | null = null;
+  try {
+    if (args.emulate) {
+      const built = buildEmulated(args, template, chanMap, auto, io);
+      engine = built.engine;
+      emu = built.emu;
+    } else if (args.hardware) {
+      engine = buildHardware(args, template, chanMap, auto, io);
+    } else {
+      engine = buildSimulation(args, template, io);
+    }
 
-  attachSessionLog(engine, args, template.name, io);
-  attachVenue(engine, args, io);
-  attachAdvisor(engine, args, io);
+    attachSessionLog(engine, args, template.name, io);
+    attachVenue(engine, args, io);
+    attachAdvisor(engine, args, io);
 
-  const ip = await lanIp();
-  if (emu !== null) {
+    const ip = await lanIp();
+    if (emu !== null) {
+      try {
+        await emu.start();
+      } catch (exc) {
+        return fail(
+          io,
+          `  [!] Desk emulator could not bind OSC port ${emu.listenPort}: ${exc instanceof Error ? exc.message : String(exc)}`,
+          "      Another --emulate session is probably running. Stop it and retry.",
+        );
+      }
+      for (const l of emulatorLines(ip, emu.listenPort, args.traceOsc)) io.out(l);
+    }
+    const plan = await prepareTls(args, ip, io);
+
     try {
-      await emu.start();
+      server = createServer({ engine, staticDir: io.layout.staticDir, pin: args.pin, caPem: plan.caPem, tls: plan.tls, allowOpen: args.insecureOpen });
     } catch (exc) {
+      return fail(io, `  [!] ${exc instanceof Error ? exc.message : String(exc)}`);
+    }
+    try {
+      await server.start(args.port, args.host);
+    } catch (exc) {
+      server = null;
+      const message = exc instanceof Error ? exc.message : String(exc);
+      if (exc instanceof OpenDashboardRefused) {
+        return fail(io, `  [!] ${message}`, "      Add --pin <at least 6 characters> (PIN= in show.conf), or --insecure-open to allow it anyway.");
+      }
       return fail(
         io,
-        `  [!] Desk emulator could not bind OSC port ${emu.listenPort}: ${exc instanceof Error ? exc.message : String(exc)}`,
-        "      Another --emulate session is probably running. Stop it and retry.",
+        `  [!] Could not open the dashboard on port ${args.port}: ${message}`,
+        `      Another copy already running? Try a different port:  --port ${args.port + 1}`,
       );
     }
-    for (const l of emulatorLines(ip, emu.listenPort, args.traceOsc)) io.out(l);
+    await engine.start();
+    const scheme = plan.tls ? "https" : "http";
+    const url = `${scheme}://${ip}:${args.port}/`;
+    const wildcard = ["0.0.0.0", "::"].includes(args.host);
+    const qr = wildcard && ip ? qrAscii(qrEncode(url).modules) : null;
+    for (const l of bannerLines({
+      args,
+      scheme,
+      ip,
+      altIps: allLanIps(ip).filter((a) => !args.trust || hostPermittedByCa(a)),
+      caPath: join(io.layout.appDir, ".certs", "ca.pem"),
+      qr,
+    })) {
+      io.out(l);
+    }
+    if (io.onListening) io.onListening(`${scheme}://127.0.0.1:${args.port}/`);
+    await io.waitForStop();
+    io.out("\nShutting down...");
+    return 0;
+  } finally {
+    await attempt(async () => {
+      if (server !== null) await server.stop();
+    });
+    await attempt(async () => {
+      if (engine !== null) await engine.stop();
+      else if (auto !== null) auto.stop();
+    });
+    await attempt(async () => {
+      if (emu !== null) emu.stop();
+    });
   }
-  const plan = await prepareTls(args, ip, io);
+}
 
-  const server = createServer({ engine, staticDir: io.layout.staticDir, pin: args.pin, caPem: plan.caPem, tls: plan.tls });
-  try {
-    await server.start(args.port, args.host);
-  } catch (exc) {
-    if (emu !== null) emu.stop();
-    return fail(
-      io,
-      `  [!] Could not open the dashboard on port ${args.port}: ${exc instanceof Error ? exc.message : String(exc)}`,
-      `      Another copy already running? Try a different port:  --port ${args.port + 1}`,
-    );
-  }
-  await engine.start();
-  const scheme = plan.tls ? "https" : "http";
-  const url = `${scheme}://${ip}:${args.port}/`;
-  const wildcard = ["0.0.0.0", "::"].includes(args.host);
-  const qr = wildcard && ip ? qrAscii(qrEncode(url).modules) : null;
-  for (const l of bannerLines({
-    args,
-    scheme,
-    ip,
-    altIps: allLanIps(ip),
-    caPath: join(io.layout.appDir, ".certs", "ca.pem"),
-    qr,
-  })) {
-    io.out(l);
-  }
-  await io.waitForStop();
-  io.out("\nShutting down...");
-  await server.stop();
-  await engine.stop();
-  if (emu !== null) emu.stop();
-  return 0;
+export function installProcessHandlers(): void {
+  const report = (label: string) => (err: unknown): void => {
+    console.error(`  [!] ${label}: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+  };
+  process.on("uncaughtException", report("unexpected error (continuing)"));
+  process.on("unhandledRejection", report("unexpected rejection (continuing)"));
 }
 
 export function defaultIo(): Io {
+  installProcessHandlers();
   const stopper = new Promise<void>((resolve) => {
     process.once("SIGINT", () => resolve());
     process.once("SIGTERM", () => resolve());

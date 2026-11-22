@@ -1,18 +1,20 @@
+import { zeroPad } from "./util.ts";
+
 export interface Clock {
   monotonic(): number;
-  perfCounter(): number;
+  highResolution(): number;
   time(): number;
   sleep(seconds: number): Promise<void>;
   hhmmss(): string;
 }
 
-const pad2 = (n: number): string => String(n).padStart(2, "0");
+
 
 export function formatHhmmss(epochSeconds: number, utc: boolean): string {
   const d = new Date(epochSeconds * 1000);
   return utc
-    ? `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`
-    : `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    ? `${zeroPad(d.getUTCHours(), 2)}:${zeroPad(d.getUTCMinutes(), 2)}:${zeroPad(d.getUTCSeconds(), 2)}`
+    : `${zeroPad(d.getHours(), 2)}:${zeroPad(d.getMinutes(), 2)}:${zeroPad(d.getSeconds(), 2)}`;
 }
 
 export class ManualClock implements Clock {
@@ -33,7 +35,7 @@ export class ManualClock implements Clock {
     return this.now;
   }
 
-  perfCounter(): number {
+  highResolution(): number {
     return this.now;
   }
 

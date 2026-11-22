@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { C } from "../core/config.ts";
 import { OscConsole } from "../core/console.ts";
+import { parseInteger } from "../core/util.ts";
 import { SystemClock } from "./clock.ts";
 import { animate, oneShot } from "./oscdemo.ts";
 import { UdpSink } from "./udpsink.ts";
@@ -13,6 +14,11 @@ export async function main(argv: readonly string[]): Promise<number> {
     strict: true,
     allowPositionals: false,
   });
+  const channels = values.channels === undefined ? 8 : parseInteger(values.channels);
+  if (channels === null || channels < 1 || channels > 32) {
+    console.error("usage: osc-demo [--ip <address>] [--animate] [--channels <1-32>]");
+    return 2;
+  }
   const ip = values.ip ?? "127.0.0.1";
   const clock = new SystemClock();
   const con = new OscConsole(new UdpSink(ip, C.CONSOLE_PORT), { clock });
@@ -22,7 +28,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.once("SIGINT", () => {
       signal.aborted = true;
     });
-    await animate(con, clock, Number(values.channels ?? 8), signal, (l) => console.log(l));
+    await animate(con, clock, channels, signal, (l) => console.log(l));
   } else {
     oneShot(con, (l) => console.log(l));
     console.log("Done. (Use --animate for continuous movement.)");

@@ -25,7 +25,7 @@ test("matrix matches the recorded reference for every input", () => {
   }
 });
 
-test("print_ascii(invert=True) output matches exactly", () => {
+test("inverted ASCII rendering matches the recorded text exactly", () => {
   for (const c of fixture.cases) {
     const lines = qrAscii(qrEncode(c.text).modules, 2, true);
     assert.equal(lines.join("\n") + "\n", c.ascii, c.text);

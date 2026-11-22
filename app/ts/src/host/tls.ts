@@ -1,18 +1,23 @@
+import { execFileSync } from "node:child_process";
 import { createPrivateKey, generateKeyPairSync, X509Certificate } from "node:crypto";
 import type { KeyObject } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { networkInterfaces } from "node:os";
+import { networkInterfaces, userInfo } from "node:os";
 import type { NetworkInterfaceInfo } from "node:os";
 import { join } from "node:path";
 import {
+  type IpRange,
   authorityKeyIdExt,
   basicConstraintsExt,
   buildCertificate,
   commonName,
+  hasCriticalNameConstraints,
   ipBytes,
+  ipInRange,
   isIp,
   keyIdentifier,
   keyUsageExt,
+  nameConstraintsExt,
   OID_SERVER_AUTH,
   serverAuthExt,
   subjectAltNameExt,
@@ -22,7 +27,7 @@ import {
 } from "./tls/x509.ts";
 
 export const CERT_DAYS = 396;
-export const CA_DAYS = 3650;
+export const CA_DAYS = 825;
 export const MIN_KEY_BITS = 2048;
 
 const DAY_MS = 86_400_000;
@@ -36,13 +41,19 @@ export class TLSUnavailable extends Error {
   }
 }
 
-export interface CertFiles {
-  readonly certfile: string;
-  readonly keyfile: string;
-}
+const CA_PERMITTED_DNS = ["localhost", ".local"];
+const CA_PERMITTED_RANGES: readonly IpRange[] = [
+  { address: "127.0.0.0", prefix: 8 },
+  { address: "10.0.0.0", prefix: 8 },
+  { address: "172.16.0.0", prefix: 12 },
+  { address: "192.168.0.0", prefix: 16 },
+  { address: "::1", prefix: 128 },
+];
 
-export interface TrustedCertFiles extends CertFiles {
-  readonly cafile: string;
+export function hostPermittedByCa(host: string): boolean {
+  if (isIp(host)) return CA_PERMITTED_RANGES.some((r) => ipInRange(host, r));
+  const h = host.toLowerCase();
+  return h === "localhost" || (h.endsWith(".local") && h.length > ".local".length);
 }
 
 interface KeyPair {
@@ -58,6 +69,8 @@ function generateRsa(): KeyPair {
 }
 
 function writeKey(path: string, pem: string): void {
+  writeFileSync(path, "", { mode: 0o600 });
+  restrict(path);
   writeFileSync(path, pem, { mode: 0o600 });
 }
 
@@ -67,14 +80,17 @@ function restrict(path: string): void {
   } catch {
     return;
   }
+  if (process.platform !== "win32") return;
+  try {
+    const user = process.env["USERNAME"] ?? userInfo().username;
+    execFileSync("icacls", [path, "/inheritance:r", "/grant:r", `${user}:F`], { stdio: "ignore", windowsHide: true, timeout: 5000 });
+  } catch (e) {
+    console.warn(`  [!] could not restrict access to ${path}: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 function now(): Date {
   return new Date(Math.floor(Date.now() / 1000) * 1000);
-}
-
-function certDer(pemOrX509: X509Certificate): Buffer {
-  return pemOrX509.raw;
 }
 
 function loadCert(path: string): X509Certificate {
@@ -153,7 +169,8 @@ function generateSelfSigned(certfile: string, keyfile: string, hosts: readonly s
   writeFileSync(certfile, toPem(der, "CERTIFICATE"));
 }
 
-export function ensureTrustedCert(certdir: string, hosts: readonly string[]): [string, string, string] {
+export function ensureTrustedCert(certdir: string, allHosts: readonly string[]): [string, string, string] {
+  const hosts = allHosts.filter(hostPermittedByCa);
   mkdirSync(certdir, { recursive: true });
   const cafile = join(certdir, "ca.pem");
   const cakey = join(certdir, "ca-key.pem");
@@ -190,6 +207,8 @@ export function certIsCa(cafile: string, cakey?: string): boolean {
     const c = loadCert(cafile);
     if (new Date(c.validTo).getTime() - Date.now() < 30 * DAY_MS) return false;
     if (!c.ca) return false;
+    if (!hasCriticalNameConstraints(c.raw)) return false;
+    if (Math.floor((new Date(c.validTo).getTime() - new Date(c.validFrom).getTime()) / DAY_MS) > CA_DAYS + 2) return false;
     if (cakey !== undefined) {
       const priv = createPrivateKey(readFileSync(cakey));
       if (!c.checkPrivateKey(priv)) return false;
@@ -212,7 +231,12 @@ function ensureCa(cafile: string, cakey: string): void {
     signingKey: key.privateKey,
     notBefore: new Date(t.getTime() - DAY_MS),
     notAfter: new Date(t.getTime() + CA_DAYS * DAY_MS),
-    extensions: [basicConstraintsExt(true, 0), keyUsageExt("ca"), subjectKeyIdExt(keyIdentifier(key.publicKey))],
+    extensions: [
+      basicConstraintsExt(true, 0),
+      keyUsageExt("ca"),
+      subjectKeyIdExt(keyIdentifier(key.publicKey)),
+      nameConstraintsExt(CA_PERMITTED_DNS, CA_PERMITTED_RANGES),
+    ],
   });
   writeKey(cakey, key.pem);
   writeFileSync(cafile, toPem(der, "CERTIFICATE"));
@@ -238,14 +262,14 @@ function generateLeafFromCa(
   }
   const key = generateRsa();
   const t = now();
-  const caDer = certDer(ca);
+  const caDer = ca.raw;
   const der = buildCertificate({
     subject: commonName(SERVER_CN),
     issuer: subjectOf(caDer),
     publicKey: key.publicKey,
     signingKey: caKey,
     notBefore: new Date(t.getTime() - DAY_MS),
-    notAfter: new Date(t.getTime() + CERT_DAYS * DAY_MS),
+    notAfter: new Date(Math.min(t.getTime() + CERT_DAYS * DAY_MS, new Date(ca.validTo).getTime())),
     extensions: serverExtensions(hosts, [authorityKeyIdExt(keyIdentifier(ca.publicKey))]),
   });
   writeKey(keyfile, key.pem);
@@ -269,48 +293,4 @@ export function allLanIps(primary: string | null = null, interfaces: Interfaces 
 
 export function tlsHosts(lanIps: readonly string[]): string[] {
   return [...new Set(["localhost", "127.0.0.1", ...lanIps])];
-}
-
-export interface TrustStep {
-  readonly title: string;
-  readonly lines: readonly string[];
-}
-
-export interface TrustInstructions {
-  readonly heading: string;
-  readonly steps: readonly TrustStep[];
-}
-
-export interface TrustOptions {
-  readonly cafile: string;
-  readonly scheme: string;
-  readonly port: number;
-  readonly ip: string | null;
-  readonly host: string;
-}
-
-export function trustInstructions(o: TrustOptions): TrustInstructions {
-  const hostUrl = o.ip ?? o.host;
-  const fetch: string[] = [o.cafile];
-  if (o.ip) {
-    fetch.push(
-      `(or, if a device lets you tap through the warning once: ${o.scheme}://${o.ip}:${o.port}/ca.pem )`,
-    );
-  }
-  return {
-    heading: "Trusted TLS — do this ONCE per device for ZERO warnings:",
-    steps: [
-      { title: "Get the root CA onto the device — copy / AirDrop / email this file:", lines: fetch },
-      {
-        title: "Install + TRUST it:",
-        lines: [
-          "iOS:     install the profile, then Settings > General > About > Certificate Trust Settings > enable it",
-          "Android: Settings > Security > Install a certificate > CA certificate",
-          "macOS:   double-click > Keychain 'System' > set this cert to 'Always Trust'",
-          "Windows: double-click > Install > Local Machine > 'Trusted Root Certification Authorities'",
-        ],
-      },
-      { title: `Reload  ${o.scheme}://${hostUrl}:${o.port}/  — trusted, no warning.`, lines: [] },
-    ],
-  };
 }

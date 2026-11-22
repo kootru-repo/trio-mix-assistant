@@ -14,6 +14,7 @@ export interface AdvisorPort {
 }
 
 export interface MeterReceiverPort {
+  readonly lastError?: unknown;
   start(): Promise<void>;
   stop(): void;
 }

@@ -73,8 +73,21 @@ function fftPow2(re: Float64Array, im: Float64Array, inverse: boolean): void {
   }
 }
 
-function bluestein(re: Float64Array, im: Float64Array, inverse: boolean): void {
-  const n = re.length;
+interface BluesteinPlan {
+  n: number;
+  m: number;
+  wr: Float64Array;
+  wi: Float64Array;
+  kr: Float64Array;
+  ki: Float64Array;
+}
+
+const BLUESTEIN_CACHE_MAX = 65536;
+const lastPlans: [BluesteinPlan | null, BluesteinPlan | null] = [null, null];
+
+function bluesteinPlan(n: number, inverse: boolean): BluesteinPlan {
+  const cached = lastPlans[inverse ? 1 : 0];
+  if (cached !== null && cached.n === n) return cached;
   const m = nextPow2(2 * n - 1);
   const sign = inverse ? 1 : -1;
   const wr = new Float64Array(n);
@@ -85,24 +98,32 @@ function bluestein(re: Float64Array, im: Float64Array, inverse: boolean): void {
     wr[k] = Math.cos(a);
     wi[k] = Math.sin(a);
   }
+  const kr = new Float64Array(m);
+  const ki = new Float64Array(m);
+  kr[0] = wr[0]!;
+  ki[0] = -wi[0]!;
+  for (let k = 1; k < n; k++) {
+    kr[k] = wr[k]!;
+    ki[k] = -wi[k]!;
+    kr[m - k] = wr[k]!;
+    ki[m - k] = -wi[k]!;
+  }
+  fftPow2(kr, ki, false);
+  const plan: BluesteinPlan = { n, m, wr, wi, kr, ki };
+  if (n <= BLUESTEIN_CACHE_MAX) lastPlans[inverse ? 1 : 0] = plan;
+  return plan;
+}
+
+function bluestein(re: Float64Array, im: Float64Array, inverse: boolean): void {
+  const n = re.length;
+  const { m, wr, wi, kr: br, ki: bi } = bluesteinPlan(n, inverse);
   const ar = new Float64Array(m);
   const ai = new Float64Array(m);
   for (let k = 0; k < n; k++) {
     ar[k] = re[k]! * wr[k]! - im[k]! * wi[k]!;
     ai[k] = re[k]! * wi[k]! + im[k]! * wr[k]!;
   }
-  const br = new Float64Array(m);
-  const bi = new Float64Array(m);
-  br[0] = wr[0]!;
-  bi[0] = -wi[0]!;
-  for (let k = 1; k < n; k++) {
-    br[k] = wr[k]!;
-    bi[k] = -wi[k]!;
-    br[m - k] = wr[k]!;
-    bi[m - k] = -wi[k]!;
-  }
   fftPow2(ar, ai, false);
-  fftPow2(br, bi, false);
   for (let i = 0; i < m; i++) {
     const r = ar[i]! * br[i]! - ai[i]! * bi[i]!;
     const q = ar[i]! * bi[i]! + ai[i]! * br[i]!;
@@ -155,14 +176,27 @@ export function irfft(spec: Spectrum, n: number): Float64Array {
 
 export function magnitude(spec: Spectrum): Float64Array {
   const out = new Float64Array(spec.re.length);
-  for (let i = 0; i < out.length; i++) out[i] = Math.hypot(spec.re[i]!, spec.im[i]!);
+  for (let i = 0; i < out.length; i++) {
+    const r = spec.re[i]!;
+    const q = spec.im[i]!;
+    out[i] = Math.sqrt(r * r + q * q);
+  }
   return out;
 }
 
+const hanningCache = new Map<number, Float64Array>();
+
 export function hanning(m: number): Float64Array {
   if (m < 1) return new Float64Array(0);
-  if (m === 1) return Float64Array.of(1);
-  const w = new Float64Array(m);
-  for (let i = 0; i < m; i++) w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (m - 1));
+  let w = hanningCache.get(m);
+  if (w === undefined) {
+    if (m === 1) w = Float64Array.of(1);
+    else {
+      w = new Float64Array(m);
+      for (let i = 0; i < m; i++) w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (m - 1));
+    }
+    if (hanningCache.size >= 8) hanningCache.clear();
+    hanningCache.set(m, w);
+  }
   return w;
 }
