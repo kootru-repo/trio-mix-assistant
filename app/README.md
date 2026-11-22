@@ -50,6 +50,11 @@ compensates. Toggle the jobs and watch the behaviour change.
 
 ### Single-file app (no Node.js install)
 
+Ready-made builds for Windows, Apple Silicon Macs and Intel Macs are on the
+[releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest). On Windows, unzip `TrioMixAssistant-windows-x64.zip`
+and double-click `TrioMixAssistant.exe`. The Mac steps are under "On a Mac"
+below. To build it yourself:
+
 ```bash
 cd ts
 npm install
@@ -100,19 +105,17 @@ need their own build.
    cd dist/exe
    ```
 
-**Or download a ready-made build** (needs a free GitHub sign-in):
+**Or download a ready-made build:**
 
-1. Open the repository's **Actions** tab, pick the newest **CI** run on `main`
-   with a green tick, and scroll to **Artifacts**. Builds are kept for 30 days.
-2. Download `TrioMixAssistant-macos-arm64` (Apple Silicon) or
-   `TrioMixAssistant-macos-x64` (Intel) and double-click the zip.
-3. In Terminal:
+1. Open the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest) and download
+   `TrioMixAssistant-macos-arm64.tar.gz` (Apple Silicon) or
+   `TrioMixAssistant-macos-x64.tar.gz` (Intel).
+2. In Terminal:
    ```bash
    mkdir ~/TrioMix && cd ~/TrioMix
    tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
    ```
-   Use the `x64` name on an Intel Mac. If the `.tar.gz` is inside a folder in
-   Downloads, use that path.
+   Use the `x64` name on an Intel Mac.
 
 **Then run it** from the folder that holds the file:
 
