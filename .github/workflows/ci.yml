@@ -33,7 +33,7 @@ jobs:
       - name: Committed JavaScript matches the TypeScript source
         run: |
           git diff --exit-code -- ../static
-          test -z "$(git status --porcelain -- ../static)"
+          test -z "$(git ls-files --others --exclude-standard -- ../static)"
         shell: bash
 
   typescript:
