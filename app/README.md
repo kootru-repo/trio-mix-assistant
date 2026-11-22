@@ -80,6 +80,11 @@ and open the dashboard, or pass the same flags as `npm run run --`
   the console plugged in and look for an entry with enough inputs at 48000 Hz.
   Pick the **WASAPI** entry. In testing a WDM-KS entry stalled every few
   minutes (the app reopened it each time) and WASAPI did not stall at all.
+- **It can check itself.** `--diagnose` (or **Run checks** on the Settings tab)
+  listens for about eight seconds and reports on the audio module, input, signal,
+  per-channel levels, console feed and tablet access. It is read-only: the
+  command-line form builds no engine and sends the console nothing but the meter
+  subscription. The logic is in `ts/src/core/diagnostics.ts`.
 - **It is unsigned,** so Windows shows a SmartScreen warning on first run.
 - **The Node.js runtime is frozen at build time.** Rebuild after a Node.js
   security release.

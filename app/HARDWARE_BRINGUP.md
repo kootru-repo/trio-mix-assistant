@@ -78,6 +78,7 @@ move it on the console and confirm the value the app reports matches.
       (self-move suppression is working).
 
 ## 3. Audio capture (the listening half)
+- [ ] Run the built-in checks first: `TrioMixAssistant --diagnose --hardware --console-ip <ip> --audio-device <N>`. They are read-only and cover most of this section: the input opens with enough channels, audio arrives without gaps, the signal is not digital silence, and each channel shows a level. Keep the report.
 - [ ] `npm run run -- --hardware --console-ip <ip> --list-devices` → find the interface
       (the console's USB/card return + the FOH measurement mic).
 - [ ] Launch with `--audio-device <n>`; confirm `capture: {kind: audio, dead: false}`

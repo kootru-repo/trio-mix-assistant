@@ -78,6 +78,13 @@ interface LogEntryT {
   level?: AlertLevel;
 }
 
+type CheckStatusT = "pass" | "warn" | "fail" | "skip";
+interface CheckT { id: string; title: string; status: CheckStatusT; detail: string; rows: string[]; fix: string | null; }
+interface DiagnosticsT {
+  status: "idle" | "running" | "done";
+  report: { result: CheckStatusT; summary: string; checks: CheckT[]; text: string } | null;
+}
+
 interface Snapshot {
   status: "live" | "takeover" | "calibrating" | string;
   op_mode: "auto" | "alert" | "manual" | "calibrating" | "coach";
@@ -110,6 +117,7 @@ interface Snapshot {
     watchlist: { hz: number; excess: number }[];
     corrections: { hz: number; cut: number }[];
   };
+  diagnostics?: DiagnosticsT;
   channels: ChannelT[];
   log: LogEntryT[];
 }
@@ -122,6 +130,7 @@ type Command =
   | { type: "coach"; on: boolean }
   | { type: "panic"; on: boolean }
   | { type: "calibrate" }
+  | { type: "diagnose" }
   | { type: "lead_target"; db: number }
   | { type: "balance_capture" }
   | { type: "reset_notches" }

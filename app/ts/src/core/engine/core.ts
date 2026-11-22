@@ -2,6 +2,8 @@ import { CaptureError } from "../capture.ts";
 import { C } from "../config.ts";
 import { currentAnalysisConfig } from "../blockanalysis.ts";
 import type { AnalysedBlock } from "../blockanalysis.ts";
+import { LevelWindow, audioFacts, buildReport } from "../diagnostics.ts";
+import type { AudioFacts, ConsoleFacts } from "../diagnostics.ts";
 import { asBool, intOf, numOf } from "./base.ts";
 import { EngineCalibration } from "./calibration.ts";
 
@@ -145,6 +147,7 @@ export class Engine extends EngineCalibration {
   }
 
   private consume(block: AnalysedBlock, now: number): void {
+    if (this.diagWindow !== null) this.diagWindow.add(block);
     for (const [ch, feat] of block.feats) {
       if (!C.CHANNELS.has(ch)) continue;
       try {
@@ -166,6 +169,75 @@ export class Engine extends EngineCalibration {
       this.consume(block, this.clock.monotonic() - age);
     } catch (exc) {
       this.noteError(exc);
+    }
+  }
+
+  static readonly DIAG_WINDOW_S = 8.0;
+
+  async runDiagnostics(windowS: number = Engine.DIAG_WINDOW_S): Promise<void> {
+    if (this.diagStatus === "running" || this.stopped) return;
+    const host = this.diagHost !== null ? this.diagHost() : null;
+    if (host === null) return;
+    if (this.status === "calibrating") {
+      this.assistant.emit("system", "checks cannot run during calibration — run them again when it finishes");
+      this.rebuildTelemetry();
+      return;
+    }
+    const settle = (message: string | null): void => {
+      this.diagWindow = null;
+      this.diagStatus = this.diagReport !== null ? "done" : "idle";
+      if (message !== null) this.assistant.emit("system", message);
+      this.rebuildTelemetry();
+    };
+    this.diagStatus = "running";
+    this.rebuildTelemetry();
+    try {
+      const window = new LevelWindow();
+      const source = this.sim ? null : this.source;
+      const before = source !== null ? source.status() : {};
+      const packets = this.meterPackets;
+      const t0 = this.clock.monotonic();
+      this.diagWindow = window;
+      await this.clock.sleep(windowS);
+      this.diagWindow = null;
+      if (this.stopped) return settle(null);
+      if (this.status === "calibrating") return settle("checks were interrupted by calibration — run them again when it finishes");
+      const elapsed = Math.max(this.clock.monotonic() - t0, 1e-3);
+      const labels = new Map([...C.CHANNELS].map(([ch, role]) => [ch, C.ROLE_LABELS.get(role) ?? role]));
+      let audio: AudioFacts | null = null;
+      let skipped = host.audioSkipped ?? "";
+      if (this.sim) skipped = "simulation mode uses a built-in stage, so no real input is opened";
+      else if (source === null) skipped = "no audio input is selected (manual control only)";
+      else if (host.audioSkipped === null) {
+        audio = audioFacts(before, source.status(), window, elapsed, C.SAMPLE_RATE / C.BLOCK, labels, host.mappedChannels);
+      }
+      const con: ConsoleFacts | null = this.sim
+        ? null
+        : {
+            emulated: host.consoleEmulated,
+            address: this.con.ip ?? "the console",
+            listening: this.meterRx !== null,
+            listenError: null,
+            windowS: elapsed,
+            packets: this.meterPackets - packets,
+            meters: this.meterCount,
+          };
+      this.diagReport = buildReport({
+        app: host.app,
+        system: host.system,
+        platform: host.platform,
+        home: host.home,
+        mode: host.mode,
+        audioModule: host.audioModule,
+        audio,
+        audioSkipped: skipped,
+        console: con,
+        network: host.network,
+      });
+      settle(`checks finished: ${this.diagReport.summary}`);
+    } catch (exc) {
+      this.noteError(exc);
+      settle(null);
     }
   }
 
@@ -220,6 +292,7 @@ export class Engine extends EngineCalibration {
       else if (t === "coach") this.setCoachMode(bool("on"));
       else if (t === "panic") this.panic(bool("on"));
       else if (t === "calibrate") this.runCalibration();
+      else if (t === "diagnose") void this.runDiagnostics();
       else if (t === "lead_target") this.setLeadTarget(num("db"));
       else if (t === "balance_capture") this.captureBalanceNow();
       else if (t === "reset_notches") this.resetNotches();

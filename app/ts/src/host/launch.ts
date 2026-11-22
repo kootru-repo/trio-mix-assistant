@@ -35,6 +35,7 @@ export async function launch(argv: readonly string[], io: Io, open: (url: string
     }
     throw exc;
   }
+  if (argv.includes("--diagnose")) return run([...plan.argv, "--diagnose"], io);
   const scheme = plan.argv.includes("--https") ? "https" : "http";
   io.out("=".repeat(60));
   io.out("  Trio Mix-Assistant — " + (rehearse ? "REHEARSE (emulator)" : plan.mode.toUpperCase()));

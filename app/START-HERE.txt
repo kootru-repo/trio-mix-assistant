@@ -39,6 +39,13 @@ WHAT YOU NEED
   (System Settings > Privacy & Security > Microphone), or capture stays silent.
 
 ------------------------------------------------------------
+  SOMETHING NOT WORKING?
+------------------------------------------------------------
+  Open the dashboard, go to Settings and press "Run checks". It listens
+  for a few seconds, changes nothing on the console, and lists what
+  passed, what failed and how to fix it.
+
+------------------------------------------------------------
   TABLET (iPad / Android)
 ------------------------------------------------------------
   With LAN=yes in show.conf, the start window prints a URL and a QR code.

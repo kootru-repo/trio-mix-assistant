@@ -135,6 +135,7 @@ async function startApp(argv: readonly string[]): Promise<number> {
   const home = chooseHome(nodePath.dirname(process.execPath), base);
   seedHome(home, root);
   process.env["TRIO_MIX_HOME"] = home;
+  process.env["TRIO_MIX_BUILD"] = manifest.id;
   const load: (specifier: string) => Promise<AppEntry> = nodeModule.createRequire(nodePath.join(root, "load.cjs"))("./load.cjs");
   const app = await load(nodeUrl.pathToFileURL(nodePath.join(root, "js", "host", "exe.js")).href);
   return app.startFromExecutable(argv);

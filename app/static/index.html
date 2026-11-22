@@ -184,6 +184,18 @@
   .kv .row{display:flex;justify-content:space-between;gap:14px;font-size:13px;border-bottom:1px solid var(--line);padding-bottom:8px}
   .kv .row .k{color:var(--mut)} .kv .row .v{color:#eaf2ff;font-variant-numeric:tabular-nums;text-align:right}
   .kv .row .v.bad{color:#ffb3ba} .kv .row .v.ok{color:#9be7c4}
+  .diagpanel{grid-column:1/-1}
+  .diagnote{font-size:12px;color:var(--mut);margin:0 0 10px}
+  .diagbtns{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .diagbtns .btn{width:auto;min-width:150px}
+  .diagsum{font-size:13px;margin-bottom:10px;color:#eaf2ff}
+  .diagitem{display:grid;grid-template-columns:54px 1fr;gap:4px 10px;font-size:13px;border-bottom:1px solid var(--line);padding:8px 0}
+  .diagitem .tag{font-size:11px;font-weight:700;letter-spacing:.04em;padding-top:2px}
+  .diagitem.pass .tag{color:#9be7c4} .diagitem.warn .tag{color:#ffd58a} .diagitem.fail .tag{color:#ffb3ba} .diagitem.skip .tag{color:var(--dim)}
+  .diagitem .what b{color:#eaf2ff;font-weight:600} .diagitem .what span{color:var(--mut)}
+  .diagitem .rows{grid-column:2;color:var(--mut);font-size:12px;white-space:pre-line}
+  .diagitem .fix{grid-column:2;color:#ffd58a;font-size:12.5px}
+  #diagtext{width:100%;min-height:150px;margin-top:12px;background:#0b111c;color:#cfe0f5;border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
   .takeover-btn{display:inline-flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.06em;font-size:13px;
     padding:11px 18px;min-height:46px;border-radius:13px;cursor:pointer;white-space:nowrap;position:relative;overflow:hidden;
     color:#ffd0d6;border:1px solid #6a2733;background:linear-gradient(180deg,#2a151b,#190f12);
@@ -575,6 +587,13 @@
     <div class="panel"><h3>Performance</h3><div class="kv" id="setperf"></div></div>
     <div class="panel"><h3>Show</h3><div class="kv" id="setshow"></div>
       <button class="btn" id="setcal" style="margin-top:10px"><svg class="ic"><use href="#ic-calibration"/></svg>Run calibration</button>
+    </div>
+    <div class="panel diagpanel"><h3>Checks</h3>
+      <p class="diagnote">Checks that the audio input, the console link and tablet access work. It listens for a few seconds, changes nothing on the console and plays no sound.</p>
+      <div class="diagbtns"><button class="btn" id="diagrun">Run checks</button><button class="btn" id="diagcopy" hidden>Copy report</button></div>
+      <div class="diagsum" id="diagsum"></div>
+      <div id="diaglist"></div>
+      <textarea id="diagtext" readonly hidden aria-label="Check report, ready to copy"></textarea>
     </div>
   </div>
 </div>

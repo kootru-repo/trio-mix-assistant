@@ -22,6 +22,7 @@ export interface Args {
   auto: boolean;
   traceOsc: boolean;
   listDevices: boolean;
+  diagnose: boolean;
   https: boolean;
   pin: string | null;
   trust: boolean;
@@ -41,6 +42,7 @@ export const USAGE = `usage: run [-h] [--host HOST] [--lan] [--port PORT] [--har
            [--console-ip CONSOLE_IP] [--audio-device AUDIO_DEVICE]
            [--output-device OUTPUT_DEVICE] [--input-gain INPUT_GAIN]
            [--channel-map CHANNEL_MAP] [--auto] [--trace-osc] [--list-devices]
+           [--diagnose]
            [--https] [--pin PIN] [--trust] [--insecure-open] [--template TEMPLATE]
            [--ableset-port ABLESET_PORT] [--ableset-from ADDRESS] [--no-show-clock]
            [--venue VENUE]
@@ -78,6 +80,9 @@ options:
   --trace-osc           (--emulate) print every OSC address an editor (Mixing Station,
                         X32-Edit) asks the emulated desk for — for protocol fidelity work
   --list-devices        list input audio devices and exit
+  --diagnose            check that this setup works (audio module, input, signal,
+                        console, tablet access), print a report and exit. Read-only:
+                        it never changes the console and plays no sound
   --https               serve over TLS (self-signed) so iPad/Android get Wake Lock + a real
                         PWA install
   --pin PIN             require this access PIN to open the dashboard and control the
@@ -122,6 +127,7 @@ const OPTIONS = {
   auto: { type: "boolean" },
   "trace-osc": { type: "boolean" },
   "list-devices": { type: "boolean" },
+  diagnose: { type: "boolean" },
   https: { type: "boolean" },
   pin: { type: "string" },
   trust: { type: "boolean" },
@@ -174,6 +180,7 @@ export function parseCliArgs(argv: readonly string[]): Args {
     auto: Boolean(values["auto"]),
     traceOsc: Boolean(values["trace-osc"]),
     listDevices: Boolean(values["list-devices"]),
+    diagnose: Boolean(values["diagnose"]),
     https: Boolean(values["https"]),
     pin: values["pin"] ?? null,
     trust: Boolean(values["trust"]),

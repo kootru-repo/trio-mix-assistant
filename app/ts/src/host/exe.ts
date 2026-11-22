@@ -2,7 +2,7 @@ import { launch } from "./launch.ts";
 import { defaultIo, run } from "./main.ts";
 import type { Io } from "./main.ts";
 
-const LAUNCH_FLAGS = new Set(["--rehearse", "--list-devices"]);
+const LAUNCH_FLAGS = new Set(["--rehearse", "--list-devices", "--diagnose"]);
 
 export const entryFor = (argv: readonly string[]): "launch" | "run" =>
   argv.every((a) => LAUNCH_FLAGS.has(a)) ? "launch" : "run";

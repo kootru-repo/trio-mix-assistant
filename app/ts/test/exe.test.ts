@@ -46,6 +46,8 @@ test("no arguments and the launcher flags go to the launcher, anything else to t
   assert.equal(entryFor([]), "launch");
   assert.equal(entryFor(["--rehearse"]), "launch");
   assert.equal(entryFor(["--list-devices"]), "launch");
+  assert.equal(entryFor(["--diagnose"]), "launch");
+  assert.equal(entryFor(["--diagnose", "--audio-device", "3"]), "run");
   assert.equal(entryFor(["--emulate", "--lan", "--pin", "246810"]), "run");
   assert.equal(entryFor(["--help"]), "run");
   assert.equal(entryFor(["--rehearse", "--port", "9000"]), "run");
@@ -253,6 +255,12 @@ registerIf(process.platform === "win32" || process.platform === "darwin", "the b
       const listed = spawnSync(exe, ["--list-devices"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
       assert.equal(listed.status, 0, listed.stdout + listed.stderr);
       assert.ok(listed.stdout.includes("Input devices:"), "the audio module must load inside the executable: " + listed.stdout + listed.stderr);
+      const checked = spawnSync(exe, ["--diagnose"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
+      const checkedText = checked.stdout + checked.stderr;
+      assert.ok(checked.status === 0 || checked.status === 1, checkedText);
+      assert.ok(checkedText.includes(`App: single-file app, build ${built.id}`), checkedText);
+      assert.ok(/\[(PASS|FAIL)\] Audio module loads: loaded/.test(checkedText), checkedText);
+      assert.ok(/Result: \d+ failed/.test(checkedText), checkedText);
       await withEmulatorPorts(async () => {
         const emuPort = await freePort();
         const emu = spawn(exe, ["--emulate", "--port", String(emuPort), "--session-db", "off", "--no-show-clock"], { cwd: exeDir, env: exeEnv });

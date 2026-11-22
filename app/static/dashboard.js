@@ -295,6 +295,26 @@ function renderSettings(s) {
         row("Scene", show.scene != null ? show.scene : "—") +
         row("Calibration", (s.calibration || {}).status || "—") +
         row("Venue model", ven ? (ven.shows + " show(s) · " + Math.round((ven.confidence || 0) * 100) + "% · " + (ven.freqs || []).length + " known freqs") : "—"));
+    renderChecks(s.diagnostics);
+}
+let diagText = "";
+function renderChecks(d) {
+    const running = !!d && d.status === "running", rep = d ? d.report : null;
+    const run = $("#diagrun");
+    run.disabled = running;
+    run.textContent = running ? "Checking… about 8 seconds" : (rep ? "Run checks again" : "Run checks");
+    setHTML($("#diagsum"), rep ? esc("Result: " + rep.summary) : "");
+    setHTML($("#diaglist"), rep ? rep.checks.map(c => `<div class="diagitem ${esc(c.status)}"><span class="tag">${esc(String(c.status).toUpperCase())}</span>` +
+        `<span class="what"><b>${esc(c.title)}</b> <span>${esc(c.detail)}</span></span>` +
+        (c.rows && c.rows.length ? `<span class="rows">${esc(c.rows.join("\n"))}</span>` : "") +
+        (c.fix ? `<span class="fix">Fix: ${esc(c.fix)}</span>` : "") + `</div>`).join("") : "");
+    const box = $("#diagtext"), text = rep ? rep.text : "";
+    if (text !== diagText) {
+        diagText = text;
+        box.value = text;
+    }
+    box.hidden = !rep;
+    $("#diagcopy").hidden = !rep;
 }
 function renderTabPanels(s) {
     if (activeTab === "settings")
@@ -313,6 +333,23 @@ $("#eqreset").onclick = () => { if (eqCh != null) {
     eqDirty = true;
 } };
 $("#setcal").onclick = () => action({ type: "calibrate" });
+$("#diagrun").onclick = () => action({ type: "diagnose" });
+$("#diagcopy").onclick = () => {
+    const box = $("#diagtext"), btn = $("#diagcopy");
+    const done = (ok) => { btn.textContent = ok ? "Copied" : "Select the text below and copy it"; setTimeout(() => { btn.textContent = "Copy report"; }, 2500); };
+    box.focus();
+    box.select();
+    if (navigator.clipboard && window.isSecureContext)
+        navigator.clipboard.writeText(box.value).then(() => done(true), () => done(false));
+    else {
+        let ok = false;
+        try {
+            ok = document.execCommand("copy");
+        }
+        catch (e) { }
+        done(ok);
+    }
+};
 function render(s) {
     if (!s)
         return;

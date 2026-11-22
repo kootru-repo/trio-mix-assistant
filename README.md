@@ -119,6 +119,17 @@ These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, typ
 3. **Set** `MODE=hardware`, `CONSOLE_IP` and `AUDIO_DEVICE` (or `AUTO=yes` to auto-detect the input). For a tablet, set `LAN=yes` and a `PIN` of six or more characters.
 4. **Start the app** the same way as before. On a Mac, click **Allow** when macOS asks to let Terminal use the microphone and the network, or the app hears silence.
 
+### Check your setup
+
+The app can check itself. It listens for about eight seconds, **changes nothing on the console and plays no sound**, then lists what passed, what failed and how to fix it.
+
+- **In the dashboard:** Settings → **Run checks**. Use this while the app is running.
+- **In a terminal:** `TrioMixAssistant --diagnose` checks the setup in `show.conf` without starting the show. To check just one input, with no console: `TrioMixAssistant --diagnose --audio-device <number>`.
+
+It checks that the audio module loads, the chosen input opens at 48000 Hz, audio arrives without gaps, the signal is not blocked by the system's microphone permission, each channel shows a level, the console answers, and tablet access is protected by a PIN. It cannot prove the console's control formats are right; that is still the [bring-up checklist](app/HARDWARE_BRINGUP.md).
+
+The report can be copied. If something fails on your gear, or you got a Mac or a console's USB feed working, please paste the report into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues): those are the setups nobody has confirmed yet. It never contains the PIN, and the path of your home folder is removed.
+
 > **No console yet:** run `TrioMixAssistant --emulate` to rehearse the whole app against the built-in console emulator. Add `--audio-device <number>` to listen on a real mic.
 > **Tablet:** with `LAN=yes` and `HTTPS=yes`, the start window prints a **scan-to-open QR code**. See [Operating it → On a tablet](#operating-it).
 > **Show day:** the full guide is the [runbook](app/RUNBOOK.md).

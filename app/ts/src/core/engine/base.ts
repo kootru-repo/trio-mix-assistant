@@ -8,6 +8,7 @@ import type { Clock } from "../clock.ts";
 import { C } from "../config.ts";
 import { ConsoleBase, OscConsole, SimConsole } from "../console.ts";
 import { BlockAnalyser } from "../blockanalysis.ts";
+import type { DiagHost, DiagReport, LevelWindow } from "../diagnostics.ts";
 import type { ChannelFeatures } from "../dsp.ts";
 import type { AdvisorPort, MeterReceiverPort, SessionLogPort } from "../ports.ts";
 import { roundHalfEven, roundTo } from "../numfmt.ts";
@@ -107,6 +108,11 @@ export class EngineBase {
   protected songStartT = -1e9;
   protected deadSince = -1e9;
   show: ShowInfo = { current: "", next: "", section: "", bpm: null, scene: null, playing: false, index: null };
+  diagHost: (() => DiagHost) | null = null;
+  protected diagStatus: "idle" | "running" | "done" = "idle";
+  protected diagReport: DiagReport | null = null;
+  protected diagWindow: LevelWindow | null = null;
+  protected meterPackets = 0;
   protected meterCount = 0;
   protected lastRxT = -1e9;
   protected lastReconcileLog = new Map<number, number>();
@@ -244,6 +250,7 @@ export class EngineBase {
 
   setConsoleMeters(vals: readonly number[]): void {
     this.meterCount = vals.length;
+    this.meterPackets += 1;
     this.lastRxT = this.clock.monotonic();
   }
 
@@ -435,6 +442,7 @@ export class EngineBase {
         watchlist: this.calib ? this.calib.watchlist.map(([f, e]) => ({ hz: roundHalfEven(f), excess: e })) : [],
         corrections: this.calib ? this.calib.corrections.map(([f, c]) => ({ hz: roundHalfEven(f), cut: c })) : [],
       },
+      diagnostics: { status: this.diagStatus, report: this.diagReport },
       channels: this.channelTelemetry(now),
       log: this.events.slice(-40).reverse(),
     };

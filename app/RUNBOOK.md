@@ -50,6 +50,29 @@ PS> .\TrioMixAssistant.exe --list-devices
 $ ./TrioMixAssistant --list-devices
 ```
 
+### 1.1 Let the app check the setup
+
+Once `show.conf` is filled in (§2), run the built-in checks. They listen for about
+eight seconds, change nothing on the console and play no sound:
+```powershell
+PS> .\TrioMixAssistant.exe --diagnose
+```
+```bash
+$ ./TrioMixAssistant --diagnose
+```
+Each line is PASS, WARN, FAIL or SKIP, with a fix under anything that is not right. The
+command exits with 1 if a check failed. Add flags to check something other than
+`show.conf`, for example `--diagnose --audio-device 2` for one input, or
+`--diagnose --hardware --console-ip 192.168.1.50 --audio-device 2` for the full rig.
+
+While the app is running, use **Settings → Run checks** on the dashboard instead (the
+running app already holds the audio input and the console's reply port). The report
+there has a **Copy report** button.
+
+The checks cover the audio module, the input, the audio flow, the microphone
+permission, each channel's level, the console's meter feed and tablet access. They do
+not test that fader and EQ commands land correctly; that is §2.4.
+
 Settings and logs live in `%LOCALAPPDATA%\TrioMixAssistant` (Windows) or
 `~/Library/Application Support/TrioMixAssistant` (macOS); the folder is printed at
 every start.
@@ -298,6 +321,7 @@ The dashboard now names most of these in an **ALERT banner**; this table gives t
 | **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `ts/src/core/console.ts`. |
 | **Wrong meter moves when you play an input** | Channel‑map mismatch. The startup log shows `listening on '<device>'`; verify the patch order (§2.2) and the channel map. |
 | **`node` not found** | Install Node.js 22.13+ from nodejs.org, then open a new terminal. |
+| **Not sure what is wrong** | Run the checks: **Settings → Run checks**, or `--diagnose` in a terminal (§1.1). Each failed line comes with its fix. |
 | **"live audio input needs the optional native module"** | Only when running from source or the zip package: use the downloaded app (it carries the module), run `npm install` with a C++ compiler present, or run without `--audio-device`. |
 | **Audio device index changed between shows** | Indexes shift when devices are added/removed. The startup log prints the resolved name; prefer the device **name** in `show.conf` over the index. |
 

@@ -9,6 +9,8 @@ import type { AudioInputFactory, RankedInput } from "../core/devicecapture.ts";
 import { autodetectInputs, listAudioDevices, parseChannelMap, InvalidArgumentError } from "../core/devicecapture.ts";
 import { RemoteCapture } from "../core/capturelink.ts";
 import type { CapturePort } from "../core/capturelink.ts";
+import { buildReport, checkLines, footerLines, headerLines } from "../core/diagnostics.ts";
+import type { AudioFacts, ConsoleFacts, DiagFacts } from "../core/diagnostics.ts";
 import { EmulatedDesk } from "../core/emulator.ts";
 import { Engine } from "../core/engine/index.ts";
 import { MeterReceiver } from "../core/metersrv.ts";
@@ -22,6 +24,7 @@ import type { Args } from "./args.ts";
 import { Advisor } from "./advisor.ts";
 import { bannerLines, emulatorLines } from "./banner.ts";
 import { NativeAudioInputFactory } from "./audiodevice.ts";
+import { AudioProbe, CLI_WINDOW_S, ConsoleProbe, moduleFacts, networkFacts, systemFacts } from "./diagnose.ts";
 import { SystemClock, threadStamp } from "./clock.ts";
 import { captureThread } from "./capturethread.ts";
 import type { CaptureKind } from "./capturethread.ts";
@@ -64,6 +67,7 @@ export interface Io {
   udp: NodeUdpFactory;
   waitForStop: () => Promise<void>;
   layout: Layout;
+  diagnoseSeconds?: number;
   onListening?: (url: string) => void;
 }
 
@@ -383,6 +387,111 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
   }
 }
 
+const EMULATED_FEED = "no real input is selected, so the emulator's built-in audio feed stands in";
+const NO_INPUT = "no audio input is selected (manual control only)";
+const SIMULATED_STAGE = "simulation mode uses a built-in stage, so no real input is opened (add --audio-device <number> to check one)";
+
+const modeLabel = (args: Args): string =>
+  args.emulate
+    ? "emulated console (this does not prove anything about a real console)"
+    : args.hardware
+      ? `hardware, console at ${args.consoleIp || C.CONSOLE_IP}`
+      : "simulation (nothing real is checked except the audio module)";
+
+function fitMapToInput(args: Args, io: Io): void {
+  let inputs: number;
+  try {
+    inputs = audioFactory(io).queryDevice(parseDevice(args.audioDevice)).max_input_channels ?? 0;
+  } catch {
+    return;
+  }
+  if (inputs < 1 || inputs >= Math.max(...C.CHANNELS.keys())) return;
+  autoChannelMap(inputs);
+  io.out(`  Checking this input on its own, so the channel map is fitted to its ${inputs} input${inputs === 1 ? "" : "s"}.`);
+}
+
+async function runDiagnose(args: Args, io: Io): Promise<number> {
+  const head = { ...systemFacts(), mode: modeLabel(args) };
+  for (const l of headerLines(head)) io.out(l);
+  loadShowTemplate(args, io);
+  const chanMap = loadChannelMap(args, io);
+  const real = args.emulate || args.hardware;
+  if (!real && !args.auto && args.audioDevice !== null && chanMap === null) fitMapToInput(args, io);
+  const seconds = io.diagnoseSeconds ?? CLI_WINDOW_S;
+  let emu: EmulatedDesk | null = null;
+  let consoleProbe: ConsoleProbe | null = null;
+  let audioProbe: AudioProbe | null = null;
+  let audio: AudioFacts | null = null;
+  let consoleFacts: ConsoleFacts | null = null;
+  let audioSkipped = !real ? SIMULATED_STAGE : args.emulate ? EMULATED_FEED : NO_INPUT;
+  let listened = false;
+  const listen = async (): Promise<void> => {
+    if (listened || (audioProbe === null && consoleProbe === null)) return;
+    listened = true;
+    io.out(`  Listening for ${seconds} seconds. Nothing on the console is changed and no sound is played.`);
+    await io.clock.sleep(seconds);
+  };
+  try {
+    if (args.auto || args.audioDevice !== null) {
+      const auto = args.auto ? await autodetectSource(io) : null;
+      const source = auto ?? (args.audioDevice !== null ? deviceSource(args, chanMap, io) : null);
+      if (source !== null) {
+        audioProbe = new AudioProbe(source, io.clock);
+        await audioProbe.start(auto !== null);
+      } else {
+        audioSkipped = "--auto found no input that delivers audio (see the lines above)";
+      }
+    }
+    if (real) {
+      const ip = args.emulate ? "127.0.0.1" : args.consoleIp || C.CONSOLE_IP;
+      let emuError: string | null = null;
+      if (args.emulate) {
+        emu = new EmulatedDesk(io.udp, io.clock, { externalMoves: false, listenHost: "127.0.0.1", nodeScn: readScn(io) });
+        try {
+          await emu.start();
+        } catch (exc) {
+          emuError = `the emulator could not start: ${exc instanceof Error ? exc.message : String(exc)}`;
+          emu = null;
+        }
+      }
+      if (emuError === null) {
+        const con = new OscConsole(new UdpSink(ip, C.CONSOLE_PORT), { clock: io.clock, ip });
+        consoleProbe = new ConsoleProbe(io.udp, con, io.clock, args.emulate ? "127.0.0.1" : "0.0.0.0", isIP(ip) !== 0 ? ip : null);
+        await consoleProbe.start();
+      } else {
+        consoleFacts = { emulated: true, address: ip, listening: false, listenError: emuError, windowS: 0, packets: 0, meters: 0 };
+      }
+      if (consoleProbe !== null) {
+        await listen();
+        consoleFacts = consoleProbe.facts(args.emulate, ip);
+      }
+    }
+    await listen();
+    if (audioProbe !== null) audio = audioProbe.facts(args.auto || chanMap === null ? null : [...chanMap.keys()]);
+  } finally {
+    await attempt(async () => {
+      if (audioProbe !== null) await audioProbe.stop();
+    });
+    await attempt(async () => {
+      if (consoleProbe !== null) consoleProbe.stop();
+    });
+    await attempt(async () => {
+      if (emu !== null) emu.stop();
+    });
+  }
+  const facts: DiagFacts = {
+    ...head,
+    audioModule: moduleFacts(io.factory),
+    audio,
+    audioSkipped,
+    console: consoleFacts,
+    network: networkFacts(args, await lanIp()),
+  };
+  const report = buildReport(facts);
+  for (const l of [...report.checks.flatMap(checkLines), ...footerLines(report.checks)]) io.out(l);
+  return report.result === "fail" ? 1 : 0;
+}
+
 async function attempt(step: () => Promise<void>): Promise<void> {
   try {
     await step();
@@ -401,6 +510,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     }
     return 0;
   }
+  if (args.diagnose) return runDiagnose(args, io);
 
   const template = loadShowTemplate(args, io);
   const chanMap = loadChannelMap(args, io);
@@ -460,6 +570,17 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     }
     await engine.start();
     const scheme = plan.tls ? "https" : "http";
+    const usesEmulatedFeed = args.emulate && auto === null && args.audioDevice === null;
+    const mapped = args.auto || chanMap === null ? null : [...chanMap.keys()];
+    engine.diagHost = () => ({
+      ...systemFacts(),
+      mode: modeLabel(args),
+      audioModule: moduleFacts(io.factory),
+      audioSkipped: usesEmulatedFeed ? EMULATED_FEED : null,
+      mappedChannels: mapped,
+      consoleEmulated: args.emulate,
+      network: networkFacts({ ...args, https: plan.tls !== null }, ip),
+    });
     const url = `${scheme}://${ip}:${args.port}/`;
     const wildcard = WILDCARD_HOSTS.includes(args.host);
     const qr = wildcard && ip ? qrAscii(qrEncode(url).modules) : null;
