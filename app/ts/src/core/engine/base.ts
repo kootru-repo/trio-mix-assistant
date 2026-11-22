@@ -7,7 +7,7 @@ import { SimCapture } from "../capture.ts";
 import type { Clock } from "../clock.ts";
 import { C } from "../config.ts";
 import { ConsoleBase, OscConsole, SimConsole } from "../console.ts";
-import { RollingRingDetector } from "../dsp.ts";
+import { BlockAnalyser } from "../blockanalysis.ts";
 import type { ChannelFeatures } from "../dsp.ts";
 import type { AdvisorPort, MeterReceiverPort, SessionLogPort } from "../ports.ts";
 import { roundHalfEven, roundTo } from "../numfmt.ts";
@@ -111,7 +111,8 @@ export class EngineBase {
   protected lastRxT = -1e9;
   protected lastReconcileLog = new Map<number, number>();
   protected feat = new Map<number, ChannelFeatures>();
-  protected measRing = new RollingRingDetector();
+  protected analyser = new BlockAnalyser();
+  protected pushed = false;
   protected perf = { tick_ms: 0, jitter_ms: 0, max_ms: 0 };
   protected latency = new Map<string, LatencyEntry>();
   protected lastAudioRestart = -1e9;

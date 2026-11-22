@@ -76,7 +76,7 @@ The app has three modes, and each needs different things. Simulation needs almos
 
 The app is written in TypeScript and runs on Node.js. It has no runtime dependencies, so there is no setup step.
 
-> **Live audio input** (listening to the console's USB feed or a measurement mic) goes through an optional native module, `naudiodon2`, that is not bundled. It has not yet been run against real hardware. Without it the app still runs in simulation and emulation, and for manual mixing and scene recall.
+> **Live audio input** (listening to the console's USB feed or a measurement mic) goes through an optional native module, `naudiodon2`. The single-file app carries it; a Node.js install compiles it during `npm install`. It has captured from one- and two-channel Windows inputs, and not yet from a console's multichannel USB feed. Without it the app still runs in simulation and emulation, and for manual mixing and scene recall.
 
 ### Hardware
 

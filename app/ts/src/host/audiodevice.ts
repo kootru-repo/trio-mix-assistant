@@ -1,3 +1,5 @@
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { CaptureError } from "../core/capture.ts";
 import type {
   AudioDeviceId,
@@ -11,19 +13,23 @@ import type {
 } from "../core/devicecapture.ts";
 
 export const NATIVE_AUDIO_MODULE = "naudiodon2";
+export const NATIVE_AUDIO_BINARY = ["build", "Release", "naudiodon.node"];
+const SAMPLE_FORMAT_FLOAT32 = 1;
+const RELEASE_TIMEOUT_MS = 2000;
+const QUEUE_BLOCKS = 32;
+const READ_ERRORS_BEFORE_GIVING_UP = 50;
 
-interface NativeInput {
-  on(event: string, fn: (...args: unknown[]) => void): unknown;
-  start(): void;
-  quit(cb?: () => void): void;
+interface NativeRead {
+  buf?: Uint8Array;
+  finished?: boolean;
+  err?: unknown;
 }
 
-interface NativeOutput {
-  on(event: string, fn: (...args: unknown[]) => void): unknown;
+export interface NativeStream {
   start(): void;
-  write(chunk: Uint8Array): unknown;
-  end(cb?: () => void): void;
-  quit(cb?: () => void): void;
+  read(bytes: number): Promise<NativeRead>;
+  write(chunk: Uint8Array): Promise<unknown>;
+  quit(mode: "WAIT" | "ABORT"): Promise<unknown>;
 }
 
 interface NativeDevice {
@@ -43,8 +49,7 @@ interface NativeHostApis {
 export interface NativeAudio {
   getDevices(): NativeDevice[];
   getHostAPIs(): NativeHostApis;
-  AudioIO(options: unknown): NativeInput & NativeOutput;
-  SampleFormatFloat32: number;
+  create(options: unknown): NativeStream;
 }
 
 const missing = (): CaptureError =>
@@ -62,12 +67,17 @@ const broken = (detail: string): CaptureError =>
 
 export type ModuleImporter = (name: string) => Promise<unknown>;
 
-const importModule: ModuleImporter = (name) => import(name);
+const importModule: ModuleImporter = (name) => {
+  const require = createRequire(import.meta.url);
+  const root = dirname(require.resolve(`${name}/package.json`));
+  return Promise.resolve().then(() => require(join(root, ...NATIVE_AUDIO_BINARY)) as unknown);
+};
 
 const isNotInstalled = (e: unknown): boolean => {
   if (typeof e !== "object" || e === null) return false;
   const err = e as { code?: unknown; message?: unknown };
-  return err.code === "ERR_MODULE_NOT_FOUND" && String(err.message).includes(`'${NATIVE_AUDIO_MODULE}'`);
+  const notFound = err.code === "ERR_MODULE_NOT_FOUND" || err.code === "MODULE_NOT_FOUND";
+  return notFound && String(err.message).includes(`'${NATIVE_AUDIO_MODULE}`);
 };
 
 export async function loadNativeAudio(importer: ModuleImporter = importModule): Promise<NativeAudio | null> {
@@ -81,9 +91,20 @@ export async function loadNativeAudio(importer: ModuleImporter = importModule): 
   return (mod.default ?? mod) as NativeAudio;
 }
 
+const withTimeout = (work: Promise<unknown>, ms: number): Promise<void> =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    const done = (): void => {
+      clearTimeout(timer);
+      resolve();
+    };
+    work.then(done, done);
+  });
+
 export class NativeAudioInputFactory implements AudioInputFactory {
   private readonly native: NativeAudio | null;
   private readonly loadError: CaptureError | null;
+  private closing: Promise<void> = Promise.resolve();
 
   constructor(native: NativeAudio | null, loadError: CaptureError | null = null) {
     this.native = native;
@@ -150,6 +171,17 @@ export class NativeAudioInputFactory implements AudioInputFactory {
     return d;
   }
 
+  private release(stream: NativeStream): void {
+    let quitting: Promise<unknown>;
+    try {
+      quitting = stream.quit("WAIT");
+    } catch {
+      quitting = Promise.resolve();
+    }
+    const released = withTimeout(quitting, RELEASE_TIMEOUT_MS);
+    this.closing = Promise.all([this.closing, released]).then(() => undefined);
+  }
+
   open(options: AudioInputOptions, callback: AudioInputCallback): AudioInputStream {
     const native = this.need();
     const wanted = options.device;
@@ -163,28 +195,71 @@ export class NativeAudioInputFactory implements AudioInputFactory {
       const d = devs.find((x) => x.maxInputChannels > 0 && x.name.includes(wanted));
       if (d !== undefined) id = d.id;
     }
-    const frameBytes = 4 * Math.max(1, options.channels);
-    const io = native.AudioIO({
+    const blockBytes = 4 * Math.max(1, options.channels) * Math.max(1, options.blockSize);
+    const stream = native.create({
       inOptions: {
         channelCount: options.channels,
-        sampleFormat: native.SampleFormatFloat32,
+        sampleFormat: SAMPLE_FORMAT_FLOAT32,
         sampleRate: options.sampleRate,
         deviceId: id,
         framesPerBuffer: options.blockSize,
+        maxQueue: QUEUE_BLOCKS,
         closeOnError: false,
       },
     });
-    io.on("data", (chunk: unknown) => {
-      const buf = chunk as Uint8Array;
-      const bytes = buf.byteLength - (buf.byteLength % frameBytes);
-      callback(new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + bytes)), false);
-    });
-    io.on("error", () => callback(new Float32Array(0), true));
-    return {
-      start: () => io.start(),
-      stop: () => undefined,
-      close: () => io.quit(),
+    const pending = new Uint8Array(blockBytes);
+    let held = 0;
+    let closed = false;
+    const deliver = (buf: Uint8Array): void => {
+      let at = 0;
+      while (at < buf.byteLength) {
+        const take = Math.min(blockBytes - held, buf.byteLength - at);
+        pending.set(buf.subarray(at, at + take), held);
+        held += take;
+        at += take;
+        if (held === blockBytes) {
+          callback(new Float32Array(pending.buffer.slice(0, blockBytes)), false);
+          held = 0;
+        }
+      }
     };
+    const pump = async (): Promise<void> => {
+      let errors = 0;
+      while (!closed) {
+        let got: NativeRead;
+        try {
+          got = await stream.read(blockBytes);
+        } catch {
+          got = { err: "read failed" };
+        }
+        if (closed) return;
+        if (got.err !== undefined && got.err !== null) {
+          callback(new Float32Array(0), true);
+          errors += 1;
+          if (errors >= READ_ERRORS_BEFORE_GIVING_UP) return;
+          continue;
+        }
+        if (got.finished || got.buf === undefined) return;
+        errors = 0;
+        deliver(got.buf);
+      }
+    };
+    return {
+      start: () => {
+        stream.start();
+        void pump();
+      },
+      stop: () => undefined,
+      close: () => {
+        if (closed) return;
+        closed = true;
+        this.release(stream);
+      },
+    };
+  }
+
+  idle(): Promise<void> {
+    return this.closing;
   }
 
   outputSink(): AudioOutputSink | null {
@@ -197,9 +272,10 @@ export class NativeAudioInputFactory implements AudioInputFactory {
       },
       play: (samples, sampleRate, device) => {
         lastError = null;
-        playThrough(native, samples, sampleRate, device, (message) => {
+        const playing = playThrough(native, samples, sampleRate, device, (message) => {
           lastError = message;
         });
+        this.closing = Promise.all([this.closing, playing]).then(() => undefined);
       },
     };
   }
@@ -211,7 +287,7 @@ function playThrough(
   sampleRate: number,
   device: AudioDeviceId | null,
   onError: (message: string) => void,
-): void {
+): Promise<void> {
   let id = -1;
   if (typeof device === "number") {
     const d = native.getDevices()[device];
@@ -222,31 +298,39 @@ function playThrough(
     if (d === undefined) throw new Error(`No output device matching '${device}'`);
     id = d.id;
   }
-  const io = native.AudioIO({
+  const stream = native.create({
     outOptions: {
       channelCount: 2,
-      sampleFormat: native.SampleFormatFloat32,
+      sampleFormat: SAMPLE_FORMAT_FLOAT32,
       sampleRate,
       deviceId: id,
       closeOnError: false,
     },
   });
-  io.on("error", (e) => onError(e instanceof Error ? e.message : String(e)));
   const stereo = new Float32Array(samples.length * 2);
   for (let i = 0; i < samples.length; i++) {
     stereo[2 * i] = samples[i]!;
     stereo[2 * i + 1] = samples[i]!;
   }
+  const release = (): Promise<void> =>
+    withTimeout(
+      Promise.resolve().then(() => stream.quit("WAIT")),
+      RELEASE_TIMEOUT_MS + (samples.length / Math.max(1, sampleRate)) * 1000,
+    );
+  let writing: Promise<unknown>;
   try {
-    io.start();
-    io.write(new Uint8Array(stereo.buffer, stereo.byteOffset, stereo.byteLength));
-    io.end(() => io.quit());
+    stream.start();
+    writing = stream.write(Buffer.from(stereo.buffer, stereo.byteOffset, stereo.byteLength));
   } catch (e) {
-    try {
-      io.quit();
-    } catch {
-      onError("could not release the output stream");
-    }
+    void release();
     throw e;
   }
+  return writing
+    .then(
+      (failure) => {
+        if (failure !== undefined && failure !== null) onError(String(failure));
+      },
+      (e: unknown) => onError(e instanceof Error ? e.message : String(e)),
+    )
+    .then(release);
 }

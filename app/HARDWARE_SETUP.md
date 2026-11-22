@@ -84,10 +84,9 @@ capsule is fine: `--auto` sets digital input gain automatically, or use `--input
 
 ### 3.3 FOH computer, driver & buffer
 - **CPU/RAM:** any modern quad-core, 8 GB+, SSD. The DSP is trivially light (a handful
-  of 1024-pt FFTs per tick). The real constraints are **USB and driver stability**, not CPU.
-- **Windows:** install the **Midas/Behringer X-USB driver**; run on the **WASAPI** (or
-  ASIO, if present) device. The stock PortAudio build ships **without**
-  ASIO, so plan on **WASAPI exclusive** unless you build PortAudio with the ASIO SDK.
+  of 1024-pt FFTs per audio block, on a thread of their own). The real constraints are **USB and driver stability**, not CPU.
+- **Windows:** install the **Midas/Behringer X-USB driver**; run on the **WASAPI** device. The
+  PortAudio build inside the audio module has **no ASIO**.
 - **macOS:** **Core Audio** (class-compliant). Grant the Microphone permission on first
   launch (a denial makes capture *silent*; the app detects and banners it).
 - **Buffer:** 256–512 samples @ 48 k is a good latency/stability trade. The app detects
@@ -108,7 +107,7 @@ SSE/WebSocket and tolerant); keep it on the same subnet, client-isolation off.
 |---|---|---|---|---|
 | **Minimum** | Console analog **direct outs** → any 8+ in USB interface | ECM8000 | class-compliant / WASAPI | Wi-Fi AP (dedicated) |
 | **Recommended** | **M32C X-USB** (built-in) | EMM-6 (calibrated) | X-USB WASAPI @ 48 k | wired switch |
-| **Optimal** | **M32C X-USB**, direct-input routing | EMM-6 on a dedicated preamp, at the mix position | X-USB **ASIO** @ 48 k, 256-sample buffer | dedicated wired VLAN, static IPs |
+| **Optimal** | **M32C X-USB**, direct-input routing | EMM-6 on a dedicated preamp, at the mix position | X-USB WASAPI @ 48 k | dedicated wired VLAN, static IPs |
 
 The **Minimum** row is the fallback when the console's USB can't give per-channel taps:
 analog direct-outs into a separate multichannel interface. It works but adds an A/D
@@ -120,7 +119,7 @@ round-trip and hardware for no benefit over the desk's own USB, so prefer X-USB.
 
 - **OS:** Windows 10/11 or macOS 12+.
 - **Node.js:** 22.13+.
-- **Packages:** none. Live audio input needs the optional native module `naudiodon2` (not bundled, not yet verified on hardware).
+- **Packages:** none. Live audio input needs the optional native module `naudiodon2` (carried inside the single-file app; verified on one- and two-channel Windows inputs, not yet on the console's multichannel USB feed; no ASIO).
 - **Audio:** one input device exposing all channels at **48 kHz** (console X-USB).
 - **Control:** IP reachability to the console on **UDP 10023/10024** (wired).
 

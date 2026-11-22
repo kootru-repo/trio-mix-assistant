@@ -8,11 +8,17 @@ export interface Layout {
   scnPath: string;
 }
 
-export function findLayout(startDir: string = dirname(fileURLToPath(import.meta.url))): Layout {
+export const HOME_ENV = "TRIO_MIX_HOME";
+
+export function findLayout(
+  startDir: string = dirname(fileURLToPath(import.meta.url)),
+  home: string | undefined = process.env[HOME_ENV],
+): Layout {
   let dir = resolve(startDir);
   for (let i = 0; i < 8; i++) {
     if (existsSync(join(dir, "static", "index.html"))) {
-      return { appDir: dir, staticDir: join(dir, "static"), scnPath: join(dir, "x32_default_nodes.scn") };
+      const appDir = home !== undefined && home.trim() !== "" ? resolve(home) : dir;
+      return { appDir, staticDir: join(dir, "static"), scnPath: join(dir, "x32_default_nodes.scn") };
     }
     const parent = dirname(dir);
     if (parent === dir) break;

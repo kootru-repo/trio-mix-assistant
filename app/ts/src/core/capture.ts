@@ -2,6 +2,7 @@ import { C } from "./config.ts";
 import type { SimConsole } from "./console.ts";
 import { generatePinkNoise } from "./dsp.ts";
 import type { Samples } from "./dsp.ts";
+import type { AnalysedBlock } from "./blockanalysis.ts";
 import { SeededRng } from "./rng.ts";
 import type { Rng } from "./rng.ts";
 
@@ -19,7 +20,12 @@ export interface CaptureStatus {
   [key: string]: unknown;
 }
 
+export type BlockHandler = (block: AnalysedBlock, ageS: number) => void;
+
 export interface CaptureSource {
+  subscribe?(handler: BlockHandler): void;
+  ready?(): Promise<void>;
+  settled?(): Promise<void>;
   start(): void;
   stop(): void;
   block(): Frame;

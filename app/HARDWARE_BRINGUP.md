@@ -33,7 +33,7 @@ real bytes and the test suite becomes a true regression gate.
 ---
 
 ## 0. Prep
-- [ ] Node.js 22.13+ installed, and the optional native audio module `naudiodon2` if you want live audio input (not bundled, not yet verified on hardware)
+- [ ] Node.js 22.13+ installed, and the optional native audio module `naudiodon2` if you want live audio input — or the single-file app, which carries both (audio is verified on one- and two-channel Windows inputs, not yet on the console's multichannel USB feed)
 - [ ] Console and laptop on the same wired/Wi-Fi LAN; note the console IP.
 - [ ] A sniffer ready: Wireshark (UDP 10023/10024) or the X32 OSC monitor / `OSC` debug.
 

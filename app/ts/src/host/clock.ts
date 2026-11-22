@@ -1,6 +1,8 @@
 import { formatHhmmss } from "../core/clock.ts";
 import type { Clock } from "../core/clock.ts";
 
+export const threadStamp = (): number => performance.timeOrigin + performance.now();
+
 export class SystemClock implements Clock {
   monotonic(): number {
     return performance.now() / 1000;

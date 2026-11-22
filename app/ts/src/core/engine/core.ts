@@ -1,6 +1,7 @@
 import { CaptureError } from "../capture.ts";
 import { C } from "../config.ts";
-import { analyseBlock, phaseRelation } from "../dsp.ts";
+import { currentAnalysisConfig } from "../blockanalysis.ts";
+import type { AnalysedBlock } from "../blockanalysis.ts";
 import { asBool, intOf, numOf } from "./base.ts";
 import { EngineCalibration } from "./calibration.ts";
 
@@ -43,8 +44,13 @@ export class Engine extends EngineCalibration {
     }
     this.con.subscribeMeters();
     if (this.source !== null) {
+      if (this.source.subscribe) {
+        this.pushed = true;
+        this.source.subscribe((block, ageS) => this.onPushedBlock(block, ageS));
+      }
       try {
         this.source.start();
+        if (this.source.ready) await this.source.ready();
         const st = this.source.status();
         if (st["name"]) {
           this.assistant.emit("system", `listening on '${String(st["name"])}' (${String(st["channels"])} ch)`);
@@ -99,7 +105,10 @@ export class Engine extends EngineCalibration {
     if (this.advisor !== null) this.advisor.stop();
     if (this.showClock !== null) this.showClock.stop();
     if (this.meterRx !== null) this.meterRx.stop();
-    if (this.source !== null) this.source.stop();
+    if (this.source !== null) {
+      this.source.stop();
+      if (this.source.settled) await this.source.settled();
+    }
     if (this.sessionLog !== null) {
       await this.learnVenue();
       this.sessionLog.close();
@@ -121,36 +130,40 @@ export class Engine extends EngineCalibration {
 
   step(now: number, lastNow: number): void {
     try {
-      if (this.source !== null && this.status !== "calibrating") {
+      if (this.source !== null && !this.pushed && this.status !== "calibrating") {
         const frame = this.source.block();
         this.assistant.blockT0 = this.clock.highResolution();
-        for (const [ch, samples] of frame) {
-          if (!C.CHANNELS.has(ch)) continue;
-          try {
-            const isMeas = ch === C.MEAS_MIC_CH;
-            const feat = analyseBlock(samples, C.SAMPLE_RATE, { ring: !isMeas });
-            if (isMeas) {
-              const [fbFreq, harmonicity] = this.measRing.update(samples);
-              feat.fbFreq = fbFreq;
-              feat.harmonicity = harmonicity;
-            }
-            this.feat.set(ch, feat);
-            this.assistant.onFeatures(ch, feat, now);
-          } catch (exc) {
-            this.noteError(exc);
-          }
-        }
-        if (this.assistant.enabled["phase"]) {
-          for (const [pa, pb] of C.PHASE_PAIRS) {
-            const sa = frame.get(pa!);
-            const sb = frame.get(pb!);
-            if (sa !== undefined && sb !== undefined) this.assistant.handlePhase(pa!, pb!, phaseRelation(sa, sb), now);
-          }
-        }
+        const wantPhases = Boolean(this.assistant.enabled["phase"]);
+        this.consume(this.analyser.analyse(frame, currentAnalysisConfig(), (exc) => this.noteError(exc), wantPhases), now);
       }
       this.notePerf(now, lastNow);
       this.rebuildTelemetry();
       void this.recoverAudio(now);
+    } catch (exc) {
+      this.noteError(exc);
+    }
+  }
+
+  private consume(block: AnalysedBlock, now: number): void {
+    for (const [ch, feat] of block.feats) {
+      if (!C.CHANNELS.has(ch)) continue;
+      try {
+        this.feat.set(ch, feat);
+        this.assistant.onFeatures(ch, feat, now);
+      } catch (exc) {
+        this.noteError(exc);
+      }
+    }
+    if (!this.assistant.enabled["phase"]) return;
+    for (const p of block.phases) this.assistant.handlePhase(p.a, p.b, p.relation, now);
+  }
+
+  onPushedBlock(block: AnalysedBlock, ageS: number): void {
+    if (this.stopped || this.status === "calibrating") return;
+    try {
+      const age = Math.max(0, ageS);
+      this.assistant.blockT0 = this.clock.highResolution() - age;
+      this.consume(block, this.clock.monotonic() - age);
     } catch (exc) {
       this.noteError(exc);
     }

@@ -4,6 +4,7 @@ import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { withEmulatorPorts } from "./emulatorports.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -122,26 +123,30 @@ test("a PIN protects the dashboard", async () => {
   }
 });
 
-test("the emulated hardware stack runs end to end over real sockets", async () => {
-  const port = await freePort();
-  const app = await launch(["--emulate", "--port", String(port), "--session-db", "off", "--no-show-clock"]);
-  try {
-    const base = `http://127.0.0.1:${port}`;
-    let snap: any = null;
-    for (let i = 0; i < 40; i++) {
-      snap = JSON.parse((await get(base, "/state")).body);
-      if (snap.console.connected) break;
-      await new Promise((r) => setTimeout(r, 250));
+test("the emulated hardware stack runs end to end over real sockets, listening through the audio thread", () =>
+  withEmulatorPorts(async () => {
+    const port = await freePort();
+    const app = await launch(["--emulate", "--port", String(port), "--session-db", "off", "--no-show-clock"]);
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      let snap: any = null;
+      for (let i = 0; i < 40; i++) {
+        snap = JSON.parse((await get(base, "/state")).body);
+        if (snap.console.connected && snap.room.level_db > -80) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      assert.equal(snap.mode, "live-hardware");
+      assert.equal(snap.capture.kind, "audio");
+      assert.equal(snap.capture.link, "open");
+      assert.equal(snap.capture.dead, false);
+      assert.ok(snap.room.level_db > -80, `analysed audio must reach the engine (room ${snap.room.level_db} dB)`);
+      assert.ok(snap.console.connected, "meters from the emulated desk arrived");
+      assert.ok(snap.channels.length > 0);
+    } finally {
+      await app.stop();
     }
-    assert.equal(snap.mode, "live-hardware");
-    assert.equal(snap.capture.kind, "audio");
-    assert.ok(snap.console.connected, "meters from the emulated desk arrived");
-    assert.ok(snap.channels.length > 0);
-  } finally {
-    await app.stop();
-  }
-  assert.ok(app.output().includes("EMULATED-HARDWARE"));
-});
+    assert.ok(app.output().includes("EMULATED-HARDWARE"));
+  }));
 
 test("bad arguments exit with a usage message", async () => {
   const child = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", main, "--port", "abc"]);

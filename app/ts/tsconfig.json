@@ -13,6 +13,7 @@
   "include": [
     "src",
     "test",
-    "tools/**/*.ts"
+    "tools/**/*.ts",
+    "tools/**/*.cts"
   ]
 }

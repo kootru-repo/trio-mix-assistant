@@ -5,8 +5,10 @@ import { pathToFileURL } from "node:url";
 import { C, applyChannelMap, autoChannelMap } from "../core/config.ts";
 import type { Clock } from "../core/clock.ts";
 import { ConsoleBase, OscConsole } from "../core/console.ts";
-import type { AudioInputFactory } from "../core/devicecapture.ts";
-import { DeviceCapture, autodetectInputs, listAudioDevices, parseChannelMap, InvalidArgumentError } from "../core/devicecapture.ts";
+import type { AudioInputFactory, RankedInput } from "../core/devicecapture.ts";
+import { autodetectInputs, listAudioDevices, parseChannelMap, InvalidArgumentError } from "../core/devicecapture.ts";
+import { RemoteCapture } from "../core/capturelink.ts";
+import type { CapturePort } from "../core/capturelink.ts";
 import { EmulatedDesk } from "../core/emulator.ts";
 import { Engine } from "../core/engine/index.ts";
 import { MeterReceiver } from "../core/metersrv.ts";
@@ -15,13 +17,14 @@ import { qrAscii, qrEncode } from "../core/qr.ts";
 import { AbleSetReceiver, SimShowClock } from "../core/showclock.ts";
 import { defaultTemplate, fromObject } from "../core/template.ts";
 import type { ShowTemplate } from "../core/template.ts";
-import { TimedAudioFactory } from "../core/timedaudio.ts";
 import { HELP, UsageError, modeName, parseCliArgs, parseDevice, USAGE } from "./args.ts";
 import type { Args } from "./args.ts";
 import { Advisor } from "./advisor.ts";
 import { bannerLines, emulatorLines } from "./banner.ts";
 import { NativeAudioInputFactory } from "./audiodevice.ts";
-import { SystemClock } from "./clock.ts";
+import { SystemClock, threadStamp } from "./clock.ts";
+import { captureThread } from "./capturethread.ts";
+import type { CaptureKind } from "./capturethread.ts";
 import { findLayout } from "./layout.ts";
 import type { Layout } from "./layout.ts";
 import { lanIp } from "./netinfo.ts";
@@ -34,8 +37,10 @@ import { UdpSink } from "./udpsink.ts";
 import { VenueStore } from "./venuestore.ts";
 
 const AUTO_CANDIDATES = 6;
+const AUTO_DIGITAL_SILENCE_DB = -150;
+const AUTO_SMALL_DEVICE_CH = 2;
 
-function audioFactory(io: Io): AudioInputFactory {
+function audioFactory(io: Pick<Io, "factory">): AudioInputFactory {
   if (io.factory === null) throw new Error("audio factory not loaded");
   return io.factory;
 }
@@ -55,6 +60,7 @@ export interface Io {
   clock: Clock;
   audio: () => Promise<AudioInputFactory>;
   factory: AudioInputFactory | null;
+  connect: (kind: CaptureKind) => CapturePort;
   udp: NodeUdpFactory;
   waitForStop: () => Promise<void>;
   layout: Layout;
@@ -99,15 +105,16 @@ function loadChannelMap(args: Args, io: Io): Map<number, number> | null {
   return map;
 }
 
-function quietStop(source: DeviceCapture): void {
+async function quietStop(source: RemoteCapture): Promise<void> {
   try {
     source.stop();
+    await source.settled();
   } catch {
     return;
   }
 }
 
-async function autodetectSource(io: Io): Promise<DeviceCapture | null> {
+export async function autodetectSource(io: Pick<Io, "factory" | "clock" | "out" | "connect">): Promise<RemoteCapture | null> {
   const factory = audioFactory(io);
   let cands;
   try {
@@ -120,34 +127,60 @@ async function autodetectSource(io: Io): Promise<DeviceCapture | null> {
     io.out("  [!] --auto: no input devices found (install the audio module?) — manual only.");
     return null;
   }
-  for (const cand of cands.slice(0, AUTO_CANDIDATES)) {
+  const open = async (cand: RankedInput): Promise<RemoteCapture | null> => {
     const label = `[${cand.index}] ${cand.name} (${cand.hostapi}`;
     autoChannelMap(cand.channels);
-    const source = new DeviceCapture({ factory, clock: io.clock, device: cand.index });
+    const source = new RemoteCapture({ connect: () => io.connect("native"), clock: io.clock, stamp: threadStamp, device: cand.index });
     try {
       source.start();
+      await source.ready();
       await source.autoGain();
     } catch (exc) {
       io.out(`  [i] --auto: ${label}) won't open (${exc instanceof Error ? exc.name : "Error"}); trying next.`);
-      quietStop(source);
-      continue;
+      await quietStop(source);
+      return null;
     }
-    if (source.autoDb !== null) {
-      io.out(`  Auto input: ${label}, ${cand.channels} ch) — mic ${fixed(source.autoDb, 0)} dBFS, +${fixed(source.gainDb, 0)} dB`);
+    if (source.autoDb === null) {
+      io.out(`  [i] --auto: ${label}) opened but delivered no audio (mic busy?); trying next.`);
+      await quietStop(source);
+      return null;
+    }
+    return source;
+  };
+  const announce = (cand: RankedInput, source: RemoteCapture): void =>
+    io.out(
+      `  Auto input: [${cand.index}] ${cand.name} (${cand.hostapi}, ${cand.channels} ch) — mic ${fixed(source.autoDb ?? 0, 0)} dBFS, +${fixed(source.gainDb, 0)} dB`,
+    );
+  let silent: RankedInput | null = null;
+  for (const cand of cands.slice(0, AUTO_CANDIDATES)) {
+    const source = await open(cand);
+    if (source === null) continue;
+    if ((source.autoDb ?? 0) >= AUTO_DIGITAL_SILENCE_DB || cand.channels > AUTO_SMALL_DEVICE_CH) {
+      announce(cand, source);
       return source;
     }
-    io.out(`  [i] --auto: ${label}) opened but delivered no audio (mic busy?); trying next.`);
-    quietStop(source);
+    io.out(`  [i] --auto: [${cand.index}] ${cand.name} is completely silent (muted or unplugged?); trying next.`);
+    silent ??= cand;
+    await quietStop(source);
+  }
+  if (silent !== null) {
+    const source = await open(silent);
+    if (source !== null) {
+      announce(silent, source);
+      io.out("  [!] --auto: every input was silent, so this one is a guess. Check the mic, or pick one with --audio-device.");
+      return source;
+    }
   }
   io.out("  [!] --auto: no input delivered audio. Close other apps using the mic");
   io.out("      (mixer editors, voice tools) and check Windows mic privacy, then restart.");
   return null;
 }
 
-function deviceSource(args: Args, chanMap: Map<number, number> | null, io: Io): DeviceCapture {
-  return new DeviceCapture({
-    factory: audioFactory(io),
+function deviceSource(args: Args, chanMap: Map<number, number> | null, io: Io): RemoteCapture {
+  return new RemoteCapture({
+    connect: () => io.connect("native"),
     clock: io.clock,
+    stamp: threadStamp,
     device: parseDevice(args.audioDevice),
     outputDevice: parseDevice(args.outputDevice),
     channelMap: chanMap,
@@ -172,7 +205,7 @@ function buildEmulated(
   args: Args,
   template: ShowTemplate,
   chanMap: Map<number, number> | null,
-  auto: DeviceCapture | null,
+  auto: RemoteCapture | null,
   io: Io,
 ): { engine: Engine; emu: EmulatedDesk } {
   const emu = new EmulatedDesk(io.udp, io.clock, {
@@ -183,14 +216,14 @@ function buildEmulated(
   });
   for (const s of template.songs) if (s.scene !== null) emu.sceneNames.set(s.scene, s.name);
   const con = new OscConsole(new UdpSink("127.0.0.1", C.CONSOLE_PORT), { clock: io.clock, ip: "127.0.0.1" });
-  let source: DeviceCapture;
+  let source: RemoteCapture;
   if (auto !== null) {
     source = auto;
   } else if (args.audioDevice !== null) {
     source = deviceSource(args, chanMap, io);
     io.out("  Listening on a REAL audio device against the emulated desk." + (args.inputGain ? `  (+${fixed(args.inputGain, 0)} dB input)` : ""));
   } else {
-    source = new DeviceCapture({ factory: new TimedAudioFactory(io.clock), clock: io.clock });
+    source = new RemoteCapture({ connect: () => io.connect("timed"), clock: io.clock, stamp: threadStamp });
   }
   const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
   wireMeters(engine, io, "127.0.0.1", "127.0.0.1");
@@ -210,12 +243,12 @@ function buildHardware(
   args: Args,
   template: ShowTemplate,
   chanMap: Map<number, number> | null,
-  auto: DeviceCapture | null,
+  auto: RemoteCapture | null,
   io: Io,
 ): Engine {
   const ip = args.consoleIp || C.CONSOLE_IP;
   const con: ConsoleBase = new OscConsole(new UdpSink(ip, C.CONSOLE_PORT), { clock: io.clock, ip });
-  let source: DeviceCapture | null = auto;
+  let source: RemoteCapture | null = auto;
   if (source === null && args.audioDevice !== null) source = deviceSource(args, chanMap, io);
   const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
   wireMeters(engine, io, "0.0.0.0", isIP(ip) !== 0 ? ip : null);
@@ -477,6 +510,7 @@ export function defaultIo(): Io {
     clock: new SystemClock(),
     audio: () => NativeAudioInputFactory.create(),
     factory: null,
+    connect: captureThread,
     udp: new NodeUdpFactory(),
     waitForStop: () => stopper,
     layout: findLayout(),

@@ -40,6 +40,7 @@ export interface AudioInputFactory {
   defaultInputIndex(): number | null;
   open(options: AudioInputOptions, callback: AudioInputCallback): AudioInputStream;
   outputSink?(): AudioOutputSink | null;
+  idle?(): Promise<void>;
 }
 
 export interface AudioOutputSink {
@@ -80,7 +81,31 @@ interface QueuedFrame {
   ncols: number;
 }
 
+interface MeasTap {
+  dev: number;
+  need: number;
+  got: number;
+  chunks: Float32Array[];
+  resolve: (out: Float32Array | null) => void;
+}
+
+function joinChunks(chunks: readonly Float32Array[], got: number, need: number): Float32Array | null {
+  if (chunks.length === 0 || got < need * 0.9) return null;
+  const out = new Float32Array(Math.min(got, need));
+  let pos = 0;
+  for (const c of chunks) {
+    if (pos >= out.length) break;
+    const take = Math.min(c.length, out.length - pos);
+    out.set(c.subarray(0, take), pos);
+    pos += take;
+  }
+  return out;
+}
+
 const QUEUE_MAX = 32;
+const BACKLOG_MAX = 2;
+const REOPEN_ATTEMPTS = 4;
+const REOPEN_WAIT_S = 0.5;
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 const errName = (e: unknown): string => (e instanceof Error ? e.name : typeof e);
@@ -101,6 +126,8 @@ const strOf = (v: AudioDeviceId | null): string => (v === null ? "default" : Str
 
 export class DeviceCapture extends CaptureSourceBase {
   readonly SILENCE_AFTER = 4;
+  readonly DEAD_AFTER_S = 0.5;
+  readonly DEAD_CONFIRM_S = 0.1;
   readonly SILENCE_FLOOR = 1e-4;
   readonly SILENCE_HOLD_S = 5.0;
   readonly OVERLOAD_RATE = 10.0;
@@ -133,10 +160,18 @@ export class DeviceCapture extends CaptureSourceBase {
   private outputOk: boolean;
   private last: QueuedFrame | null = null;
   private consecUnderruns = 0;
+  private starvedSince: number | null = null;
   private peak = 0;
   private overloadFlag = false;
   private skippedFlag = false;
   private devName: string | null = null;
+  private sink: ((frame: Frame) => void) | null = null;
+  private wanted = false;
+  private openedAt = 0;
+  private lastArrival: number | null = null;
+  private taps: MeasTap[] = [];
+  delivered = 0;
+  private overdueSeen: number | null = null;
 
   constructor(opts: DeviceCaptureOptions) {
     super();
@@ -169,6 +204,10 @@ export class DeviceCapture extends CaptureSourceBase {
     if (this.gain !== 1.0) {
       for (let i = 0; i < data.length; i++) data[i] = data[i]! * this.gain;
     }
+    if (this.sink !== null) {
+      this.pushFrame({ data, ncols: this.ndev }, this.sink);
+      return;
+    }
     if (this.q.length >= QUEUE_MAX) {
       this.skipped += 1;
       this.q.shift();
@@ -176,8 +215,44 @@ export class DeviceCapture extends CaptureSourceBase {
     this.q.push({ data, ncols: this.ndev });
   }
 
+  subscribeFrames(handler: (frame: Frame) => void): void {
+    this.sink = handler;
+  }
+
+  private pushFrame(frame: QueuedFrame, sink: (frame: Frame) => void): void {
+    this.lastArrival = this.clock.monotonic();
+    this.overdueSeen = null;
+    this.delivered += 1;
+    this.sampleOverload();
+    this.last = frame;
+    this.trackSilence(frame);
+    if (this.taps.length > 0) this.feedTaps(frame);
+    sink(this.mapFrame(frame));
+  }
+
+  private feedTaps(frame: QueuedFrame): void {
+    const n = Math.floor(frame.data.length / frame.ncols);
+    for (const tap of [...this.taps]) {
+      if (tap.dev < frame.ncols) {
+        const col = new Float32Array(n);
+        for (let i = 0; i < n; i++) col[i] = frame.data[i * frame.ncols + tap.dev]!;
+        tap.chunks.push(col);
+        tap.got += n;
+      }
+      if (tap.got >= tap.need) this.finishTap(tap);
+    }
+  }
+
+  private finishTap(tap: MeasTap): void {
+    const at = this.taps.indexOf(tap);
+    if (at < 0) return;
+    this.taps.splice(at, 1);
+    tap.resolve(joinChunks(tap.chunks, tap.got, tap.need));
+  }
+
   override start(): void {
     if (this.stream !== null) return;
+    this.wanted = true;
     const stream = this.makeInputStream();
     try {
       stream.start();
@@ -188,6 +263,9 @@ export class DeviceCapture extends CaptureSourceBase {
       throw new CaptureError(`could not start audio device ${deviceLabel(this.device)} (${errName(e)}: ${errText(e)}).`);
     }
     this.stream = stream;
+    this.openedAt = this.clock.monotonic();
+    this.lastArrival = null;
+    this.overdueSeen = null;
   }
 
   makeInputStream(): AudioInputStream {
@@ -228,6 +306,7 @@ export class DeviceCapture extends CaptureSourceBase {
   }
 
   override stop(): void {
+    this.wanted = false;
     const stream = this.stream;
     this.stream = null;
     this.streamGen++;
@@ -252,19 +331,23 @@ export class DeviceCapture extends CaptureSourceBase {
 
   block(): Frame {
     let frame: QueuedFrame | null = null;
-    if (this.q.length > 0) {
+    if (this.q.length > BACKLOG_MAX + 1) {
       frame = this.q[this.q.length - 1]!;
       this.skipped += this.q.length - 1;
       this.q = [];
+    } else if (this.q.length > 0) {
+      frame = this.q.shift()!;
     }
     this.sampleOverload();
     if (frame !== null) {
       this.consecUnderruns = 0;
+      this.starvedSince = null;
       this.last = frame;
       this.trackSilence(frame);
     } else {
       this.underruns += 1;
       this.consecUnderruns += 1;
+      this.starvedSince ??= this.clock.monotonic();
       if (this.consecUnderruns > this.SILENCE_AFTER || this.last === null) {
         frame = { data: new Float32Array(this.blocksize * this.ndev), ncols: this.ndev };
       } else {
@@ -293,7 +376,21 @@ export class DeviceCapture extends CaptureSourceBase {
   }
 
   override dead(): boolean {
-    return this.consecUnderruns > this.SILENCE_AFTER;
+    if (this.sink !== null) {
+      if (this.stream === null) return this.wanted;
+      const now = this.clock.monotonic();
+      if (now - (this.lastArrival ?? this.openedAt) < this.DEAD_AFTER_S) {
+        this.overdueSeen = null;
+        return false;
+      }
+      if (this.overdueSeen === null) {
+        this.overdueSeen = now;
+        return false;
+      }
+      return now - this.overdueSeen >= this.DEAD_CONFIRM_S;
+    }
+    if (this.consecUnderruns <= this.SILENCE_AFTER || this.starvedSince === null) return false;
+    return this.clock.monotonic() - this.starvedSince >= this.DEAD_AFTER_S;
   }
 
   override silent(): boolean {
@@ -329,17 +426,22 @@ export class DeviceCapture extends CaptureSourceBase {
     return this.skippedFlag;
   }
 
-  override restart(): Promise<boolean> {
+  override async restart(): Promise<boolean> {
     this.stop();
-    try {
-      this.start();
-      this.consecUnderruns = 0;
-      this.silentSince = null;
-      this.lastError = null;
-      return Promise.resolve(true);
-    } catch (e) {
-      this.lastError = errText(e);
-      return Promise.resolve(false);
+    for (let attempt = 1; ; attempt++) {
+      await this.factory.idle?.();
+      try {
+        this.start();
+        this.consecUnderruns = 0;
+        this.starvedSince = null;
+        this.silentSince = null;
+        this.lastError = null;
+        return true;
+      } catch (e) {
+        this.lastError = errText(e);
+        if (attempt >= REOPEN_ATTEMPTS) return false;
+        await this.clock.sleep(REOPEN_WAIT_S);
+      }
     }
   }
 
@@ -356,8 +458,15 @@ export class DeviceCapture extends CaptureSourceBase {
   override async captureMeas(seconds: number): Promise<Float32Array | null> {
     const dev = this.channelMap.get(this.measCh);
     if (dev === undefined) return null;
-    this.q = [];
     const need = Math.trunc(seconds * this.samplerate);
+    if (this.sink !== null) {
+      return new Promise((resolve) => {
+        const tap: MeasTap = { dev, need, got: 0, chunks: [], resolve };
+        this.taps.push(tap);
+        void this.clock.sleep(seconds + 3.0).then(() => this.finishTap(tap));
+      });
+    }
+    this.q = [];
     const chunks: Float32Array[] = [];
     let got = 0;
     const deadline = this.clock.monotonic() + seconds + 3.0;
@@ -372,16 +481,7 @@ export class DeviceCapture extends CaptureSourceBase {
         got += n;
       }
     }
-    if (chunks.length === 0 || got < need * 0.9) return null;
-    const out = new Float32Array(Math.min(got, need));
-    let pos = 0;
-    for (const c of chunks) {
-      if (pos >= out.length) break;
-      const take = Math.min(c.length, out.length - pos);
-      out.set(c.subarray(0, take), pos);
-      pos += take;
-    }
-    return out;
+    return joinChunks(chunks, got, need);
   }
 
   async autoGain(targetDbfs: number = -32.0, seconds: number = 0.6, maxDb: number = 48.0): Promise<number> {
@@ -426,6 +526,7 @@ export class DeviceCapture extends CaptureSourceBase {
       overruns: this.overruns,
       skipped: this.skipped,
       underruns: this.underruns,
+      blocks: this.delivered,
       dead: this.dead(),
       silent: this.silent(),
       overload: this.overload(),
@@ -468,6 +569,8 @@ export function rankInputs(
       s += 4.0;
     } else if (["WASAPI", "Core Audio", "ALSA", "JACK"].some((k) => api.includes(k))) {
       s += 3.0;
+    } else if (api.includes("WDM-KS")) {
+      s -= 8.0;
     }
     const lower = name.toLowerCase();
     if (["array", "built-in", "built in", "internal"].some((k) => lower.includes(k))) s -= 15.0;

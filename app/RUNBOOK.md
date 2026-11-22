@@ -33,7 +33,8 @@ $ node --version        # 22.13 or higher
 ```
 
 > Live audio input (the console's USB feed and the measurement mic) needs the optional native
-> audio module `naudiodon2`, which is not bundled and is not yet verified on real hardware.
+> audio module `naudiodon2`. The single-file app carries it; the zip package does not. It is
+> verified on one- and two-channel Windows inputs, not yet on a console's multichannel USB feed.
 > Simulation, rehearsal and manual mixing need nothing extra.
 
 ---
@@ -59,7 +60,7 @@ your measurement mic.
 - **macOS multichannel:** if the console return and the meas mic are *separate*
   devices, combine them in **Audio MIDI Setup → "+" → Create Aggregate Device**, then
   use that aggregate's index. (Same interface for both = nothing to do.)
-- **Windows multichannel:** prefer the interface's **ASIO** or WASAPI device that
+- **Windows multichannel:** prefer the interface's WASAPI device (ASIO is not available in the audio module) that
   exposes all input channels at once.
 
 ### 2.3 Grant OS permissions (first launch will need these)
@@ -271,7 +272,7 @@ The dashboard now names most of these in an **ALERT banner**; this table gives t
 | **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `ts/src/core/console.ts`. |
 | **Wrong meter moves when you play an input** | Channel‑map mismatch. The startup log shows `listening on '<device>'`; verify the patch order (§2.2) and the channel map. |
 | **`node` not found** | Install Node.js 22.13+ from nodejs.org, then open a new terminal. |
-| **"live audio input needs the optional native module"** | Install `naudiodon2` next to the app, or run without `--audio-device`. |
+| **"live audio input needs the optional native module"** | Use the single-file app (it carries the module), install `naudiodon2` next to the app, or run without `--audio-device`. |
 | **Audio device index changed between shows** | Indexes shift when devices are added/removed. The startup log prints the resolved name; prefer the device **name** in `show.conf` over the index. |
 
 ---

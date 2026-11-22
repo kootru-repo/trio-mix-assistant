@@ -48,6 +48,37 @@ until it's notched, a cajón transient overloads until the preamp is trimmed
 (then recovers), and the lead vocal's input drifts so the ride visibly
 compensates. Toggle the jobs and watch the behaviour change.
 
+### Single-file app (no Node.js install)
+
+```bash
+cd ts
+npm install
+npm run exe                  # writes dist/exe/TrioMixAssistant.exe and NODE-LICENSE.txt
+```
+
+The executable carries the Node.js runtime and the whole app, so the computer
+that runs it needs nothing installed. Double-click it to start from `show.conf`
+and open the dashboard, or pass the same flags as `npm run run --`
+(`TrioMixAssistant.exe --emulate --lan --pin <pin>`).
+
+- **Settings and logs** (`show.conf`, `sessions.db`, `.certs`, `venues`) live in
+  `%LOCALAPPDATA%\TrioMixAssistant`. The folder is printed at start. To keep
+  them beside the executable instead, put a `show.conf` next to it.
+- **Live listening is inside.** The build packs the native audio binding
+  (from `naudiodon2`, with PortAudio) and stops with an error if it is missing or does
+  not load, so `npm install` on the build computer needs a C++ compiler. It has
+  captured from one- and two-channel Windows inputs; a console's multichannel
+  USB feed has not been tried yet. The module offers MME, DirectSound, WASAPI
+  and WDM-KS devices, not ASIO. Run `TrioMixAssistant.exe --list-devices` with
+  the console plugged in and look for an entry with enough inputs at 48000 Hz.
+  Pick the **WASAPI** entry. In testing a WDM-KS entry stalled every few
+  minutes (the app reopened it each time) and WASAPI did not stall at all.
+- **It is unsigned,** so Windows shows a SmartScreen warning on first run.
+- **The Node.js runtime is frozen at build time.** Rebuild after a Node.js
+  security release.
+- **Ship `NODE-LICENSE.txt` with it.** The build is for the platform it runs
+  on, and only the Windows build has been tested.
+
 ### Real hardware
 
 ```bash
@@ -55,10 +86,10 @@ npm run run -- --hardware --console-ip 192.168.1.50 --list-devices   # find your
 npm run run -- --hardware --console-ip 192.168.1.50 --audio-device 2 --lan --pin 123456
 ```
 
-Live audio input needs the optional native module `naudiodon2`, which is not bundled and has not yet been run against real hardware.
+Live audio input uses the optional native module `naudiodon2`, which `npm install` compiles when a C++ compiler is present. It has captured from one- and two-channel Windows inputs, and not yet from a console's multichannel USB feed.
 
 The **listening half** is wired: `--audio-device` opens a multichannel native audio
-(ASIO/WASAPI) stream carrying the console's USB/card feed + the FOH measurement
+(WASAPI, WDM-KS, DirectSound or MME; Core Audio on a Mac) stream carrying the console's USB/card feed + the FOH measurement
 mic, and drives the assistant (feedback FFT, clip, vocal ride) and the pink-noise
 calibration for real. Omit `--audio-device` to run hardware mode with **manual
 control + scene recall only** (the assistant stays inactive, clearly logged).
@@ -169,8 +200,10 @@ button mutes the main and holds all jobs so a human always wins.
 ## Architecture
 
 ```
-SimCapture / DeviceCapture ─▶ dsp.analyseBlock ─▶ MixAssistant ─▶ guardrails ─▶ Console(OSC)
-      (audio in)                 (features)          (4 jobs)        (clamp)       (control out)
+  audio thread                                     main thread
+DeviceCapture ─▶ BlockAnalyser ══▶ RemoteCapture ─▶ MixAssistant ─▶ guardrails ─▶ Console(OSC)
+  (audio in)       (features)     (one message      (4 jobs)        (clamp)       (control out)
+                                   per block)
                                                          │
               engine telemetry ◀─────────────────────────┘
                       │  (WebSocket / SSE)
@@ -178,6 +211,14 @@ SimCapture / DeviceCapture ─▶ dsp.analyseBlock ─▶ MixAssistant ─▶ gu
 ```
 
 Everything under `ts/src/core` is platform-free; `ts/src/host` holds the Node bindings.
+
+A real or emulated audio device is read and analysed on its own thread
+(`host/audioworker.ts`). Each block is analysed once, as it arrives, and its
+features are posted to the engine, so a busy web server or a slow phone cannot
+make the app miss audio. Blocks that reach the engine more than 0.25 s late are
+counted (`capture.stale` in `/state`) and dropped, so a backlog cannot fire a
+burst of fader moves. The simulator has no device and is still stepped by the
+engine's timer.
 
 | Module (`ts/src/core` unless noted) | Responsibility |
 |--------|----------------|
@@ -187,6 +228,8 @@ Everything under `ts/src/core` is platform-free; `ts/src/host` holds the Node bi
 | `calibration.ts` | Pre-show pink-noise pass |
 | `assistant/` | The guard-railed decision loops + typed decision log: `base` (state, log, coach), `protect` (feedback, clip), `levels` (vocal ride, balance), `clarity` (phase, unmask), `core` (`MixAssistant`) |
 | `capture.ts`, `devicecapture.ts`, `timedaudio.ts` | The listening half: the `CaptureSource` interface and simulator, real multichannel input behind an injected stream, and the emulator's timed stream |
+| `blockanalysis.ts`, `capturelink.ts` | Per-block analysis, and the link between the audio thread (`CaptureHost`) and the engine (`RemoteCapture`): open, restart, recording and liveness as messages |
+| `host/audiodevice.ts`, `host/audioworker.ts`, `host/capturethread.ts` | The PortAudio binding (called directly), the audio thread's entry file, and its launcher |
 | `clock.ts`, `rng.ts`, `transport.ts` | Injected time, seeded randomness and UDP, so the engine can be stepped deterministically in tests |
 | `engine/` | Live telemetry and control: `base` (state, events, telemetry), `controls` (operator moves), `show` (scenes, venue, advisor), `calibration`, `core` (`Engine`: lifecycle, loop, command dispatch) |
 | `emulator.ts`, `metersrv.ts` | The desk emulator and the meter / fader receiver |
@@ -231,8 +274,8 @@ body-size limits.
 ### Robustness
 
 - **One thread owns all state**: the engine, assistant, console mirror, event log
-  and telemetry run on Node's single event loop, so there are no races or torn
-  reads. Anything slow is asynchronous: fader ramps are queued steps on the
+  and telemetry run on Node's main event loop, so there are no races or torn
+  reads. The audio thread shares nothing with it; it only sends messages. Anything slow is asynchronous: fader ramps are queued steps on the
   injected clock, and calibration awaits its capture.
 - **The loop self-heals**: a bad block is caught, logged (throttled), and the
   engine keeps running instead of dying silently.

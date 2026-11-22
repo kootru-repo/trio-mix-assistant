@@ -11,13 +11,18 @@
     "package": "node --experimental-strip-types --no-warnings tools/package.ts",
     "start": "node --experimental-strip-types --no-warnings src/host/launch.ts",
     "run": "node --experimental-strip-types --no-warnings src/host/main.ts",
-    "osc-demo": "node --experimental-strip-types --no-warnings src/host/oscdemo-cli.ts"
+    "osc-demo": "node --experimental-strip-types --no-warnings src/host/oscdemo-cli.ts",
+    "exe": "node --experimental-strip-types --no-warnings tools/sea.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
+    "postject": "1.0.0-alpha.6",
     "typescript": "7.0.2"
   },
   "engines": {
     "node": ">=22.13"
+  },
+  "optionalDependencies": {
+    "naudiodon2": "2.5.0"
   }
 }
