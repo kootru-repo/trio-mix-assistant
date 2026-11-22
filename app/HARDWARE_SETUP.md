@@ -96,7 +96,7 @@ capsule is fine: `--auto` sets digital input gain automatically, or use `--input
 
 ### 3.4 Control network: wired Ethernet
 Put the **OSC control path** (console ↔ laptop, UDP 10023/10024) on **wired Ethernet**
-with static IPs. Wi-Fi on a dedicated access point works (the Minimum tier below) but
+with static IPs. Wi-Fi on a dedicated access point can be used (the Minimum tier below) but
 is less dependable in a crowded room. A dashboard **phone or tablet** may use Wi-Fi (the dashboard is
 SSE/WebSocket and tolerant); keep it on the same subnet, client-isolation off.
 

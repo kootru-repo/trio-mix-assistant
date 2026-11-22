@@ -1,6 +1,6 @@
 # UX Design: Operating with Mixing Station (no X32‑Edit)
 
-> **Status:** design. Sections 1 to 3 and 6 describe how the app works today. The launch banner and firewall check (section 4), the `--model` flag and the Signal job (section 5) are proposals and are not built.
+> **Status:** design. Sections 1 to 3 and 6 describe the intended experience. The launch banner and firewall check (section 4), the `--model` flag and the Signal job (section 5) are proposals and are not built.
 > **Scope:** the operator/performer experience across all three modes (simulation,
 > emulation, production) with **Mixing Station** as the manual mixer surface and the
 > **dashboard PWA** as the assistant surface. X32‑Edit is demoted to an appendix‑level
@@ -157,8 +157,8 @@ Done:
   desk as *MixAssist*, syncs it, reads the scene list and shows live meters
   (checked 2026-07-03; see `app/HARDWARE_BRINGUP.md`). `--trace-osc` prints every
   address a mixer app asks for.
-- **Docs.** The README and runbook are written around Mixing Station, with
-  X32-Edit and M32-Edit as other editors.
+- **Docs.** The README is written around Mixing Station, with X32-Edit and
+  M32-Edit as other editors.
 
 Not built:
 

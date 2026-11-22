@@ -106,7 +106,7 @@ The app has three modes, and each needs different things. Simulation needs only 
 | **Console** | n/a | Emulated | **Midas M32C** or X32‑family, on the LAN |
 | **Audio interface** | n/a | Optional (USB mic to test calibration/feedback) | Console USB/card feed or an interface (e.g. Focusrite Scarlett) |
 | **Measurement mic** | n/a | Optional | **Yes**: a mic at FOH for room + feedback listening |
-| **Network** | n/a | n/a | Wired Ethernet between laptop and console (recommended; a dedicated WiFi access point also works). WiFi for a phone or tablet |
+| **Network** | n/a | n/a | Wired Ethernet between laptop and console (recommended; a dedicated WiFi access point can be used). WiFi for a phone or tablet |
 | **Phone or tablet** | n/a | Optional | Optional: iPhone, iPad or Android for a wireless dashboard |
 | **AbleSet** | n/a | n/a | Optional: automatic scene recall from the setlist |
 
