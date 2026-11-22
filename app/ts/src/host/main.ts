@@ -378,7 +378,7 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
   } catch (exc) {
     if (exc instanceof UsageError) {
       io.out(USAGE);
-      io.out(`run: error: ${exc.message}`);
+      io.out(`TrioMixAssistant: error: ${exc.message}`);
       return 2;
     }
     throw exc;

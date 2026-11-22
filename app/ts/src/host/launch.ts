@@ -39,7 +39,8 @@ export async function launch(argv: readonly string[], io: Io, open: (url: string
   const scheme = plan.argv.includes("--https") ? "https" : "http";
   io.out("=".repeat(60));
   io.out("  Trio Mix-Assistant — " + (rehearse ? "REHEARSE (emulator)" : plan.mode.toUpperCase()));
-  io.out(`  Dashboard: ${scheme}://127.0.0.1:${plan.port}/   (and the LAN URL/QR below)`);
+  const lanNote = plan.argv.includes("--lan") ? "   (and the LAN URL/QR below)" : "";
+  io.out(`  Dashboard: ${scheme}://127.0.0.1:${plan.port}/${lanNote}`);
   io.out("  Press Ctrl+C in this window to stop.");
   io.out("=".repeat(60));
   return run(plan.argv, { ...io, onListening: open });

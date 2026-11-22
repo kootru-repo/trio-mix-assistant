@@ -33,7 +33,7 @@ See the repo **[README](../README.md)** (overview, screenshots, setup), the
 (one-time OSC-validation checklist). This file is the developer reference. To
 just run the app, download it from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest); what has and has
 not been tried on real hardware is in one table,
-[What has been tested](../README.md#tested).
+[What has been tested](https://github.com/kootru-repo/trio-mix-assistant#tested).
 
 ![Dashboard](../docs/screenshots/dashboard-full.png)
 
@@ -41,7 +41,7 @@ not been tried on real hardware is in one table,
 
 ```bash
 cd ts
-npm install                  # only to build and test; the app has no runtime dependencies
+npm install                  # to build and test, and to compile the optional audio module
 npm run run                  # simulation mode (no hardware)
 # open http://127.0.0.1:8770/
 ```
@@ -92,7 +92,7 @@ and open the dashboard, or pass the same flags as `npm run run --`
 - **The Node.js runtime is frozen at build time.** Rebuild after a Node.js
   security release.
 - **Ship `NODE-LICENSE.txt` with it.** The build is for the platform and
-  processor it runs on. See [What has been tested](../README.md#tested) for each platform.
+  processor it runs on. See [What has been tested](https://github.com/kootru-repo/trio-mix-assistant#tested) for each platform.
 
 #### On a Mac
 
@@ -138,7 +138,7 @@ need their own build.
 4. Press Ctrl+C to stop.
 
 Settings and logs live in `~/Library/Application Support/TrioMixAssistant`. For
-a show, set `CONSOLE_IP` and `AUDIO_DEVICE` in the `show.conf` there; the rest
+a show, set `MODE=hardware`, `CONSOLE_IP` and `AUDIO_DEVICE` in the `show.conf` there; the rest
 is in `RUNBOOK.md`.
 
 ### Real hardware
@@ -148,7 +148,7 @@ npm run run -- --hardware --console-ip 192.168.1.50 --list-devices   # find your
 npm run run -- --hardware --console-ip 192.168.1.50 --audio-device 2 --lan --pin 123456
 ```
 
-Live audio input uses the optional native module `naudiodon2`, which `npm install` compiles when a C++ compiler is present. See [What has been tested](../README.md#tested).
+Live audio input uses the optional native module `naudiodon2`, which `npm install` compiles when a C++ compiler is present. See [What has been tested](https://github.com/kootru-repo/trio-mix-assistant#tested).
 
 The **listening half** is wired: `--audio-device` opens a multichannel native audio
 (Core Audio on a Mac; WASAPI, WDM-KS, DirectSound or MME on Windows) stream carrying the console's USB/card feed + the FOH measurement
@@ -221,7 +221,7 @@ The dashboard is an installable **PWA**, so the same code is served to
 Safari (iPhone, iPad) and Chrome (Android), with no native app and no App Store. The engine
 runs on the FOH laptop; the phone or tablet is a thin client over the LAN. It
 has not been tried on a real iPhone or iPad yet; see
-[What has been tested](../README.md#tested).
+[What has been tested](https://github.com/kootru-repo/trio-mix-assistant#tested).
 
 ```bash
 npm run run -- --lan --pin 123456            # bind to the LAN; prints the URL + QR code
@@ -267,7 +267,7 @@ button mutes the main and holds all jobs so a human always wins.
 ```
   audio thread                                     main thread
 DeviceCapture ─▶ BlockAnalyser ══▶ RemoteCapture ─▶ MixAssistant ─▶ guardrails ─▶ Console(OSC)
-  (audio in)       (features)     (one message      (4 jobs)        (clamp)       (control out)
+  (audio in)       (features)     (one message      (6 jobs)        (clamp)       (control out)
                                    per block)
                                                          │
               engine telemetry ◀─────────────────────────┘
@@ -300,7 +300,7 @@ engine's timer.
 | `emulator.ts`, `metersrv.ts` | The desk emulator and the meter / fader receiver |
 | `host/server.ts` | HTTP + Server-Sent Events + WebSocket + control endpoints, PIN limiter, Origin and Host guards |
 | `host/tls.ts`, `host/sessionlog.ts`, `host/advisor.ts` | Certificates, SQLite session log, Claude advisor |
-| `../static/index.html` | The operator dashboard page; its script is `static/dashboard.js`, compiled from TypeScript in `app/web` (see [web/README.md](web/README.md)) |
+| `app/static/index.html` | The operator dashboard page; its script is `static/dashboard.js`, compiled from TypeScript in `app/web` (see [web/README.md](web/README.md)) |
 
 Transport is a **WebSocket** (`/ws`) for the bidirectional mixing surface
 (telemetry out, fader/mute/control in), implemented on Node's built-in modules (no web framework),
@@ -315,19 +315,17 @@ npm test
 ```
 
 The tests cover OSC scaling round-trips + guardrail clamps, DSP/detection,
-the four decision loops (incl. that a steady sung note is *not* notched and a
+the six decision loops (incl. that a steady sung note is *not* notched and a
 rising ring *is*), calibration, the HTTP/SSE/WebSocket endpoints, the
 **hardware** path (capture buffering/mapping/meas with an injected stream, meter
 blob decode, console-fader reconciliation, dead-stream silence + recovery, silent-
-mic detection, calibration-on-silence, and an injected source driving the
+mic detection, and an injected source driving the
 assistant), the **show side** (template validation, sim + AbleSet show clocks,
 auto scene recall, AUTO/ALERT/MANUAL mode, notification levels, 8-bar gate, manual
-scene recall), the **performer surface** (EQ/FX/send commands + clamping, the
-**template-driven 13-ch map**, detect→actuate latency, room-mic SNR confidence),
+scene recall), the **performer surface** (EQ/FX/send commands + clamping, detect→actuate latency, room-mic SNR confidence),
 the **advisor/logging layer** (SQLite session log off the real-time path, the advisory
 loop with an injected caller, advisory-only safety, **venue learning** model
-build/save/load + watch-list seeding), the **extensions** (guest mode, stereo
-links, stage-mic detection), a **contract** suite that pins the X32/M32 wire
+build/save/load + watch-list seeding), the **extensions** (guest mode, stage-mic detection), a **contract** suite that pins the X32/M32 wire
 layout + a full real-socket round-trip against the desk emulator, and a
 **robustness** suite: concurrent-client stress tests, malformed/NaN/
 deeply-nested input rejection, the calibration-vs-takeover guard, the main-bus

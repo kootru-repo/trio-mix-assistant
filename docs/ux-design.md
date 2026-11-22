@@ -1,10 +1,10 @@
 # UX Design: Operating with Mixing Station (no X32‑Edit)
 
-> **Status:** design. Sections 1 to 3 and 6 describe the intended experience. The launch banner and firewall check (section 4), the `--model` flag and the Signal job (section 5) are proposals and are not built.
+> **Status:** design. Sections 1 to 3 and 6 describe the intended experience. The production launch-banner line, the firewall check and the `--model` flag (section 4) and the Signal job (section 5) are proposals and are not built. Section 7 lists status.
 > **Scope:** the operator/performer experience across all three modes (simulation,
 > emulation, production) with **Mixing Station** as the manual mixer surface and the
-> **dashboard PWA** as the assistant surface. X32‑Edit is demoted to an appendix‑level
-> fallback (it keeps working; it is no longer part of the story we design for).
+> **dashboard PWA** as the assistant surface. X32-Edit also works as a
+> fallback editor.
 
 ---
 
@@ -25,7 +25,7 @@
    global TAKEOVER always one tap away on the dashboard.
 5. **Rehearsal ≡ show.** Same apps, same layout, same muscle memory in the living
    room as at the gig. The only thing that changes is the IP Mixing Station points
-   at: the console (show) or the laptop running `--emulate` (rehearsal).
+   at: the console (show) or the laptop running `--emulate --lan` with a PIN (rehearsal).
 
 ## 2. The surfaces
 
@@ -50,7 +50,7 @@ Notes:
 Pad (or a phone) on a mic stand at the edge of the stage, **dashboard PWA
 full‑screen**. Mixing Station may not be installed at all.
 
-- Glanceable from meters away: the status pill (OK / acting / COACH / TAKEOVER)
+- Glanceable from meters away: the status pill (AUTO / ALERT / COACH / MANUAL)
   and the 4‑level notification ladder (silent → log → banner → acknowledge
   overlay) carry the whole story.
 - Anything the band must do mid‑set is one tap: TAKEOVER, a scene, a guest mute.
@@ -88,19 +88,19 @@ The inverted experience, and the pairing that shows both apps at their best.
   translates.
 
 ### J4: Rehearsal (emulation)
-Identical to J2/J3 with one substitution: the laptop runs `--emulate` and Mixing
+Identical to J2/J3 with one substitution: the laptop runs `--emulate --lan` (with a PIN) and Mixing
 Station connects to the **laptop's IP**.
 
 - The emulator answers the discovery broadcast, so Mixing Station's console picker
   shows **“MixAssist”**, so connecting is a tap, not an IP form.
-- A USB mic makes feedback/calibration rehearsal real; without one, the simulator
+- A USB mic makes feedback/calibration rehearsal real; without one, the emulator's timed audio feed
   still drives the full coach/override loop.
 - **Design rule:** zero rehearsal‑only UI. If rehearsal needs a different habit
   than the show, the design is wrong.
 
 ## 4. Onboarding & connection UX
 
-*Proposal, not built.* Startup currently prints/QRs the dashboard URL. Extend the launch banner to tell
+*Partly built: with `--emulate` the app already prints the mixer-app line; the production line and the firewall check are not built.* Startup prints/QRs the dashboard URL. Extend the launch banner to tell
 the whole two‑surface story in one glance:
 
 ```
@@ -109,8 +109,8 @@ the whole two‑surface story in one glance:
   Mixer app   →  connect Mixing Station to 192.168.1.20 “MixAssist”   ← --emulate
 ```
 
-- `--emulate --lan` should check/offer the **Windows Firewall rule** for UDP 10023
-  (X32‑Edit on loopback never needed it; a pad on Wi‑Fi does).
+- `--emulate --lan` should check for the macOS incoming-connections permission and the
+  **Windows Firewall rule** for UDP 10023 (a pad on Wi-Fi needs it).
 - A `--model X32|M32` identity flag selects the family string the emulator reports,
   so M32‑Edit and the Q apps connect without config edits.
 - RUNBOOK gains a “Connect your mixer app” step mirroring the tablet‑PWA step.
@@ -164,8 +164,8 @@ Not built:
 
 1. **Identity flag**: `--model X32|M32`, so M32-Edit and the Q apps connect
    without config edits.
-2. **Launch banner**: the Dashboard / Mixer app connect lines, and a firewall
-   check on `--emulate --lan`.
+2. **Launch banner**: the production (console IP) mixer-app line, and a firewall
+   check on `--emulate --lan`. The `--emulate` mixer-app line is printed today.
 3. **Runbook step**: a short step on connecting the mixer app, beside the
    phone and tablet step.
 4. **Signal job**: scribble-strip color and name annotation with the section 5

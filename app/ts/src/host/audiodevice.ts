@@ -56,7 +56,7 @@ const missing = (): CaptureError =>
   new CaptureError(
     `live audio input needs the optional native audio module '${NATIVE_AUDIO_MODULE}' ` +
       `(npm install ${NATIVE_AUDIO_MODULE}); it is not installed. ` +
-      `--simulation and the emulator modes work without it.`,
+      `Simulation and --emulate work without it.`,
   );
 
 const broken = (detail: string): CaptureError =>

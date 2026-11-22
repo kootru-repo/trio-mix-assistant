@@ -38,7 +38,7 @@ export interface Args {
   help: boolean;
 }
 
-export const USAGE = `usage: run [-h] [--host HOST] [--lan] [--port PORT] [--hardware] [--emulate]
+export const USAGE = `usage: TrioMixAssistant [-h] [--host HOST] [--lan] [--port PORT] [--hardware] [--emulate]
            [--console-ip CONSOLE_IP] [--audio-device AUDIO_DEVICE]
            [--output-device OUTPUT_DEVICE] [--input-gain INPUT_GAIN]
            [--channel-map CHANNEL_MAP] [--auto] [--trace-osc] [--list-devices]
@@ -104,8 +104,8 @@ options:
   --no-show-clock       disable the simulated show clock (no auto song changes)
   --venue VENUE         venue name — tags the session log for venue learning
   --session-db SESSION_DB
-                        SQLite path for session logging (default: sessions.db in the
-                        app's folder; use 'off' to disable)
+                        SQLite path for session logging (default: sessions.db beside
+                        show.conf; use 'off' to disable)
   --advisor             enable the Claude advisory layer (needs ANTHROPIC_API_KEY; advisory
                         notes only — never controls the mix)
   --advisor-interval ADVISOR_INTERVAL

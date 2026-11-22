@@ -66,7 +66,7 @@ jobs:
         run: npm ci --foreground-scripts
       - name: Type-check (core must stay free of platform APIs)
         run: npm run check
-      - name: Test against the recorded reference fixtures
+      - name: Test against the recorded fixtures
         run: npm test
       - name: Build the single-file app
         if: runner.os == 'macOS'

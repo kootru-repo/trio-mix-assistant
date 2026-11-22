@@ -11,7 +11,8 @@ where it differs, there's a **macOS** and a **Windows** version side by side.
 >
 > Commands use the downloaded app and are typed in a terminal opened in the app's
 > folder. Running from source instead? Replace `./TrioMixAssistant` or `.\TrioMixAssistant.exe` with
-> `npm run run --` in the `app/ts` folder.
+> `npm run run --` in the `app/ts` folder. In the Node.js folder package, use
+> `node js/host/main.js` in its place.
 
 ---
 
@@ -80,7 +81,7 @@ every start.
 
 > **Before you rely on it:** listening on a Mac and capture from a console's
 > multichannel USB feed have not been tried yet. See
-> [What has been tested](../README.md#tested).
+> [What has been tested](https://github.com/kootru-repo/trio-mix-assistant#tested).
 >
 > **From source** (developers): Node.js 22.13+ and `npm install` in `app/ts`. Live
 > listening then needs the native module `naudiodon2`, which `npm install` compiles
@@ -117,7 +118,7 @@ your measurement mic.
 ### 2.3 Grant OS permissions (first launch will need these)
 - **macOS Microphone (critical):** the first time, **System Settings → Privacy &
   Security → Microphone → enable Terminal** (or your IDE). If denied, capture is
-  *silent*, the assistant is deaf, and calibration aborts with "heard near‑silence".
+  *silent*, the assistant is deaf, and calibration stops with "calibration heard only … dBFS at the mic".
 - **macOS Network:** when you launch with `--lan`, click **Allow** on the "accept
   incoming connections?" prompt.
 - **Windows Firewall:** the first `--lan` launch pops **Windows Defender Firewall**.
@@ -130,7 +131,7 @@ confirm fader/gain/EQ scalings, the `/meters` decode, scene recall, and the chan
 map. Speak into the lead mic; the **lead** meter (not another) must move. This is the
 one step the emulator can't do for you. Done once per firmware.
 
-> Want to rehearse the whole flow *before* the gear arrives? `TrioMixAssistant --emulate`
+> Want to rehearse the whole flow *before* the gear arrives? `./TrioMixAssistant --emulate` (Windows: `.\TrioMixAssistant.exe --emulate`)
 > runs the identical stack against a built‑in desk emulator (see §8).
 
 ---
@@ -177,21 +178,22 @@ On launch it prints the dashboard URL (and a scan‑to‑open QR when `--lan`).
 | Mode badge | **HARDWARE** |
 | Status pill | **AUTO** (green), not **ALERT** |
 | Footer audio chip | `audio: <your interface> ok` (not SILENT / DEAD / XRUN) |
-| **console feed** | `connected: true`, `meters > 0` |
+| Settings → Connections → **Console feed** | `connected · N meters` (not `no feed`) |
 | Footer latency | `loop … ms` small, stable |
 
-The app actively watches the hardware and raises an **ALERT banner** for the common
-problems, so you don't have to read gauges:
-- *"inputs are silent — check Microphone permission…"* → on macOS this is almost always
-  a denied **Microphone** permission; also check input gain and the patch.
+The app actively watches the hardware and raises an alert for the common
+problems (a banner, or a full-screen **NEEDS ATTENTION** overlay for the critical ones), so
+you don't have to read gauges:
+- *"inputs are silent — check Microphone permission…"* → on macOS, check the
+  **Microphone** permission first; then input gain and the patch.
 - *"audio capture stopped — the assistant is deaf"* → the interface was unplugged/lost;
-  re-connect it and the app **auto-recovers** (the banner clears, "audio capture
+  re-connect it and the app **auto-recovers** (the overlay clears, "audio capture
   recovered" appears in the log).
 - *"no console feed … — check the console IP, network, and firewall"* → OSC isn't
   arriving; see §10.
 - *"audio interface is dropping samples (xruns)…"* → raise the device buffer size.
 
-The startup log also prints **`listening on '<device name>'`**. Confirm it's the right
+The dashboard's Decision log shows **`listening on '<device name>' (N ch)`**. Confirm it's the right
 interface (this catches a shifted device index). **Don't go live while the pill is ALERT.**
 
 ---
@@ -199,9 +201,10 @@ interface (this catches a shifted device index). **Don't go live while the pill 
 ## 4. Soundcheck sequence (build trust gradually)
 
 1. **Calibrate the room:** PA at show level, room quiet, then *Run calibration*. Watch for
-   the "heard near‑silence" abort (it means pink noise or the meas mic isn't reaching the
+   a "calibration heard only … dBFS at the mic" message (it means pink noise or the meas mic isn't reaching the
    analyzer; fix that before continuing).
-2. **Enable the safety‑net first:** *feedback catch* + *clip protection*. Watch the
+2. **Start with the safety net only:** *Feedback notch* + *Clip protection* (both are on at
+   start; Vocal ride and Balance hold start off). Watch the
    **decision log** and confirm what it does is correct before adding more.
 3. **Add vocal ride**, then **balance** (set your levels, tap *Capture balance now*).
 4. **Load the set:** confirm the song bar shows the right song/scene; tap a scene in the
@@ -213,7 +216,7 @@ interface (this catches a shifted device index). **Don't go live while the pill 
 ## 5. Phone or tablet (iPhone, iPad or Android, optional)
 
 The dashboard has not been tried on a real iPhone or iPad yet; see
-[What has been tested](../README.md#tested).
+[What has been tested](https://github.com/kootru-repo/trio-mix-assistant#tested).
 
 Launched with `--lan` (and ideally `--https`):
 1. On the phone or tablet, open the printed LAN URL or **scan the QR** in the terminal
@@ -228,7 +231,7 @@ Launched with `--lan` (and ideally `--https`):
 
 - **Screens** (tabs at the top): **Mix** (faders + jobs + log, the 95% view) · **EQ**
   (per-channel 4-band PEQ with a live curve; dashed markers = the assistant's auto
-  notches) · **FX** (per-channel sends + wet returns) · **Settings** (connection,
+  notches, shown in simulation only) · **FX** (per-channel sends + wet returns) · **Settings** (connection,
   latency, room SNR, venue model).
 - **Notifications, 4 levels:** silent auto-correct → log entry → dismissable **banner**
   (warn) → full-screen **acknowledge overlay** (critical). No non-critical pop-ups in
@@ -238,10 +241,10 @@ Launched with `--lan` (and ideally `--https`):
 - **COACH** (header button): flips the assistant from *acting* to *advising*. It detects
   the same feedback/clip/level problems but, instead of touching the console, lists the
   exact manual move (channel, band, dB, Hz) in a **Coach — manual moves** panel and the
-  decision log (e.g. *"Feedback 2.5 kHz in the room → cut the MAIN BUS at 2500 Hz by −9 dB
+  decision log (e.g. *"Feedback 2500 Hz in the room → cut the MAIN BUS at 2500 Hz by -9 dB
   (Q 8)"*). **Calibration is coach-aware too:** with coach on, *Run calibration* still
   measures the room but *advises* the main-bus EQ (*"set MAIN-BUS PEQ: band 1 250 Hz
-  −6 dB…"*) as a standing recommendation instead of applying it. The numbers are
+  -6.0 dB…"*) as a standing recommendation instead of applying it. The numbers are
   the same deterministic math the automatic jobs would use. Coach suspends every
   automatic console write, covering mix corrections (feedback, clip, vocal ride, balance,
   calibration) **and** setlist automation (scene recall, guest mutes), and advises each
@@ -259,7 +262,7 @@ Launched with `--lan` (and ideally `--https`):
 
 - Every decision is in **`sessions.db`** (SQLite), tagged with `--venue`. Over multiple
   shows at the same room this builds venue history (the basis for venue learning).
-- `--session-db off` disables logging; `--session-db path\to\file.db` redirects it.
+- `--session-db off` disables logging; `--session-db path/to/file.db` (Windows: `path\to\file.db`) redirects it.
 
 ---
 
@@ -294,10 +297,10 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--list-devices` | print input devices (with host API) and exit |
 | `--diagnose` | run the built-in checks (§1.1), print the report and exit; read-only |
 | `--trace-osc` | with `--emulate`, print every OSC address a mixer app asks the emulated desk for |
-| `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `templates/autofoh_pilot.json` = a 13‑input rig); else the built‑in 8‑ch trio |
+| `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `autofoh_pilot.json`, a 13-input rig, in the `templates` folder beside `show.conf`; give the full path); else the built‑in 8‑ch trio |
 | `--ableset-port <p>` | listen for AbleSet song/section OSC → auto scene recall |
 | `--ableset-from <ip>` | accept AbleSet messages only from this address (default: the first computer that sends them) |
-| `--no-show-clock` | disable the simulated show clock (sim only) |
+| `--no-show-clock` | disable the simulated show clock (simulation and `--emulate`) |
 | `--venue "<name>"` | tag the session log **and load/learn this venue's model** (recurring feedback freqs pre‑seed the watch‑list; the model updates after each show) |
 | `--session-db <path｜off>` | session‑log location, or disable |
 | `--advisor` | enable the Claude advisory layer (needs `ANTHROPIC_API_KEY`) |
@@ -309,33 +312,36 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--trust` | serve a cert signed by a local root CA (implies `--https`). Install the printed root once per device → a fully‑trusted, **warning‑free** https connection |
 | `--host <ip>` / `--port <n>` | bind address / port (default 8770) |
 
-Default (no flags) = **simulation** on `http://127.0.0.1:8770/`.
+Default (no flags) = the setup in `show.conf`: **simulation** on `https://127.0.0.1:8770/` as
+shipped (`HTTPS=yes`; accept the certificate warning once, or set `HTTPS=no`). Started with any
+flag other than `--diagnose` or `--list-devices`, the app ignores `show.conf`; simulation is
+then on `http://127.0.0.1:8770/`.
 
 ---
 
 ## 10. Troubleshooting
 
-The dashboard now names most of these in an **ALERT banner**; this table gives the fix.
+The dashboard names most of these in an alert; this table gives the fix.
 
 | Symptom (banner / message) | Likely cause → fix |
 |---|---|
 | **"no console feed … check the console IP, network, and firewall"** | Wrong `--console-ip`, console on a different subnet, or firewall blocking UDP. Ping the console; allow the app through the firewall (§2.3); confirm `/xremote` with a sniffer. Recovers automatically when the feed returns. |
-| **"inputs are silent" / footer chip = SILENT** | **macOS Microphone permission denied** (System Settings → Privacy → Microphone → enable Terminal) is the #1 cause. Also: input gain too low, wrong device, or input muted at the desk. |
-| **"audio capture stopped — the assistant is deaf" / chip = DEAD** | Interface unplugged or driver wedged. Re‑connect it; the app **auto‑retries every 3 s** and clears the banner ("audio capture recovered"). |
+| **"inputs are silent" / footer chip = SILENT** | On macOS, check the Microphone permission first (System Settings → Privacy & Security → Microphone → enable Terminal). Also: input gain too low, wrong device, or input muted at the desk. |
+| **"audio capture stopped — the assistant is deaf" / chip = DEAD** | Interface unplugged or driver wedged. Re‑connect it; the app **auto‑retries every 3 s** and clears the alert ("audio capture recovered"). |
 | **"audio … dropping samples (xruns)" / chip = XRUN** | Device buffer too small / CPU contention. Raise the interface buffer size; close other audio apps. |
-| **"audio capture off — … has N input channels but needs M"** | The selected device has too few inputs. Pick a fuller interface, or make a macOS Aggregate Device (§2.2). |
-| **"audio capture off — … could not be opened … in use by another app"** | Another app (DAW) holds the device (Windows ASIO/WASAPI‑exclusive). Close it, or pick a different device. |
+| **"audio capture off — … has N input channel(s) but this setup needs M"** | The selected device has too few inputs. Pick a fuller interface, or make a macOS Aggregate Device (§2.2). |
+| **"audio capture off — could not open audio device … It may be in use by another app, or not support 48000 Hz"** | Another app (a DAW) holds the device, or the device is not set to 48000 Hz. Close the other app, set the device to 48000 Hz, or pick a different device. |
 | **"Could not open the dashboard on port 8770"** | A second copy is already running. Stop it, or launch with a different `--port`. |
 | **"meter port busy" / "Desk emulator could not bind…"** | Two copies running. Stop the other instance. |
-| **calibration "heard near‑silence … the test tone could not be played"** | No/locked **output** device for the pink noise. Check the PA feed/output selection. |
+| **"calibration heard only … dBFS at the mic … the test tone could not be played"** | No/locked **output** device for the pink noise. Check the PA feed/output selection. |
 | **Tablet can't open the page** | Not launched with `--lan`; firewall blocking inbound; different Wi‑Fi/VLAN; AP "client isolation" on. Use the exact printed URL/QR. |
 | **HTTPS cert warning on tablet** | Expected with self‑signed. Tap **Advanced → proceed**, then Add to Home Screen. **To remove the warning entirely,** launch with `--trust`: it prints steps to install a local root CA once per device (`…/ca.pem`), after which https is fully trusted (no warning). If a browser won't let you proceed *and* you're not using `--trust`, delete the `.certs` folder beside `show.conf` and relaunch to make a fresh certificate. Always open via the exact **IP** URL the app prints. |
 | **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `ts/src/core/console.ts`. |
-| **Wrong meter moves when you play an input** | Channel‑map mismatch. The startup log shows `listening on '<device>'`; verify the patch order (§2.2) and the channel map. |
+| **Wrong meter moves when you play an input** | Channel‑map mismatch. The dashboard's Decision log shows `listening on '<device>' (N ch)`; verify the patch order (§2.2) and the channel map. |
 | **`node` not found** | Only when running from source or the Node.js folder package: install Node.js 22.13+ from nodejs.org, then open a new terminal. The downloaded app does not need it. |
 | **Not sure what is wrong** | Run the checks: **Settings → Run checks**, or `--diagnose` in a terminal (§1.1). Each failed line comes with its fix. |
-| **"live audio input needs the optional native module"** | Only when running from source or the zip package: use the downloaded app (it carries the module), run `npm install` with a C++ compiler present, or run without `--audio-device`. |
-| **Audio device index changed between shows** | Indexes shift when devices are added/removed. The startup log prints the resolved name; prefer the device **name** in `show.conf` over the index. |
+| **"live audio input needs the optional native audio module 'naudiodon2'"** | Only when running from source or the zip package: use the downloaded app (it carries the module), run `npm install` with a C++ compiler present, or run without `--audio-device`. |
+| **Audio device index changed between shows** | Indexes shift when devices are added/removed. The dashboard's Decision log shows the resolved name; prefer the device **name** in `show.conf` over the index. |
 
 ---
 

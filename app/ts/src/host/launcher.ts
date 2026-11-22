@@ -75,7 +75,7 @@ export function buildArgv(
       argv.push(`--audio-device=${dev}`);
     } else {
       print(
-        "  [i] AUDIO_DEVICE blank — running manual mixing + scene recall only (the assistant won't listen). Run list-devices to pick one.",
+        "  [i] AUDIO_DEVICE blank — running manual mixing + scene recall only (the assistant won't listen). Run the app with --list-devices to pick one.",
       );
     }
     const outdev = get(cfg, "OUTPUT_DEVICE", "").trim();

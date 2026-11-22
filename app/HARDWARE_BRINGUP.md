@@ -14,7 +14,7 @@ takeover always wins.
 
 ## What the emulator already covers (and what it can't)
 
-Before you touch hardware, `TrioMixAssistant --emulate` runs the **entire** real stack:
+Before you touch hardware, `./TrioMixAssistant --emulate` (`.\TrioMixAssistant.exe` on Windows, here and in every command below) runs the **entire** real stack:
 `OscConsole` → UDP socket → a protocol-faithful desk emulator → `/meters` stream +
 `/xremote` echoes → `MeterReceiver` → reconciliation, plus the real capture queue fed
 by a timed audio stream. `npm test` (the emulator and protocol tests)
@@ -27,7 +27,7 @@ What the emulator **cannot** tell you: whether those formats are *correct for yo
 firmware*. The emulator encodes the same assumptions the app does, so it can only
 prove self-consistency. The checklist below (especially section 1) is exactly the
 set of assumptions to confirm against the real desk. Each is pinned by the
-expected values in `ts/test/emulator.test.ts` and `ts/test/osc.test.ts`; once you have a capture, replace those expected values with the
+recorded values in `ts/fixtures/emulator.json` and `ts/fixtures/osc.json` (checked by the emulator and OSC tests); once you have a capture, replace those values with the
 real bytes and the test suite becomes a true regression gate.
 
 ---
@@ -38,30 +38,32 @@ real bytes and the test suite becomes a true regression gate.
 - [ ] A sniffer ready: Wireshark (UDP 10023/10024) or the X32 OSC monitor / `OSC` debug.
 
 ## 1. OSC control scalings  (the #1 thing to verify)
-For each, move it in the app and confirm the console does the **same** thing, and
-move it on the console and confirm the value the app reports matches.
-- [x] **Fader**: VALIDATED against **X32-Edit** (2026-06-30). The emulated desk now
+For each, make the app change it and confirm the console does the **same** thing. Faders
+also go the other way: move one on the console and confirm the app shows the same value.
+Preamp gain and polarity have no dashboard control: trigger the clip or phase job and watch the desk.
+- [x] **Fader**: VALIDATED against **X32-Edit** (2026-06-30). The emulated desk
       serves X32-Edit's discovery + sync, so X32-Edit renders what the app sends.
       Pushed 0/+5/−10/−20/−40 dB via `dbToFader` → X32-Edit displayed exactly those
-      dB. The linear 0..1 ↔ dB law in `ts/src/core/console.ts` matches Behringer's. (Re-confirm on the
+      dB. The piecewise-linear 0..1 ↔ dB law in `ts/src/core/console.ts` matches Behringer's. (Re-confirm on the
       real M32C, but the scaling itself is no longer an assumption.)
       **Also (2026-07-03): Mixing Station (Android) fully syncs the emulated desk**,
       including discovery, whole-tree sync, /node bulk reads, show/scene list, and live
       meter streams. That is a second independent implementation accepting our wire formats.
-- [ ] **Preamp gain**: clip-trim −3 dB actually drops the head-amp ~3 dB.
+- [ ] **Preamp gain**: clip-trim −2 dB actually drops the head-amp ~2 dB.
 - [ ] **Channel EQ notch**: a feedback notch lands on the right band, freq, Q, and gain.
 - [ ] **Main-bus PEQ**: room-correction cuts hit the main/stereo bus, not a channel.
 - [ ] **Mute** and **scene recall** (`/-action/goscene`) do what you expect.
-- [ ] **Polarity/phase invert** (`/ch/NN/preamp/invert`, for the *phase* job): flipping
-      it in the app toggles the channel Φ on the desk. **Also confirm the card/USB tap
+- [ ] **Polarity/phase invert** (`/ch/NN/preamp/invert`, for the *phase* job): when the phase
+      job flips it, the channel Φ toggles on the desk. **Also confirm the card/USB tap
       point is POST-invert**: the phase job's auto-flip only closes the loop if the
       signal the app captures reflects the polarity flip (else it correctly falls back
       to advisory after one flip). If the address differs, fix it in `console.ts`.
 > If any mapping is off, fix the scaling in `ts/src/core/console.ts` (or `config.ts`); the
 > code centralises every conversion so there's one place to correct per parameter.
 
-> **Validate the app→console direction NOW, without the desk:** run `--emulate` and
-> connect **Mixing Station** (or X32-Edit/M32-Edit) to this PC (it discovers the
+> **Validate the app→console direction NOW, without the desk:** run
+> `./TrioMixAssistant --emulate --lan --https --pin 123456` (`.\TrioMixAssistant.exe` on Windows) and
+> connect **Mixing Station** (or X32-Edit) to the laptop (it discovers the
 > emulated desk as *MixAssist* at the LAN IP on UDP 10023). Anything the app sends is
 > rendered by a production mixer app, so the mute/EQ-notch/headamp/scene assumptions
 > above can each be confirmed against it the same way the fader was. (The `/meters`
@@ -76,13 +78,13 @@ move it on the console and confirm the value the app reports matches.
 - [ ] Confirm `decodeMeterBlob` (in `oscwire.ts`) produces sane values (0..1). If the count
       or float layout is off for your firmware, adjust `decodeMeterBlob`.
 - [ ] Move a fader **on the console**; confirm the app log shows
-      "moved on console → …" and auto-ride yields (the dashboard shows `console: connected`).
+      "moved on console → …" and auto-ride yields (Settings shows Console feed `connected · N meters`).
 - [ ] Confirm the app's own ride moves do **not** show up as "moved on console"
       (self-move suppression is working).
 
 ## 3. Audio capture (the listening half)
-- [ ] Run the built-in checks first: `TrioMixAssistant --diagnose --hardware --console-ip <ip> --audio-device <N>`. They are read-only and cover most of this section: the input opens with enough channels, audio arrives without gaps, the signal is not digital silence, and each channel shows a level. Keep the report.
-- [ ] `TrioMixAssistant --hardware --console-ip <ip> --list-devices` → find the interface
+- [ ] Run the built-in checks first: `./TrioMixAssistant --diagnose --hardware --console-ip <ip> --audio-device <N>`. They are read-only and cover most of this section: the input opens with enough channels, audio arrives without gaps, the signal is not digital silence, and each channel shows a level. Keep the report.
+- [ ] `./TrioMixAssistant --hardware --console-ip <ip> --list-devices` → find the interface
       (the console's USB/card return + the FOH measurement mic).
 - [ ] Launch with `--audio-device <n>`; confirm `capture: {kind: audio, dead: false}`
       and that channel meters move with real input.
@@ -91,18 +93,18 @@ move it on the console and confirm the value the app reports matches.
       `--channel-map "1:0,2:1,…,8:9"` (console 1-based : device column 0-based). Speak
       into the lead mic; the *lead* meter moves. (Rig spec: `HARDWARE_SETUP.md`.)
 - [ ] Confirm the **measurement mic** is on `MEAS_MIC_CH` (config) and hears the room.
-- [ ] Confirm the startup log prints `listening on '<your interface>'` (catches a
+- [ ] Confirm the dashboard's Decision log shows `listening on '<your interface>' (N ch)` (catches a
       wrong/shifted device index) and the footer chip reads `audio: … ok`.
 - [ ] **macOS:** if you ever clicked "Don't Allow" on the mic prompt, the footer chip
       shows **SILENT** and a banner says "inputs are silent — check Microphone
-      permission". Fix in System Settings → Privacy → Microphone.
-- [ ] **Unplug test:** pull the interface briefly → a CRITICAL "deaf" banner appears;
+      permission". Fix in System Settings → Privacy & Security → Microphone.
+- [ ] **Unplug test:** pull the interface briefly → a full-screen "audio capture stopped — the assistant is deaf" alert appears;
       re-plug → the app auto-recovers within a few seconds ("audio capture recovered"
-      in the log, banner clears). No restart needed.
+      in the log, alert clears). No restart needed.
 
 ## 4. Calibration (pink noise)
 - [ ] PA at a safe level. Run calibration; confirm pink noise actually plays out the PA
-      and the meas mic records it (watch for the "heard near-silence" abort, which means
+      and the meas mic records it (watch for a "calibration heard only … dBFS at the mic" message, which means
       playback or the mic isn't reaching the analyzer).
 - [ ] Confirm the resulting cuts land on the main bus and sound sensible (no wild EQ).
 
@@ -116,12 +118,12 @@ move it on the console and confirm the value the app reports matches.
 
 ## 6. Latency / success criteria
 - [ ] Watch the footer `loop … ms · jit … ms`. Reflex actions (feedback/clip) should be
-      well under the spec's targets; investigate if `tick_ms` approaches the audio block
+      well under the audio block period (about 21 ms); investigate if `tick_ms` approaches the audio block
       period or jitter is large (CPU contention, or too small a buffer on the audio interface).
 
 ## 7. First real show: safety-net only
-- [ ] Run with automatic **jobs disabled**; watch the decision log to confirm what it
-      *would* do is correct, before enabling anything.
+- [ ] Run in **COACH** mode; the Coach panel and the decision log list each move it
+      *would* make. Confirm they are correct before letting it act.
 - [ ] Enable feedback + clip protection first; add vocal ride / balance once trusted.
 - [ ] Keep TAKEOVER one tap away. Review the SQLite session log afterwards
       (`sessions.db`) and tag the venue (`--venue`) to start building venue history.
@@ -140,12 +142,12 @@ move it on the console and confirm the value the app reports matches.
   with a clear message (no auto-resample); set the interface to 48 kHz.
 - **Calibration output.** Pink noise plays to the OS default output unless you pass
   `--output-device` (point it at the PA). Otherwise it may play out the laptop
-  speakers and calibration will (correctly) abort on "near-silence".
+  speakers and calibration will (correctly) stop with "calibration heard only … dBFS at the mic".
 - **The emulator validates mechanics, not your firmware's exact OSC formats**; that's
   what §1 is for.
 - **Channel EQ shares 4 bands.** The X32/M32 input has 4 PEQ bands; the performer EQ
-  view and the automatic feedback notcher use the *same* 4 bands. The EQ view shows
-  active notches as dashed markers + a note, but an operator edit and an auto-notch
+  view and the automatic feedback notcher use the *same* 4 bands. In simulation the EQ view shows
+  active notches as dashed markers + a note; with a console it does not. An operator edit and an auto-notch
   can land on the same band. The operator (or TAKEOVER) wins. The FX/aux send
   OSC addresses are unverified against a real desk, like the rest.
 - **TAKEOVER holds the *automatic* system, not your hands.** Takeover mutes the main
@@ -153,7 +155,7 @@ move it on the console and confirm the value the app reports matches.
   (faders, mutes, EQ, FX, sends from the dashboard on the laptop, iPhone or iPad) stays live so you can fix
   things by hand. Quitting the app leaves the console untouched.
 
-The app now actively detects and surfaces the rest (denied mic permission, a mid-show
+The app detects and surfaces the rest (denied mic permission, a mid-show
 unplug + auto-recovery, xruns, a busy/late device that recovers without a relaunch,
 port clashes, a lost console feed). See RUNBOOK.md §10.
 

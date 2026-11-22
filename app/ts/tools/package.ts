@@ -34,7 +34,7 @@ export const SCRIPTS: Record<string, string> = {
     "echo Running the FULL app against a simulated console (no hardware needed)...\r\nnode --no-warnings js\\host\\launch.js --rehearse\r\n",
   ),
   "list-devices.bat": bat(
-    "node --no-warnings js\\host\\launch.js --list-devices\r\necho.\r\necho Put the device NUMBER (or exact NAME) into AUDIO_DEVICE in show.conf\r\n",
+    "node --no-warnings js\\host\\launch.js --list-devices\r\n",
   ),
   "start.command": sh("node --no-warnings js/host/launch.js\n"),
   "rehearse.command": sh("node --no-warnings js/host/launch.js --rehearse\n"),

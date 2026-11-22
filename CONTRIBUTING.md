@@ -12,9 +12,10 @@ engineer. Players, sound people and programmers are all welcome.
   sketch helps.
 - **Report a bug** or **send a pull request.**
 
-You do not need a console to take part. `npm run run` (in `app/ts`) runs a full simulation,
-and `npm run run -- --emulate --lan --pin 123456` runs the real stack against a built-in desk
-emulator (see the [README](README.md)).
+You do not need a console to take part. The downloaded app starts in simulation
+(`./TrioMixAssistant` on a Mac, `.\TrioMixAssistant.exe` on Windows), and `--emulate` runs
+the real stack against a built-in desk emulator (see the [README](README.md#run-it)).
+Working from source, use `npm run run --` in `app/ts` with the same flags.
 
 ## Seeing the feedback
 

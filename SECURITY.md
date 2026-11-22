@@ -20,20 +20,22 @@ network. Reports are especially welcome for anything that lets someone:
 
 ## What to know when you run it
 
-- A PIN of at least 6 characters is required whenever the dashboard is served to the network (the app refuses to start without one unless `--insecure-open` or `ALLOW_OPEN=yes` is given, which is only for a network you fully trust) (`PIN=` in
-  `show.conf`, or `--pin`).
+- A PIN of at least 6 characters (`PIN=` in `show.conf`, or `--pin`) is required
+  whenever the dashboard is served to the network. Without one the app refuses to
+  start, unless `--insecure-open` or `ALLOW_OPEN=yes` is given, which is only for a
+  network you fully trust.
 - Use `--https` with a PIN. Without it the PIN travels unencrypted on the
   network.
 - The HTTPS certificate is self-signed, so browsers show a warning the first
   time.
 - The session log (`sessions.db`) is stored unencrypted on the computer that
   runs the app.
-- Wrong PIN guesses lock an address out for 30 seconds, and each further
+- Five wrong PIN guesses lock an address out for 30 seconds, and each further
   lockout of that address lasts twice as long, up to 15 minutes.
 - Each network address is limited to 24 connections, 8 live streams and about
   200 commands a second. Takeover (panic) is never rate limited.
 - Console messages (fader moves, meters) are accepted only from the console's
-  address. AbleSet messages are accepted only from `--ableset-from`
+  address (give the console as an IP address; with a host name this filter is off). AbleSet messages are accepted only from `--ableset-from`
   (`ABLESET_FROM=` in `show.conf`), or from the first computer that sends them
   when that is not set. UDP sender addresses can be forged by a device on the
   same network, so run the console and the app on a network that holds only
@@ -47,6 +49,7 @@ Fixes go into the latest version on `main`.
 
 Nothing is sent anywhere unless you turn on `--advisor` (or `ADVISOR=yes` in `show.conf`). With
 the advisor on, every 30 seconds (the interval is configurable) the app sends a short summary
-to `api.anthropic.com`: recent event text, each channel's role and level, the current song and
-scene names, and any alerts. It does not send the venue name, the PIN, or audio. The API key is read
+to `api.anthropic.com`: recent event text, each channel's role, level and whether it is notched, the current and
+next song names with section, tempo and scene number, the lead-vocal status, the run mode,
+and any alerts. It does not send the venue name, the PIN, or audio. The API key is read
 from the `ANTHROPIC_API_KEY` environment variable and is only sent to that address.

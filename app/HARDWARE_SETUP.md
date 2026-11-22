@@ -25,7 +25,7 @@ recommendation below follows from them:
 | **One input device carries *all* channels** (console returns **and** the meas mic) | `DeviceCapture` opens a single stream, `channels = max(channel_map)+1` | Use the console's own multichannel USB. A *separate* USB meas mic needs an OS aggregate device. |
 | **48 kHz, float32** | `SAMPLE_RATE = 48000`; a 44.1 kHz-locked device is rejected with a clear message (no auto-resample) | Set the interface to 48 kHz; run the whole rig at 48 k. |
 | **Device column = console channel − 1** (default map) | the channel map, else `{ch: ch-1}` | Use the console's default X-USB routing (card sends = inputs 1–N in order), or override with `--channel-map`. |
-| **Low-latency host API preferred** | ranker rewards ASIO (+4) > WASAPI / Core Audio / ALSA / JACK (+3), penalizes built-in mic arrays | macOS → **Core Audio**; Windows → **WASAPI** (the bundled audio module has no ASIO). |
+| **Low-latency host API preferred** | ranker rewards ASIO (+4) > Core Audio / WASAPI / ALSA / JACK (+3), penalizes built-in mic arrays | macOS → **Core Audio**; Windows → **WASAPI** (the bundled audio module has no ASIO). |
 
 ---
 
@@ -79,18 +79,20 @@ so it arrives on the same USB stream as every other channel:
 **Placement:** at the mix position / a representative listening spot, on a stand at
 ear height, capsule pointed up (omni), away from walls and boundaries. It is the app's
 "truth about the room" and should hear the PA + room as the audience does. A quiet
-capsule is fine: `--auto` sets digital input gain automatically, or use `--input-gain
-<dB>` (try 20–40 for a dynamic).
+capsule is fine: use `--input-gain <dB>` (try 20–40 for a dynamic). `--auto` also
+sets the gain, but it re-sizes the channel map to the device and treats the last input as the
+measurement mic, so avoid it on the console's 32-input feed.
 
 ### 3.3 FOH computer, driver & buffer
-- **CPU/RAM:** any modern quad-core, 8 GB+, SSD. The DSP is trivially light (a handful
-  of 1024-pt FFTs per audio block, on a thread of their own). The real constraints are **USB and driver stability**, not CPU.
+- **CPU/RAM:** any modern quad-core, 8 GB+, SSD. The DSP is trivially light (a 1024-point FFT per channel plus one
+  4096-point FFT for the room mic per audio block, on a thread of their own). The real constraints are **USB and driver stability**, not CPU.
 - **macOS:** **Core Audio** (class-compliant). Grant the Microphone permission on first
   launch (a denial makes capture *silent*; the app detects and banners it).
 - **Windows:** install the **Midas/Behringer X-USB driver**; run on the **WASAPI** device. The
   PortAudio build inside the audio module has **no ASIO**.
-- **Buffer:** 256–512 samples @ 48 k is a good latency/stability trade. The app detects
-  sustained xruns (`overload()`) and shows an **XRUN** chip. Bump the buffer if you see it.
+- **Buffer:** the app reads 1024-sample blocks at 48 k. It detects sustained xruns and
+  shows an **XRUN** chip; if you see it, raise the buffer in the interface's driver panel and
+  close other audio apps.
 - **USB:** a short/quality USB-B cable (≤ 3 m, or an active cable) on a **dedicated**
   port, not a shared hub with other devices.
 
@@ -121,7 +123,7 @@ round-trip and hardware for no benefit over the desk's own USB, so prefer X-USB.
 - **OS:** macOS 12+ or Windows 10/11.
 - **Software:** the single-file app from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest); nothing to install. From source: Node.js 22.13+ and the native audio module `naudiodon2`.
 - **Audio:** one input device exposing all channels at **48 kHz** (console X-USB).
-- **Control:** IP reachability to the console on **UDP 10023/10024** (wired).
+- **Control:** IP reachability to the console on **UDP 10023/10024** (wired recommended).
 
 ---
 
