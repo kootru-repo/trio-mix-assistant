@@ -234,6 +234,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--list-devices` | print input devices (with host API) and exit |
 | `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `templates/autofoh_pilot.json` = a 13‑input rig); else the built‑in 8‑ch trio |
 | `--ableset-port <p>` | listen for AbleSet song/section OSC → auto scene recall |
+| `--ableset-from <ip>` | accept AbleSet messages only from this address (default: the first computer that sends them) |
 | `--no-show-clock` | disable the simulated show clock (sim only) |
 | `--venue "<name>"` | tag the session log **and load/learn this venue's model** (recurring feedback freqs pre‑seed the watch‑list; the model updates after each show) |
 | `--session-db <path｜off>` | session‑log location, or disable |

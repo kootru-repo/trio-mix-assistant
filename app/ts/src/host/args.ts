@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { parseArgs } from "node:util";
 
 export class UsageError extends Error {
@@ -27,6 +28,7 @@ export interface Args {
   insecureOpen: boolean;
   template: string | null;
   ablesetPort: number | null;
+  ablesetFrom: string | null;
   noShowClock: boolean;
   venue: string;
   sessionDb: string | null;
@@ -40,7 +42,8 @@ export const USAGE = `usage: run [-h] [--host HOST] [--lan] [--port PORT] [--har
            [--output-device OUTPUT_DEVICE] [--input-gain INPUT_GAIN]
            [--channel-map CHANNEL_MAP] [--auto] [--trace-osc] [--list-devices]
            [--https] [--pin PIN] [--trust] [--insecure-open] [--template TEMPLATE]
-           [--ableset-port ABLESET_PORT] [--no-show-clock] [--venue VENUE]
+           [--ableset-port ABLESET_PORT] [--ableset-from ADDRESS] [--no-show-clock]
+           [--venue VENUE]
            [--session-db SESSION_DB] [--advisor] [--advisor-interval ADVISOR_INTERVAL]`;
 
 export const HELP = `${USAGE}
@@ -90,6 +93,9 @@ options:
   --ableset-port ABLESET_PORT
                         listen for AbleSet song/section OSC on this UDP port (hardware
                         mode); enables automatic scene recall
+  --ableset-from ADDRESS
+                        accept AbleSet messages only from this IP address (default: the
+                        first computer that sends them)
   --no-show-clock       disable the simulated show clock (no auto song changes)
   --venue VENUE         venue name — tags the session log for venue learning
   --session-db SESSION_DB
@@ -122,6 +128,7 @@ const OPTIONS = {
   "insecure-open": { type: "boolean" },
   template: { type: "string" },
   "ableset-port": { type: "string" },
+  "ableset-from": { type: "string" },
   "no-show-clock": { type: "boolean" },
   venue: { type: "string" },
   "session-db": { type: "string" },
@@ -173,6 +180,7 @@ export function parseCliArgs(argv: readonly string[]): Args {
     insecureOpen: Boolean(values["insecure-open"]),
     template: values["template"] ?? null,
     ablesetPort: intOption("ableset-port", values["ableset-port"], null, 1, 65535),
+    ablesetFrom: values["ableset-from"]?.trim() || null,
     noShowClock: Boolean(values["no-show-clock"]),
     venue: values["venue"] ?? "",
     sessionDb: values["session-db"] ?? null,
@@ -180,6 +188,9 @@ export function parseCliArgs(argv: readonly string[]): Args {
     advisorInterval: floatOption("advisor-interval", values["advisor-interval"], 30.0, 5, 3600),
     help: Boolean(values["help"]),
   };
+  if (args.ablesetFrom !== null && isIP(args.ablesetFrom) === 0) {
+    throw new UsageError(`argument --ableset-from: '${args.ablesetFrom}' is not an IP address`);
+  }
   if (args.lan) args.host = "0.0.0.0";
   if (args.trust) args.https = true;
   return args;

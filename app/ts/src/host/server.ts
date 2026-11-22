@@ -13,7 +13,7 @@ import { hostAllowed, isLoopbackHost, originAllowed, safeEqual } from "./server/
 import { Hub } from "./server/hub.ts";
 import type { Sink } from "./server/hub.ts";
 import { BadMessage, decodeUtf8, jsonForHtml, jsonText, strOf, strictLoads } from "./server/json.ts";
-import { LoginLimiter } from "./server/limiter.ts";
+import { AddressCounter, CommandBudget, LoginLimiter, limiterKey } from "./server/limiter.ts";
 import {
   CLOSE_INTERNAL,
   WsAssembler,
@@ -33,11 +33,14 @@ const SOCK_TIMEOUT_MS = 20000;
 const HANDLER_TIMEOUT_MS = 15000;
 const REQUEST_TIMEOUT_MS = 10000;
 const MAX_CONNECTIONS = 128;
+const MAX_PER_ADDRESS = 24;
+const MAX_STREAMS_PER_ADDRESS = 8;
 const STREAM_INTERVAL_MS = 100;
 const KEEPALIVE_TICKS = 50;
 const MAX_BACKLOG = 1 << 20;
 const MIN_PIN_LENGTH = 6;
 const LOG_INTERVAL_MS = 10000;
+const CLIENT_ERROR_LINGER_MS = 1000;
 const CIPHERS = "ECDHE+AESGCM:ECDHE+CHACHA20";
 
 const STATIC_JS: Record<string, string> = { "/dashboard.js": "dashboard.js", "/login.js": "login.js" };
@@ -58,12 +61,17 @@ export interface ServerOptions {
   limiter?: LoginLimiter;
   requirePinOnLan?: boolean;
   allowOpen?: boolean;
+  maxPerAddress?: number;
+  maxStreamsPerAddress?: number;
+  limitLoopback?: boolean;
+  commandBudget?: CommandBudget;
 }
 
 export interface DashboardServer {
   start(port: number, host: string): Promise<{ port: number }>;
   stop(): Promise<void>;
   readonly limiter: LoginLimiter;
+  readonly commandBudget: CommandBudget;
   readonly streamsInUse: number;
 }
 
@@ -178,6 +186,21 @@ export function createServer(opts: ServerOptions): DashboardServer {
   const token = pin !== null ? randomBytes(32).toString("base64url") : null;
   const caPem = opts.caPem ?? null;
   const limiter = opts.limiter ?? new LoginLimiter();
+  const commandBudget = opts.commandBudget ?? new CommandBudget();
+  const limitLoopback = opts.limitLoopback ?? false;
+  const connCounts = new AddressCounter(opts.maxPerAddress ?? MAX_PER_ADDRESS);
+  const streamCounts = new AddressCounter(opts.maxStreamsPerAddress ?? MAX_STREAMS_PER_ADDRESS);
+
+  const limitKey = (socket: Socket): string | null => {
+    const addr = String(socket.remoteAddress ?? "");
+    if (!limitLoopback && isLoopbackHost(addr.replace(/^::ffff:/i, ""))) return null;
+    return limiterKey(addr);
+  };
+
+  const commandAllowed = (socket: Socket): boolean => {
+    const key = limitKey(socket);
+    return key === null || commandBudget.allow(key);
+  };
   let streams = 0;
   let lastLog = 0;
   const sockets = new Set<Socket>();
@@ -221,7 +244,8 @@ export function createServer(opts: ServerOptions): DashboardServer {
   };
 
   const serveSse = (res: ServerResponse, socket: Socket): void => {
-    if (streams >= MAX_STREAMS) {
+    const key = limitKey(socket);
+    if (streams >= MAX_STREAMS || (key !== null && !streamCounts.take(key))) {
       sendError(res, 503);
       return;
     }
@@ -233,6 +257,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
       released = true;
       if (unsubscribe !== null) unsubscribe();
       streams -= 1;
+      if (key !== null) streamCounts.release(key);
     };
     res.on("close", release);
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", Connection: "keep-alive" });
@@ -259,7 +284,8 @@ export function createServer(opts: ServerOptions): DashboardServer {
     if (!authed(req)) return rawError(socket, 401);
     const key = headerOf(req, "sec-websocket-key");
     if (!wsKeyValid(key)) return rawError(socket, 400);
-    if (streams >= MAX_STREAMS) return rawError(socket, 503);
+    const streamKey = limitKey(socket);
+    if (streams >= MAX_STREAMS || (streamKey !== null && !streamCounts.take(streamKey))) return rawError(socket, 503);
     streams += 1;
     let released = false;
     let done = false;
@@ -269,6 +295,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
       released = true;
       if (unsubscribe !== null) unsubscribe();
       streams -= 1;
+      if (streamKey !== null) streamCounts.release(streamKey);
     };
     const closeWith = (code: number | null): void => {
       if (done) return;
@@ -320,7 +347,9 @@ export function createServer(opts: ServerOptions): DashboardServer {
       }
       if (out.opcode === 0x1 && out.message.length > 0) {
         try {
-          engine.command(strictLoads(decodeUtf8(out.message)));
+          const cmd = strictLoads(decodeUtf8(out.message));
+          const panic = isRecord(cmd) && cmd["type"] === "panic";
+          if (panic || commandAllowed(socket)) engine.command(cmd);
         } catch (e) {
           if (!(e instanceof BadMessage)) throw e;
         }
@@ -449,6 +478,8 @@ export function createServer(opts: ServerOptions): DashboardServer {
     if (!authed(req)) return sendError(res, 401);
     readBody(req)
       .then((body) => {
+        const panic = url === "/api/panic" || (url === "/api/command" && body["type"] === "panic");
+        if (!panic && !commandAllowed(req.socket)) return sendError(res, 429);
         if (!control(url, body)) return sendError(res, 404);
         sendJson(res, engine.snapshot());
       })
@@ -483,21 +514,40 @@ export function createServer(opts: ServerOptions): DashboardServer {
   const server: http.Server =
     opts.tls !== undefined && opts.tls !== null
       ? https.createServer(
-          { ...serverOpts, key: opts.tls.key, cert: opts.tls.cert, minVersion: "TLSv1.2", ciphers: CIPHERS },
+          {
+            ...serverOpts,
+            key: opts.tls.key,
+            cert: opts.tls.cert,
+            minVersion: "TLSv1.2",
+            ciphers: CIPHERS,
+            handshakeTimeout: REQUEST_TIMEOUT_MS,
+          },
           handle,
         )
       : http.createServer(serverOpts, handle);
   server.timeout = HANDLER_TIMEOUT_MS;
   server.maxConnections = MAX_CONNECTIONS;
   server.on("connection", (s: Socket) => {
-    sockets.add(s);
-    s.on("close", () => sockets.delete(s));
     s.on("error", () => undefined);
+    const key = limitKey(s);
+    if (key !== null && !connCounts.take(key)) {
+      s.destroy();
+      return;
+    }
+    sockets.add(s);
+    s.on("close", () => {
+      sockets.delete(s);
+      if (key !== null) connCounts.release(key);
+    });
   });
-  server.on("tlsClientError", () => undefined);
+  server.on("tlsClientError", (_err, socket: Socket) => socket.destroy());
   server.on("clientError", (_err, socket) => {
-    if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
-    else socket.destroy();
+    if (!socket.writable) {
+      socket.destroy();
+      return;
+    }
+    socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+    setTimeout(() => socket.destroy(), CLIENT_ERROR_LINGER_MS).unref();
   });
   server.on("upgrade", (req: IncomingMessage, socket: Socket, head: Buffer) => {
     try {
@@ -518,6 +568,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
 
   return {
     limiter,
+    commandBudget,
     get streamsInUse(): number {
       return streams;
     },

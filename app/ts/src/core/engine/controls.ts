@@ -197,11 +197,11 @@ export class EngineControls extends EngineBase {
 
   panic(on: boolean): void {
     if (on && this.status !== "takeover") {
+      this.con.cancelRamps();
+      this.con.setMainMute(true);
       this.enabledBackup = { ...this.assistant.enabled };
       for (const k of Object.keys(this.assistant.enabled)) this.assistant.enabled[k] = false;
       this.assistant.releaseUnmask();
-      this.con.cancelRamps();
-      this.con.setMainMute(true);
       this.status = "takeover";
       this.takeoverEpoch += 1;
       this.assistant.emit("panic", "TAKEOVER — main muted, all jobs held");

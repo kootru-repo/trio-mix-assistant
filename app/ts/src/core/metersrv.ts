@@ -4,7 +4,9 @@ import { argFloat } from "./oscargs.ts";
 import { parseInteger } from "./util.ts";
 import { decodeMeterBlob, decodePacket } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
-import type { UdpEndpoint, UdpFactory } from "./transport.ts";
+import type { Peer, UdpEndpoint, UdpFactory } from "./transport.ts";
+
+const hostKey = (host: string): string => host.trim().toLowerCase().replace(/^::ffff:/, "");
 
 export function chFromFaderAddr(addr: string): number | null {
   const parts = addr.split("/");
@@ -19,6 +21,7 @@ export interface MeterReceiverOptions {
   onMeters?: ((values: number[]) => void) | null;
   ip?: string;
   port?: number;
+  allowFrom?: string | null;
 }
 
 export class MeterReceiver {
@@ -28,6 +31,8 @@ export class MeterReceiver {
   port: number;
   running = false;
   lastError: unknown = null;
+  rejected = 0;
+  private readonly allowFrom: string | null;
   private readonly udp: UdpFactory;
   private endpoint: UdpEndpoint | null = null;
   private generation = 0;
@@ -39,6 +44,8 @@ export class MeterReceiver {
     this.onMeters = opts.onMeters ?? null;
     this.ip = opts.ip ?? "0.0.0.0";
     this.port = opts.port ?? C.LOCAL_PORT;
+    const from = opts.allowFrom ?? null;
+    this.allowFrom = from !== null && from.trim() !== "" ? hostKey(from) : null;
   }
 
   handleMeters(args: readonly OscArg[]): void {
@@ -59,7 +66,11 @@ export class MeterReceiver {
     if (this.onFader) this.onFader(ch, faderToDb(pos));
   }
 
-  dispatch(data: Uint8Array): void {
+  dispatch(data: Uint8Array, from: Peer | null = null): void {
+    if (from !== null && this.allowFrom !== null && hostKey(from.host) !== this.allowFrom) {
+      this.rejected += 1;
+      return;
+    }
     for (const m of decodePacket(data)) {
       try {
         if (m.address.startsWith("/meters")) this.handleMeters(m.args);
@@ -86,7 +97,7 @@ export class MeterReceiver {
     }
     this.endpoint = ep;
     this.port = ep.port;
-    ep.onMessage((data) => this.dispatch(data));
+    ep.onMessage((data, from) => this.dispatch(data, from));
     this.running = true;
   }
 

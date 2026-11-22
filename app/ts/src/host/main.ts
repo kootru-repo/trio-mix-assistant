@@ -1,4 +1,5 @@
 import { readFileSync, statSync } from "node:fs";
+import { isIP } from "node:net";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { C, applyChannelMap, autoChannelMap } from "../core/config.ts";
@@ -156,10 +157,14 @@ function deviceSource(args: Args, chanMap: Map<number, number> | null, io: Io): 
 
 const engineTick = (): number => C.BLOCK / C.SAMPLE_RATE;
 
-function wireMeters(engine: Engine, io: Io): void {
+const WILDCARD_HOSTS = ["0.0.0.0", "::"];
+
+function wireMeters(engine: Engine, io: Io, ip: string, allowFrom: string | null): void {
   engine.meterRx = new MeterReceiver(io.udp, {
     onFader: (ch, db) => engine.reconcileFader(ch, db),
     onMeters: (vals) => engine.setConsoleMeters(vals),
+    ip,
+    allowFrom,
   });
 }
 
@@ -172,6 +177,7 @@ function buildEmulated(
 ): { engine: Engine; emu: EmulatedDesk } {
   const emu = new EmulatedDesk(io.udp, io.clock, {
     externalMoves: true,
+    listenHost: WILDCARD_HOSTS.includes(args.host) ? "0.0.0.0" : "127.0.0.1",
     nodeScn: readScn(io),
     onTrace: args.traceOsc ? (l) => io.out(l) : null,
   });
@@ -187,7 +193,7 @@ function buildEmulated(
     source = new DeviceCapture({ factory: new TimedAudioFactory(io.clock), clock: io.clock });
   }
   const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
-  wireMeters(engine, io);
+  wireMeters(engine, io, "127.0.0.1", "127.0.0.1");
   if (!args.noShowClock) engine.showClock = new SimShowClock(template, io.clock, (s) => engine.onSongChange(s));
   return { engine, emu };
 }
@@ -212,9 +218,14 @@ function buildHardware(
   let source: DeviceCapture | null = auto;
   if (source === null && args.audioDevice !== null) source = deviceSource(args, chanMap, io);
   const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
-  wireMeters(engine, io);
+  wireMeters(engine, io, "0.0.0.0", isIP(ip) !== 0 ? ip : null);
   if (args.ablesetPort !== null) {
-    engine.showClock = new AbleSetReceiver(io.udp, (s) => engine.onSongChange(s), "0.0.0.0", args.ablesetPort);
+    engine.showClock = new AbleSetReceiver(io.udp, (s) => engine.onSongChange(s), "0.0.0.0", args.ablesetPort, args.ablesetFrom);
+    io.out(
+      args.ablesetFrom !== null
+        ? `  AbleSet: accepting song changes only from ${args.ablesetFrom}.`
+        : "  AbleSet: accepting song changes from the first computer that sends them (pin it with --ableset-from <ip>).",
+    );
   }
   return engine;
 }
@@ -417,7 +428,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     await engine.start();
     const scheme = plan.tls ? "https" : "http";
     const url = `${scheme}://${ip}:${args.port}/`;
-    const wildcard = ["0.0.0.0", "::"].includes(args.host);
+    const wildcard = WILDCARD_HOSTS.includes(args.host);
     const qr = wildcard && ip ? qrAscii(qrEncode(url).modules) : null;
     for (const l of bannerLines({
       args,

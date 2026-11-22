@@ -84,6 +84,8 @@ export function buildArgv(
     if (igain) argv.push(`--input-gain=${igain}`);
     const ab = get(cfg, "ABLESET_PORT", "").trim();
     if (ab) argv.push(`--ableset-port=${ab}`);
+    const abFrom = get(cfg, "ABLESET_FROM", "").trim();
+    if (abFrom) argv.push(`--ableset-from=${abFrom}`);
   } else if (mode === "emulate") {
     argv.push("--emulate");
   }

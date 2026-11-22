@@ -98,7 +98,20 @@ export class SimShowClock extends ShowClock {
   }
 }
 
-const asStr = (args: OscArg[]): string => (args.length ? argText(args[0]!).trim() : "");
+export const MAX_SHOW_TEXT = 120;
+
+const asStr = (args: OscArg[]): string => (args.length ? argText(args[0]!).trim().slice(0, MAX_SHOW_TEXT) : "");
+
+const hostKey = (host: string): string => host.trim().toLowerCase().replace(/^::ffff:/, "");
+
+const SHOW_ADDRESSES = new Set([
+  "/setlist/activeSongName",
+  "/setlist/activeSongIndex",
+  "/setlist/nextSongName",
+  "/song/sectionName",
+  "/playback/isPlaying",
+  "/song/beatsPerMinute",
+]);
 
 const asFloat = (args: OscArg[]): number | null => (args.length ? argNumber(args[0]) : null);
 
@@ -114,13 +127,38 @@ export class AbleSetReceiver extends ShowClock {
   private lastKey: string | null = null;
   private generation = 0;
   private pending: Promise<void> = Promise.resolve();
+  private sender: string | null;
   lastError: unknown = null;
+  rejected = 0;
 
-  constructor(factory: UdpFactory, onChange: ShowChangeHandler | null = null, ip: string = "0.0.0.0", port: number = C.ABLESET_PORT) {
+  constructor(
+    factory: UdpFactory,
+    onChange: ShowChangeHandler | null = null,
+    ip: string = "0.0.0.0",
+    port: number = C.ABLESET_PORT,
+    allowFrom: string | null = null,
+  ) {
     super(onChange);
     this.factory = factory;
     this.ip = ip;
     this.port = port;
+    this.sender = allowFrom !== null && allowFrom.trim() !== "" ? hostKey(allowFrom) : null;
+  }
+
+  get acceptedSender(): string | null {
+    return this.sender;
+  }
+
+  private accepts(from: string, messages: readonly { address: string }[]): boolean {
+    const host = hostKey(from);
+    if (this.sender === null) {
+      if (!messages.some((m) => SHOW_ADDRESSES.has(m.address))) return false;
+      this.sender = host;
+      return true;
+    }
+    if (host === this.sender) return true;
+    this.rejected += 1;
+    return false;
   }
 
   private maybeFire(): void {
@@ -181,9 +219,11 @@ export class AbleSetReceiver extends ShowClock {
     }
     this.endpoint = ep;
     this.running = true;
-    ep.onMessage((data) => {
+    ep.onMessage((data, from) => {
       try {
-        for (const m of decodePacket(data)) this.handle(m.address, m.args);
+        const messages = decodePacket(data);
+        if (!this.accepts(from.host, messages)) return;
+        for (const m of messages) this.handle(m.address, m.args);
       } catch (e) {
         this.lastError = e;
       }

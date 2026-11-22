@@ -28,6 +28,16 @@ network. Reports are especially welcome for anything that lets someone:
   time.
 - The session log (`sessions.db`) is stored unencrypted on the computer that
   runs the app.
+- Wrong PIN guesses lock an address out for 30 seconds, and each further
+  lockout of that address lasts twice as long, up to 15 minutes.
+- Each network address is limited to 24 connections, 8 live streams and about
+  200 commands a second. Takeover (panic) is never rate limited.
+- Console messages (fader moves, meters) are accepted only from the console's
+  address. AbleSet messages are accepted only from `--ableset-from`
+  (`ABLESET_FROM=` in `show.conf`), or from the first computer that sends them
+  when that is not set. UDP sender addresses can be forged by a device on the
+  same network, so run the console and the app on a network that holds only
+  your own equipment.
 
 ## Supported versions
 
