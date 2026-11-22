@@ -45,6 +45,9 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
         node: ["22.13", "22"]
+        include:
+          - os: macos-latest
+            node: "22"
     defaults:
       run:
         working-directory: app/ts
@@ -56,7 +59,7 @@ jobs:
           cache: npm
           cache-dependency-path: app/ts/package-lock.json
       - name: Install
-        run: npm ci
+        run: npm ci --foreground-scripts
       - name: Type-check (core must stay free of platform APIs)
         run: npm run check
       - name: Test against the recorded reference fixtures
