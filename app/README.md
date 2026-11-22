@@ -53,7 +53,7 @@ compensates. Toggle the jobs and watch the behaviour change.
 ```bash
 cd ts
 npm install
-npm run exe                  # writes dist/exe/TrioMixAssistant.exe and NODE-LICENSE.txt
+npm run exe                  # writes dist/exe/TrioMixAssistant.exe (TrioMixAssistant on a Mac) and NODE-LICENSE.txt
 ```
 
 The executable carries the Node.js runtime and the whole app, so the computer
@@ -76,8 +76,59 @@ and open the dashboard, or pass the same flags as `npm run run --`
 - **It is unsigned,** so Windows shows a SmartScreen warning on first run.
 - **The Node.js runtime is frozen at build time.** Rebuild after a Node.js
   security release.
-- **Ship `NODE-LICENSE.txt` with it.** The build is for the platform it runs
-  on, and only the Windows build has been tested.
+- **Ship `NODE-LICENSE.txt` with it.** The build is for the platform and
+  processor it runs on. The Windows build has captured from real inputs. The
+  macOS builds are started and checked on every push, on computers with no audio
+  hardware, so capture on a Mac has not been tried yet.
+
+#### On a Mac
+
+There are two ways to get the app. Both give one file, `TrioMixAssistant`, that
+needs nothing else installed. Apple Silicon (M1 or later) and Intel Macs each
+need their own build.
+
+**Build it on the Mac** (about five minutes, and macOS does not block the result):
+
+1. Install Apple's compiler tools: `xcode-select --install`.
+2. Install Node.js 22.13 or later from [nodejs.org](https://nodejs.org/) (or `brew install node`).
+3. In Terminal:
+   ```bash
+   git clone https://github.com/kootru-repo/trio-mix-assistant.git
+   cd trio-mix-assistant/app/ts
+   npm install
+   npm run exe
+   cd dist/exe
+   ```
+
+**Or download a ready-made build** (needs a free GitHub sign-in):
+
+1. Open the repository's **Actions** tab, pick the newest **CI** run on `main`
+   with a green tick, and scroll to **Artifacts**. Builds are kept for 30 days.
+2. Download `TrioMixAssistant-macos-arm64` (Apple Silicon) or
+   `TrioMixAssistant-macos-x64` (Intel) and double-click the zip.
+3. In Terminal:
+   ```bash
+   mkdir ~/TrioMix && cd ~/TrioMix
+   tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
+   ```
+   Use the `x64` name on an Intel Mac. If the `.tar.gz` is inside a folder in
+   Downloads, use that path.
+
+**Then run it** from the folder that holds the file:
+
+1. `./TrioMixAssistant --list-devices` prints the audio inputs. If macOS refuses
+   to open a downloaded build, go to System Settings → Privacy & Security, click
+   **Open Anyway**, and run it again.
+2. `./TrioMixAssistant` starts the simulation and prints the dashboard address.
+3. `./TrioMixAssistant --emulate --audio-device <number>` listens on the input
+   you picked. Click **Allow** when macOS asks to let Terminal use the
+   microphone; if it was denied, the app hears silence (System Settings →
+   Privacy & Security → Microphone).
+4. Press Ctrl+C to stop.
+
+Settings and logs live in `~/Library/Application Support/TrioMixAssistant`. For
+a show, set `CONSOLE_IP` and `AUDIO_DEVICE` in the `show.conf` there; the rest
+is in `RUNBOOK.md`.
 
 ### Real hardware
 

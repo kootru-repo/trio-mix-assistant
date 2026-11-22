@@ -111,6 +111,7 @@ The app is written in TypeScript and runs on Node.js. It has no runtime dependen
 4. `bash start.command`.
    - On the first run, macOS asks for **Microphone** and **Network** permission. **Allow both** (System Settings → Privacy & Security → Microphone), or capture stays silent.
 
+> **No Node.js install:** the single-file app runs on Windows and on Apple Silicon and Intel Macs. See [Single-file app](app/README.md#single-file-app-no-nodejs-install); the Mac steps are under "On a Mac".
 > **No hardware:** double‑click **`rehearse.bat`** (Windows) / `bash rehearse.command` (macOS) to run the whole app against the built‑in emulator.
 > **Tablet:** keep `LAN=yes`/`HTTPS=yes` in `show.conf` (the defaults); the start window prints a **scan‑to‑open QR code**. See [Operating it → On a tablet](#operating-it) for the connect example.
 

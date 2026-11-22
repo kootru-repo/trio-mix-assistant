@@ -51,7 +51,8 @@ WHAT YOU NEED
   LIVE AUDIO INPUT
 ------------------------------------------------------------
   Listening to the console's USB audio needs an optional native module
-  (naudiodon2) that is not in this folder. The single-file app carries it.
+  (naudiodon2) that is not in this folder. The single-file app carries it,
+  on Windows and on a Mac (steps: "On a Mac" in README.md).
   It is not yet verified on a console's multichannel USB feed.
   Without it the app still runs rehearsal, simulation and manual mixing.
 

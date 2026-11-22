@@ -48,6 +48,10 @@ jobs:
         include:
           - os: macos-latest
             node: "22"
+            mac: arm64
+          - os: macos-15-intel
+            node: "22"
+            mac: x64
     defaults:
       run:
         working-directory: app/ts
@@ -68,11 +72,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           npm run exe
-          tar -czf TrioMixAssistant-macos-arm64.tar.gz -C dist/exe .
+          tar -czf TrioMixAssistant-macos-${{ matrix.mac }}.tar.gz -C dist/exe .
       - name: Keep the macOS app
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v7
         with:
-          name: TrioMixAssistant-macos-arm64
-          path: app/ts/TrioMixAssistant-macos-arm64.tar.gz
+          name: TrioMixAssistant-macos-${{ matrix.mac }}
+          path: app/ts/TrioMixAssistant-macos-${{ matrix.mac }}.tar.gz
           retention-days: 30
