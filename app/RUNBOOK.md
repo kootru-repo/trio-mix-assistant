@@ -170,7 +170,7 @@ Optional add‑ons (either OS):
 - Drop `--audio-device` to run **manual mixing + scene recall only** (assistant idle).
 - Without `--lan` (laptop only), `--https` and `--pin` can be dropped: plain http is fine on the laptop itself.
 
-On launch it prints the dashboard URL (and a scan‑to‑open QR when `--lan`). The app finds the laptop's address through the network's gateway; on a network without one it prints no QR, so open `https://<laptop-ip>:8770/` by hand.
+On launch it prints the dashboard URL (and a scan‑to‑open QR when `--lan`). On a network with no gateway (laptop and console only) it shows the laptop's first network address; if it finds none it prints no QR, so open `https://<laptop-ip>:8770/` by hand.
 
 ### 3.1 Verify in the first 30 seconds (on the dashboard)
 | Check | Good value |

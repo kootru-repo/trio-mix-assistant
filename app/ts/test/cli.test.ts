@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { modeName, parseCliArgs, parseDevice, UsageError } from "../src/host/args.ts";
 import { bannerLines, emulatorLines } from "../src/host/banner.ts";
+import { pickLanIp } from "../src/host/netinfo.ts";
 import { fixture } from "./helpers.ts";
 
 const caPath = "<app>/.certs/ca.pem";
@@ -75,4 +76,12 @@ test("ports, gain and the advisor interval are range-checked", () => {
 
 test("an empty --pin means no PIN", () => {
   assert.equal(parseCliArgs(["--pin="]).pin, "");
+});
+
+test("the address shown for phones is never a wildcard, and falls back to a local address with no route out", () => {
+  assert.equal(pickLanIp("192.168.1.23", ["10.0.0.7"]), "192.168.1.23");
+  assert.equal(pickLanIp("0.0.0.0", ["127.0.0.1", "169.254.3.4", "192.168.1.50"]), "192.168.1.50");
+  assert.equal(pickLanIp(null, ["10.0.0.7"]), "10.0.0.7");
+  assert.equal(pickLanIp("0.0.0.0", []), null);
+  assert.equal(pickLanIp(null, ["127.0.0.1"]), null);
 });
