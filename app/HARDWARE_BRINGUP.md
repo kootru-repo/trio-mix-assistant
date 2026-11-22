@@ -133,8 +133,8 @@ move it on the console and confirm the value the app reports matches.
 - **One input device must expose all channels.** The listening half opens a single
   audio device for the console returns **and** the measurement mic. If your meas mic
   is on a *separate* interface, combine them first: macOS → Audio MIDI Setup
-  **Aggregate Device**; Windows → an ASIO aggregate (e.g. ASIO4ALL) or a single
-  multichannel interface. A device with too few channels is rejected at launch with a
+  **Aggregate Device**; Windows → a single multichannel interface (the audio
+  module has no ASIO, so an ASIO aggregate such as ASIO4ALL will not work). A device with too few channels is rejected at launch with a
   clear message.
 - **48 kHz, float32.** Capture runs at 48 kHz. A device locked to 44.1 kHz is rejected
   with a clear message (no auto-resample); set the interface to 48 kHz.
@@ -150,7 +150,7 @@ move it on the console and confirm the value the app reports matches.
   send OSC addresses are tagged `VERIFY:` like the rest.
 - **TAKEOVER holds the *automatic* system, not your hands.** Takeover mutes the main
   and freezes all automatic jobs + scene recall + calibration; the manual surface
-  (faders, mutes, EQ, FX, sends from the dashboard/iPad) stays live so you can fix
+  (faders, mutes, EQ, FX, sends from the dashboard on the laptop, iPhone or iPad) stays live so you can fix
   things by hand. Quitting the app leaves the console untouched.
 
 The app now actively detects and surfaces the rest (denied mic permission, a mid-show

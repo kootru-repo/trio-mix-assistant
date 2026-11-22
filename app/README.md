@@ -29,7 +29,7 @@ Beyond the safety net it implements the AutoFOH show-side features:
 See the repo **[README](../README.md)** (overview, screenshots, setup), the
 **[design infographic](../docs/mix-assistant-design.html)**, **`HARDWARE_SETUP.md`**
 (optimal listening rig + system requirements: what to buy & how to wire it),
-**`RUNBOOK.md`** (show-day guide, Windows & macOS) and **`HARDWARE_BRINGUP.md`**
+**`RUNBOOK.md`** (show-day guide, macOS & Windows) and **`HARDWARE_BRINGUP.md`**
 (one-time OSC-validation checklist). This file is the developer reference. To
 just run the app, download it from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest); what has and has
 not been tried on real hardware is in one table,
@@ -53,39 +53,42 @@ compensates. Toggle the jobs and watch the behaviour change.
 
 ### Single-file app (no Node.js install)
 
-Ready-made builds for Windows, Apple Silicon Macs and Intel Macs are on the
-[releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest). On Windows, unzip `TrioMixAssistant-windows-x64.zip`
-and double-click `TrioMixAssistant.exe`. The Mac steps are under "On a Mac"
-below. To build it yourself:
+Ready-made builds for Apple Silicon Macs, Intel Macs and Windows are on the
+[releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest). The Mac steps are under "On a Mac"
+below. On Windows, unzip `TrioMixAssistant-windows-x64.zip` and double-click
+`TrioMixAssistant.exe`. To build it yourself:
 
 ```bash
 cd ts
 npm install
-npm run exe                  # writes dist/exe/TrioMixAssistant.exe (TrioMixAssistant on a Mac) and NODE-LICENSE.txt
+npm run exe                  # writes dist/exe/TrioMixAssistant (TrioMixAssistant.exe on Windows) and NODE-LICENSE.txt
 ```
 
 The executable carries the Node.js runtime and the whole app, so the computer
-that runs it needs nothing installed. Double-click it to start from `show.conf`
+that runs it needs nothing installed. Start it with no flags to run from `show.conf`
 and open the dashboard, or pass the same flags as `npm run run --`
-(`TrioMixAssistant.exe --emulate --lan --pin <pin>`).
+(`./TrioMixAssistant --emulate --lan --pin <pin>` on a Mac,
+`TrioMixAssistant.exe` with the same flags on Windows).
 
 - **Settings and logs** (`show.conf`, `sessions.db`, `.certs`, `venues`) live in
-  `%LOCALAPPDATA%\TrioMixAssistant`. The folder is printed at start. To keep
+  `~/Library/Application Support/TrioMixAssistant` on a Mac and
+  `%LOCALAPPDATA%\TrioMixAssistant` on Windows. The folder is printed at start. To keep
   them beside the executable instead, put a `show.conf` next to it.
 - **Live listening is inside.** The build packs the native audio binding
   (from `naudiodon2`, with PortAudio) and stops with an error if it is missing or does
-  not load, so `npm install` on the build computer needs a C++ compiler. The
-  module offers MME, DirectSound, WASAPI
-  and WDM-KS devices, not ASIO. Run `TrioMixAssistant.exe --list-devices` with
-  the console plugged in and look for an entry with enough inputs at 48000 Hz.
-  Pick the **WASAPI** entry. In testing a WDM-KS entry stalled every few
-  minutes (the app reopened it each time) and WASAPI did not stall at all.
+  not load, so `npm install` on the build computer needs a C++ compiler. Run
+  `--list-devices` with the console plugged in and look for an entry with enough
+  inputs at 48000 Hz. On a Mac the module uses Core Audio. On Windows it offers
+  MME, DirectSound, WASAPI and WDM-KS devices, not ASIO: pick the **WASAPI**
+  entry. In testing a WDM-KS entry stalled every few minutes (the app reopened
+  it each time) and WASAPI did not stall at all.
 - **It can check itself.** `--diagnose` (or **Run checks** on the Settings tab)
   listens for about eight seconds and reports on the audio module, input, signal,
-  per-channel levels, console feed and tablet access. It is read-only: the
+  per-channel levels, console feed and phone or tablet access. It is read-only: the
   command-line form builds no engine and sends the console nothing but the meter
   subscription. The logic is in `ts/src/core/diagnostics.ts`.
-- **It is unsigned,** so Windows shows a SmartScreen warning on first run.
+- **It is unsigned,** so macOS blocks a downloaded build until you choose
+  **Open Anyway** (see "On a Mac" below), and Windows shows a SmartScreen warning on first run.
 - **The Node.js runtime is frozen at build time.** Rebuild after a Node.js
   security release.
 - **Ship `NODE-LICENSE.txt` with it.** The build is for the platform and
@@ -148,7 +151,7 @@ npm run run -- --hardware --console-ip 192.168.1.50 --audio-device 2 --lan --pin
 Live audio input uses the optional native module `naudiodon2`, which `npm install` compiles when a C++ compiler is present. See [What has been tested](../README.md#tested).
 
 The **listening half** is wired: `--audio-device` opens a multichannel native audio
-(WASAPI, WDM-KS, DirectSound or MME; Core Audio on a Mac) stream carrying the console's USB/card feed + the FOH measurement
+(Core Audio on a Mac; WASAPI, WDM-KS, DirectSound or MME on Windows) stream carrying the console's USB/card feed + the FOH measurement
 mic, and drives the assistant (feedback FFT, clip, vocal ride) and the pink-noise
 calibration for real. Omit `--audio-device` to run hardware mode with **manual
 control + scene recall only** (the assistant stays inactive, clearly logged).
@@ -212,29 +215,32 @@ In `ts/src/core/config.ts`: extend `CHANNELS`/`ROLE_LABELS`, then set `GUEST_CHA
 together), and `STAGE_MIC_CH` (a second ambient mic that flags a sustained rise in
 stage loudness). All default to empty or null, so the trio is unaffected.
 
-## Run on a tablet (iPad / Galaxy Tab S7): one web app for both
+## Run on a phone or tablet (iPhone, iPad, Android): one web app for all
 
-The dashboard is an installable **PWA**, so the same code runs identically in
-Safari (iPad) and Chrome (Android), with no native app and no App Store. The engine
-runs on the FOH laptop; the tablet is a thin client over the LAN.
+The dashboard is an installable **PWA**, so the same code is served to
+Safari (iPhone, iPad) and Chrome (Android), with no native app and no App Store. The engine
+runs on the FOH laptop; the phone or tablet is a thin client over the LAN. It
+has not been tried on a real iPhone or iPad yet; see
+[What has been tested](../README.md#tested).
 
 ```bash
-npm run run -- --lan --pin 123456            # bind to the LAN; prints the tablet URL + QR code
+npm run run -- --lan --pin 123456            # bind to the LAN; prints the URL + QR code
 npm run run -- --lan --pin 123456 --https    # + TLS, so Wake Lock & PWA install work
-# on the tablet (same WiFi): scan the printed QR (or open the URL) -> Add to Home Screen
+# on the phone or tablet (same WiFi): scan the printed QR (or open the URL) -> Add to Home Screen
 ```
 
-The launcher prints the desktop's LAN URL **and a scan-to-open QR code**. Point
-the Tab S7 / iPad camera at it. Both devices must be on the **same WiFi**, and on
+The launcher prints the laptop's LAN URL **and a scan-to-open QR code**. Point
+the iPhone, iPad or Android camera at it. Both devices must be on the **same WiFi**.
+On a Mac, click **Allow** when macOS asks to accept incoming connections. On
 Windows the first run pops a **Firewall** prompt: click *Allow* on Private
-networks (the desktop must be on a *Private*, not *Public*, network).
+networks (the laptop must be on a *Private*, not *Public*, network).
 
 "Add to Home Screen" launches it full-screen (landscape, no browser chrome).
 **`--https`** generates a self-signed cert (LAN IP baked into the SAN) so the
 tablet gets a *secure context*, which is required for **Screen Wake Lock** (screen
 stays on during a show) and a real PWA install. Accept the cert warning once on the
 tablet. Over plain `http`, Wake Lock no-ops, so instead set the tablet's
-auto-lock to *Never* (on iPad, Guided Access also works). Touch targets,
+auto-lock to *Never* (on iPhone and iPad, Guided Access also works). Touch targets,
 safe-area insets, and double-tap zoom are all handled; the mixing surface runs
 over `wss://` automatically under https.
 

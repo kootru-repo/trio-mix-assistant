@@ -9,7 +9,7 @@ WHAT THIS IS
 
 EASIER WAY
   There is a single-file app that needs no Node.js and can listen to live
-  audio. Download it for Windows or Mac:
+  audio. Download it for Mac or Windows:
     https://github.com/kootru-repo/trio-mix-assistant/releases/latest
   This folder is the Node.js version. It does the same job, without live
   listening.
@@ -18,14 +18,6 @@ WHAT YOU NEED
   - This folder (copy it to the FOH laptop's own disk; the session log does not work on a shared drive).
   - Node.js 22.13 or newer:  https://nodejs.org/
   - Nothing else to install: there is no setup step.
-
-------------------------------------------------------------
-  WINDOWS
-------------------------------------------------------------
-  1. Double-click   list-devices.bat (note the audio device number)
-  2. Open           show.conf        in Notepad, set MODE=hardware, CONSOLE_IP and AUDIO_DEVICE
-                                     (and PIN=, 6 or more characters, if LAN=yes)
-  3. Double-click   start.bat        (the dashboard opens in your browser)
 
 ------------------------------------------------------------
   MAC
@@ -39,6 +31,14 @@ WHAT YOU NEED
   (System Settings > Privacy & Security > Microphone), or capture stays silent.
 
 ------------------------------------------------------------
+  WINDOWS
+------------------------------------------------------------
+  1. Double-click   list-devices.bat (note the audio device number)
+  2. Open           show.conf        in Notepad, set MODE=hardware, CONSOLE_IP and AUDIO_DEVICE
+                                     (and PIN=, 6 or more characters, if LAN=yes)
+  3. Double-click   start.bat        (the dashboard opens in your browser)
+
+------------------------------------------------------------
   SOMETHING NOT WORKING?
 ------------------------------------------------------------
   Open the dashboard, go to Settings and press "Run checks". It listens
@@ -46,19 +46,20 @@ WHAT YOU NEED
   passed, what failed and how to fix it.
 
 ------------------------------------------------------------
-  TABLET (iPad / Android)
+  PHONE OR TABLET (iPhone / iPad / Android)
 ------------------------------------------------------------
   With LAN=yes in show.conf, the start window prints a URL and a QR code.
   On shared or venue WiFi set PIN in show.conf first: each device then
   enters it once, and nobody else on the network can touch the console.
-  Scan it on the tablet, accept the certificate warning once (HTTPS=yes),
-  then "Add to Home Screen" for a full-screen app.
+  Scan it with the camera (on an iPhone or iPad, open it in Safari),
+  accept the certificate warning once (HTTPS=yes), then "Add to Home
+  Screen" for a full-screen app.
 
 ------------------------------------------------------------
   NO HARDWARE YET: REHEARSE WITHOUT IT
 ------------------------------------------------------------
-  Windows:  double-click  rehearse.bat
   Mac:      bash rehearse.command
+  Windows:  double-click  rehearse.bat
   This runs the whole app against a built-in simulated console.
 
 ------------------------------------------------------------
@@ -66,7 +67,7 @@ WHAT YOU NEED
 ------------------------------------------------------------
   Listening to the console's USB audio needs an optional native module
   (naudiodon2) that is not in this folder. The single-file app carries it,
-  on Windows and on a Mac (see EASIER WAY above).
+  on a Mac and on Windows (see EASIER WAY above).
   Listening on a Mac and on a console's multichannel USB feed has not
   been tried yet.
   Without it the app still runs rehearsal, simulation and manual mixing.
@@ -75,8 +76,8 @@ WHAT YOU NEED
   MIX ON MIXING STATION (no console needed)
 ------------------------------------------------------------
   Start the app with   node js/host/main.js --emulate --lan --pin 123456   then open the
-  Mixing Station app (Android/iOS/desktop) on the same WiFi: console type
-  Behringer X32, pick "MixAssist" from the search list (or type this PC's
+  Mixing Station app (iOS/Android/desktop) on the same WiFi: console type
+  Behringer X32, pick "MixAssist" from the search list (or type this computer's
   IP), access Full. It syncs the desk with live meters; the assistant's moves
   mirror live and your fader moves win instantly. The setlist's scenes appear
   in Mixing Station's scene list. (X32-Edit / M32-Edit desktop editors also

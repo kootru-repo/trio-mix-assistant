@@ -6,7 +6,7 @@
 
 It *listens* to the band and the room, and gently *nudges* the console within hard guardrails. The console is always the source of truth, every move is logged and reversible, and a human can take over instantly. It runs, and is fully testable, with no hardware at all.
 
-**[Download for Mac (Apple Silicon)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-arm64.tar.gz)** · **[Mac (Intel)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-x64.tar.gz)** · **[Windows](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-windows-x64.zip)**
+**[Download for Mac (Apple Silicon)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-arm64.tar.gz)** · **[Mac (Intel)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-x64.tar.gz)** · **[Windows](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-windows-x64.zip)** · [All versions](https://github.com/kootru-repo/trio-mix-assistant/releases)
 
 [Run it in a minute](#run-it) · [What has been tested](#tested) · [Set up for a show](#setup) · [Operating it](#operating-it) · [Mixing Station](#mixing-station) · [How it works](#how-it-works)
 

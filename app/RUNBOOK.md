@@ -1,16 +1,16 @@
-# Runbook: Acoustic Trio Mix‑Assistant (Windows & macOS)
+# Runbook: Acoustic Trio Mix‑Assistant (macOS & Windows)
 
 A practical, show‑day operating guide for the FOH laptop. The app is the same on
 both OSes (one downloaded file, nothing to install); only the shell syntax
 and a few OS permissions differ. Where a step is identical, it's written once;
-where it differs, there's a **Windows** and a **macOS** version side by side.
+where it differs, there's a **macOS** and a **Windows** version side by side.
 
-> Conventions: lines starting `PS>` are **Windows PowerShell**; lines starting
-> `$` are **macOS Terminal** (zsh/bash). PowerShell continues lines with a
-> backtick `` ` ``; macOS continues with a backslash `\`.
+> Conventions: lines starting `$` are **macOS Terminal** (zsh/bash); lines
+> starting `PS>` are **Windows PowerShell**. macOS continues lines with a
+> backslash `\`; PowerShell continues with a backtick `` ` ``.
 >
 > Commands use the downloaded app and are typed in a terminal opened in the app's
-> folder. Running from source instead? Replace `.\TrioMixAssistant.exe` or `./TrioMixAssistant` with
+> folder. Running from source instead? Replace `./TrioMixAssistant` or `.\TrioMixAssistant.exe` with
 > `npm run run --` in the `app/ts` folder.
 
 ---
@@ -33,32 +33,32 @@ where it differs, there's a **Windows** and a **macOS** version side by side.
 Download the app for the laptop from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest). It carries
 its own runtime and the audio module, so nothing else is installed.
 
-- **Windows:** unzip `TrioMixAssistant-windows-x64.zip` into a folder on the laptop's
-  own disk. The first start shows a SmartScreen warning: **More info → Run anyway**.
 - **macOS:** pick `arm64` (Apple Silicon) or `x64` (Intel), then:
   ```bash
   $ mkdir ~/TrioMix && cd ~/TrioMix
   $ tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
   ```
   If macOS refuses to open it: System Settings → Privacy & Security → **Open Anyway**.
+- **Windows:** unzip `TrioMixAssistant-windows-x64.zip` into a folder on the laptop's
+  own disk. The first start shows a SmartScreen warning: **More info → Run anyway**.
 
 Check it starts:
-```powershell
-PS> .\TrioMixAssistant.exe --list-devices
-```
 ```bash
 $ ./TrioMixAssistant --list-devices
+```
+```powershell
+PS> .\TrioMixAssistant.exe --list-devices
 ```
 
 ### 1.1 Let the app check the setup
 
 Once `show.conf` is filled in (§2), run the built-in checks. They listen for about
 eight seconds, change nothing on the console and play no sound:
-```powershell
-PS> .\TrioMixAssistant.exe --diagnose
-```
 ```bash
 $ ./TrioMixAssistant --diagnose
+```
+```powershell
+PS> .\TrioMixAssistant.exe --diagnose
 ```
 Each line is PASS, WARN, FAIL or SKIP, with a fix under anything that is not right. The
 command exits with 1 if a check failed. Add flags to check something other than
@@ -70,11 +70,11 @@ running app already holds the audio input and the console's reply port). The rep
 there has a **Copy report** button.
 
 The checks cover the audio module, the input, the audio flow, the microphone
-permission, each channel's level, the console's meter feed and tablet access. They do
+permission, each channel's level, the console's meter feed and phone or tablet access. They do
 not test that fader and EQ commands land correctly; that is §2.4.
 
-Settings and logs live in `%LOCALAPPDATA%\TrioMixAssistant` (Windows) or
-`~/Library/Application Support/TrioMixAssistant` (macOS); the folder is printed at
+Settings and logs live in `~/Library/Application Support/TrioMixAssistant` (macOS) or
+`%LOCALAPPDATA%\TrioMixAssistant` (Windows); the folder is printed at
 every start.
 
 > **Before you rely on it:** listening on a Mac and capture from a console's
@@ -97,11 +97,11 @@ Do this with the **PA off or at low volume**, hand on the console.
   dedicated Wi‑Fi AP. Note the **console IP**.
 
 ### 2.2 Find the audio interface
-```powershell
-PS> .\TrioMixAssistant.exe --hardware --console-ip 192.168.1.50 --list-devices
-```
 ```bash
 $ ./TrioMixAssistant --hardware --console-ip 192.168.1.50 --list-devices
+```
+```powershell
+PS> .\TrioMixAssistant.exe --hardware --console-ip 192.168.1.50 --list-devices
 ```
 Note the **index** of the input device carrying the console's USB/card return **and**
 your measurement mic.
@@ -135,16 +135,6 @@ one step the emulator can't do for you. Done once per firmware.
 
 ## 3. Show‑day launch
 
-### Windows
-```powershell
-PS> .\TrioMixAssistant.exe --hardware `
-      --console-ip 192.168.1.50 `
-      --audio-device 2 `
-      --template myset.json `
-      --venue "The Cellar" `
-      --lan --https
-```
-
 ### macOS
 ```bash
 $ ./TrioMixAssistant --hardware \
@@ -155,11 +145,21 @@ $ ./TrioMixAssistant --hardware \
       --lan --https
 ```
 
+### Windows
+```powershell
+PS> .\TrioMixAssistant.exe --hardware `
+      --console-ip 192.168.1.50 `
+      --audio-device 2 `
+      --template myset.json `
+      --venue "The Cellar" `
+      --lan --https
+```
+
 Optional add‑ons (either OS):
 - `--ableset-port 39051`: AbleSet drives automatic scene recall.
 - `--advisor`: the Claude advisory layer. Set the key first:
-  - Windows: `PS> $env:ANTHROPIC_API_KEY="sk-..."`
   - macOS: `$ export ANTHROPIC_API_KEY=sk-...`
+  - Windows: `PS> $env:ANTHROPIC_API_KEY="sk-..."`
 - Drop `--audio-device` to run **manual mixing + scene recall only** (assistant idle).
 - Drop `--https` if you don't need tablet Wake Lock (plain http is fine on the laptop).
 
@@ -204,10 +204,14 @@ interface (this catches a shifted device index). **Don't go live while the pill 
 
 ---
 
-## 5. Tablet (iPad / Android, optional)
+## 5. Phone or tablet (iPhone, iPad or Android, optional)
+
+The dashboard has not been tried on a real iPhone or iPad yet; see
+[What has been tested](../README.md#tested).
 
 Launched with `--lan` (and ideally `--https`):
-1. On the tablet, open the printed LAN URL or **scan the QR** in the terminal.
+1. On the phone or tablet, open the printed LAN URL or **scan the QR** in the terminal
+   (on an iPhone or iPad, use Safari).
 2. `--https` is self‑signed → **accept the certificate warning once**.
 3. **Add to Home Screen** → it installs as a full‑screen PWA with screen Wake Lock.
 4. Same network only; if the AP has "client isolation"/guest mode, turn it off.
@@ -256,11 +260,11 @@ Launched with `--lan` (and ideally `--https`):
 ## 8. Rehearse with no hardware (`--emulate`)
 
 Practice the exact launch + dashboard with zero risk:
-```powershell
-PS> .\TrioMixAssistant.exe --emulate --lan --pin 123456 --https
-```
 ```bash
 $ ./TrioMixAssistant --emulate --lan --pin 123456 --https
+```
+```powershell
+PS> .\TrioMixAssistant.exe --emulate --lan --pin 123456 --https
 ```
 This runs the **full real stack** (OSC over localhost) against a built‑in
 protocol‑faithful desk emulator + a timed audio feed: meters stream, feedback gets

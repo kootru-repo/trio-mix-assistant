@@ -9,7 +9,7 @@ other phases:
 - **`RUNBOOK.md`**: the show-day operating guide (launch commands, dashboard, tablet).
 
 > **TL;DR: the optimal rig**
-> **Console X-USB interface as the single 48 kHz capture device (WASAPI on Windows, Core Audio on a Mac) + an
+> **Console X-USB interface as the single 48 kHz capture device (Core Audio on a Mac, WASAPI on Windows) + an
 > analog measurement mic on a spare desk channel + wired Ethernet for OSC control.**
 > No outboard audio interface, no second USB mic, no sample-rate conversion.
 
@@ -25,7 +25,7 @@ recommendation below follows from them:
 | **One input device carries *all* channels** (console returns **and** the meas mic) | `DeviceCapture` opens a single stream, `channels = max(channel_map)+1` | Use the console's own multichannel USB. A *separate* USB meas mic needs an OS aggregate device. |
 | **48 kHz, float32** | `SAMPLE_RATE = 48000`; a 44.1 kHz-locked device is rejected with a clear message (no auto-resample) | Set the interface to 48 kHz; run the whole rig at 48 k. |
 | **Device column = console channel − 1** (default map) | the channel map, else `{ch: ch-1}` | Use the console's default X-USB routing (card sends = inputs 1–N in order), or override with `--channel-map`. |
-| **Low-latency host API preferred** | ranker rewards ASIO (+4) > WASAPI / Core Audio / ALSA / JACK (+3), penalizes built-in mic arrays | Windows → **WASAPI** (the bundled audio module has no ASIO); macOS → **Core Audio**. |
+| **Low-latency host API preferred** | ranker rewards ASIO (+4) > WASAPI / Core Audio / ALSA / JACK (+3), penalizes built-in mic arrays | macOS → **Core Audio**; Windows → **WASAPI** (the bundled audio module has no ASIO). |
 
 ---
 
@@ -85,10 +85,10 @@ capsule is fine: `--auto` sets digital input gain automatically, or use `--input
 ### 3.3 FOH computer, driver & buffer
 - **CPU/RAM:** any modern quad-core, 8 GB+, SSD. The DSP is trivially light (a handful
   of 1024-pt FFTs per audio block, on a thread of their own). The real constraints are **USB and driver stability**, not CPU.
-- **Windows:** install the **Midas/Behringer X-USB driver**; run on the **WASAPI** device. The
-  PortAudio build inside the audio module has **no ASIO**.
 - **macOS:** **Core Audio** (class-compliant). Grant the Microphone permission on first
   launch (a denial makes capture *silent*; the app detects and banners it).
+- **Windows:** install the **Midas/Behringer X-USB driver**; run on the **WASAPI** device. The
+  PortAudio build inside the audio module has **no ASIO**.
 - **Buffer:** 256–512 samples @ 48 k is a good latency/stability trade. The app detects
   sustained xruns (`overload()`) and shows an **XRUN** chip. Bump the buffer if you see it.
 - **USB:** a short/quality USB-B cable (≤ 3 m, or an active cable) on a **dedicated**
@@ -96,7 +96,7 @@ capsule is fine: `--auto` sets digital input gain automatically, or use `--input
 
 ### 3.4 Control network: wired Ethernet
 Put the **OSC control path** (console ↔ laptop, UDP 10023/10024) on **wired Ethernet**
-with static IPs, never Wi-Fi. A dashboard **tablet** may use Wi-Fi (the dashboard is
+with static IPs, never Wi-Fi. A dashboard **phone or tablet** may use Wi-Fi (the dashboard is
 SSE/WebSocket and tolerant); keep it on the same subnet, client-isolation off.
 
 ---
@@ -105,9 +105,9 @@ SSE/WebSocket and tolerant); keep it on the same subnet, client-isolation off.
 
 | | Channel taps | Meas mic | Interface | Network |
 |---|---|---|---|---|
-| **Minimum** | Console analog **direct outs** → any 8+ in USB interface | ECM8000 | class-compliant / WASAPI | Wi-Fi AP (dedicated) |
-| **Recommended** | **M32C X-USB** (built-in) | EMM-6 (calibrated) | X-USB WASAPI @ 48 k | wired switch |
-| **Optimal** | **M32C X-USB**, direct-input routing | EMM-6 on a dedicated preamp, at the mix position | X-USB WASAPI @ 48 k | dedicated wired VLAN, static IPs |
+| **Minimum** | Console analog **direct outs** → any 8+ in USB interface | ECM8000 | class-compliant (Core Audio / WASAPI) | Wi-Fi AP (dedicated) |
+| **Recommended** | **M32C X-USB** (built-in) | EMM-6 (calibrated) | X-USB (Core Audio / WASAPI) @ 48 k | wired switch |
+| **Optimal** | **M32C X-USB**, direct-input routing | EMM-6 on a dedicated preamp, at the mix position | X-USB (Core Audio / WASAPI) @ 48 k | dedicated wired VLAN, static IPs |
 
 The **Minimum** row is the fallback when the console's USB can't give per-channel taps:
 analog direct-outs into a separate multichannel interface. It works but adds an A/D
@@ -117,7 +117,7 @@ round-trip and hardware for no benefit over the desk's own USB, so prefer X-USB.
 
 ## 5. System requirements (summary)
 
-- **OS:** Windows 10/11 or macOS 12+.
+- **OS:** macOS 12+ or Windows 10/11.
 - **Software:** the single-file app from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest); nothing to install. From source: Node.js 22.13+ and the native audio module `naudiodon2`.
 - **Audio:** one input device exposing all channels at **48 kHz** (console X-USB).
 - **Control:** IP reachability to the console on **UDP 10023/10024** (wired).
@@ -132,7 +132,7 @@ happy path of real multichannel console-USB capture has not yet been run against
 actual M32C**, and listening on a Mac has not been tried at all. All multichannel
 testing to date is synthetic/emulated or a one- or two-channel Windows input. Two things need a bench pass with the real desk to call "validated":
 
-1. that the X-USB interface exposes N input channels under WASAPI (or Core Audio), and
+1. that the X-USB interface exposes N input channels under Core Audio (or WASAPI), and
 2. that **USB column order == console channel order** (else set `--channel-map`).
 
 That bench pass is exactly **`HARDWARE_BRINGUP.md` §3** (audio capture). The OSC
