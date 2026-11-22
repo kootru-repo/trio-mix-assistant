@@ -17,7 +17,7 @@ other phases:
 
 ## 1. Why this shape (what the software requires)
 
-The listening half (`ts/src/core/devicecapture.ts`) imposes four hard constraints. Every
+The listening half (`ts/src/core/devicecapture.ts`) imposes three hard constraints and one preference. Every
 recommendation below follows from them:
 
 | Constraint | Where | Consequence for your rig |

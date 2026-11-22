@@ -71,7 +71,7 @@ export class EngineCalibration extends EngineShow {
       if (this.status === "calibrating") this.status = "live";
       const msg =
         this.source !== null
-          ? "couldn't read the measurement mic (no audio captured) — check --audio-device and Windows microphone access"
+          ? "couldn't read the measurement mic (no audio captured) — check --audio-device and the system's microphone permission"
           : "no audio-capture source available";
       this.assistant.emit("calibration", "calibration needs a measurement-mic input — " + msg);
       this.rebuildTelemetry();

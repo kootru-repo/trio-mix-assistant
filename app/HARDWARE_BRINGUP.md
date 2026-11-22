@@ -17,7 +17,7 @@ takeover always wins.
 Before you touch hardware, `./TrioMixAssistant --emulate` (`.\TrioMixAssistant.exe` on Windows, here and in every command below) runs the **entire** real stack:
 `OscConsole` → UDP socket → a protocol-faithful desk emulator → `/meters` stream +
 `/xremote` echoes → `MeterReceiver` → reconciliation, plus the real capture queue fed
-by a timed audio stream. `npm test` (the emulator and protocol tests)
+by a timed audio stream. `npm test`, run in `app/ts` of a source checkout (the emulator and protocol tests),
 then asserts the exact wire layout. Together these validate the **mechanics**: OSC
 framing/encode/decode, the subscribe→renew handshake, self-move-echo vs.
 reconciliation timing, scene-recall round-trips, meter-blob parsing, and the
@@ -86,7 +86,7 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
 - [ ] Run the built-in checks first: `./TrioMixAssistant --diagnose --hardware --console-ip <ip> --audio-device <N>`. They are read-only and cover most of this section: the input opens with enough channels, audio arrives without gaps, the signal is not digital silence, and each channel shows a level. Keep the report.
 - [ ] `./TrioMixAssistant --hardware --console-ip <ip> --list-devices` → find the interface
       (the console's USB/card return + the FOH measurement mic).
-- [ ] Launch with `--audio-device <n>`; confirm `capture: {kind: audio, dead: false}`
+- [ ] Launch with `--audio-device <n>`; confirm `capture: {kind: audio, dead: false}` in `/state`
       and that channel meters move with real input.
 - [ ] Verify the **channel map**: console channel N must map to the device channel the
       app reads for role N. Default is N→N−1; if your routing differs pass
@@ -141,7 +141,7 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
 - **48 kHz, float32.** Capture runs at 48 kHz. A device locked to 44.1 kHz is rejected
   with a clear message (no auto-resample); set the interface to 48 kHz.
 - **Calibration output.** Pink noise plays to the OS default output unless you pass
-  `--output-device` (point it at the PA). Otherwise it may play out the laptop
+  `--output-device` (point it at the PA; it is not used with `--auto`). Otherwise it may play out the laptop
   speakers and calibration will (correctly) stop with "calibration heard only … dBFS at the mic".
 - **The emulator validates mechanics, not your firmware's exact OSC formats**; that's
   what §1 is for.

@@ -54,10 +54,11 @@ WHAT YOU NEED
   Set LAN=yes and a PIN of 6 or more characters in show.conf (the app will
   not start on the network without one). The start window then prints a URL
   and a QR code. Each device enters the PIN once, and nobody else on the
-  network can touch the console. Not tried on a real iPhone or iPad yet.
-  Scan it with the camera (on an iPhone or iPad, open it in Safari),
+  network can touch the console.
+  Scan the QR code with the camera (on an iPhone or iPad, open it in Safari),
   accept the certificate warning once (HTTPS=yes), then "Add to Home
   Screen" for a full-screen app.
+  Not tried on a real iPhone or iPad yet.
 
 ------------------------------------------------------------
   NO HARDWARE YET: REHEARSE WITHOUT IT
@@ -84,8 +85,8 @@ WHAT YOU NEED
   Behringer X32, pick "MixAssist" from the search list (or type this computer's
   IP), access Full. It syncs the desk with live meters; the assistant's moves
   mirror live and your fader moves win instantly. The setlist's scenes appear
-  in Mixing Station's scene list. (X32-Edit / M32-Edit desktop editors also
-  work.)
+  in Mixing Station's scene list. (The X32-Edit desktop editor also works;
+  M32-Edit has not been tried.)
 
   To see faders move, in a second terminal with the app still running:
     node js/host/oscdemo-cli.js --animate   continuous fader wave

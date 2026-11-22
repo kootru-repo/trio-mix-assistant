@@ -61,19 +61,20 @@ export function buildArgv(
   if (!["sim", "emulate", "hardware"].includes(mode)) {
     throw new ConfError(`MODE in show.conf must be hardware, emulate or sim, not '${mode}'`);
   }
-  if (yes(get(cfg, "AUTO", "no"), "AUTO")) argv.push("--auto");
+  const auto = yes(get(cfg, "AUTO", "no"), "AUTO");
+  if (auto) argv.push("--auto");
   if (mode === "hardware") {
     argv.push("--hardware");
     const ip = get(cfg, "CONSOLE_IP", "").trim();
     if (ip) {
       argv.push(`--console-ip=${ip}`);
     } else {
-      print("  [!] MODE=hardware but CONSOLE_IP is blank in show.conf — the console feed won't connect until you set it.");
+      print("  [!] MODE=hardware but CONSOLE_IP is blank in show.conf — the app will try 192.168.1.50.");
     }
     const dev = get(cfg, "AUDIO_DEVICE", "").trim();
     if (dev) {
       argv.push(`--audio-device=${dev}`);
-    } else {
+    } else if (!auto) {
       print(
         "  [i] AUDIO_DEVICE blank — running manual mixing + scene recall only (the assistant won't listen). Run the app with --list-devices to pick one.",
       );

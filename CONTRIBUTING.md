@@ -30,8 +30,9 @@ issue yourself and put their name in *Whose feedback is this?*.
 ## Pull requests
 
 1. Work from `main` on a branch of your own.
-2. From `app/ts/`, run `npm run check` and `npm test`.
-3. If you change `app/web/src`, rebuild with `npm run build` in `app/web` and
+2. From `app/ts/`, run `npm install` once, then `npm run check` and `npm test`.
+3. If you change `app/web/src`, rebuild in `app/web` (`npm ci` the first
+   time, then `npm run build`) and
    commit the generated JavaScript with it.
 4. Describe what you changed and how you checked it.
 

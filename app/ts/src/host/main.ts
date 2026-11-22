@@ -176,7 +176,7 @@ export async function autodetectSource(io: Pick<Io, "factory" | "clock" | "out" 
     }
   }
   io.out("  [!] --auto: no input delivered audio. Close other apps using the mic");
-  io.out("      (mixer editors, voice tools) and check Windows mic privacy, then restart.");
+  io.out("      (mixer editors, voice tools) and check the system's microphone permission, then restart.");
   return null;
 }
 
@@ -553,7 +553,8 @@ async function runChecked(args: Args, io: Io): Promise<number> {
           "      Another --emulate session is probably running. Stop it and retry.",
         );
       }
-      for (const l of emulatorLines(ip, emu.listenPort, args.traceOsc)) io.out(l);
+      const reachable = WILDCARD_HOSTS.includes(args.host) ? ip : null;
+      for (const l of emulatorLines(reachable, emu.listenPort, args.traceOsc)) io.out(l);
     }
     const plan = await prepareTls(args, ip, io);
 
@@ -573,7 +574,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
       return fail(
         io,
         `  [!] Could not open the dashboard on port ${args.port}: ${message}`,
-        `      Another copy already running? Try a different port:  --port ${args.port + 1}`,
+        `      Another copy already running? Try a different port:  --port ${args.port + 1}  (or PORT= in show.conf)`,
       );
     }
     await engine.start();

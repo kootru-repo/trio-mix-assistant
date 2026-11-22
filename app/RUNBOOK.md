@@ -10,9 +10,9 @@ where it differs, there's a **macOS** and a **Windows** version side by side.
 > backslash `\`; PowerShell continues with a backtick `` ` ``.
 >
 > Commands use the downloaded app and are typed in a terminal opened in the app's
-> folder. Running from source instead? Replace `./TrioMixAssistant` or `.\TrioMixAssistant.exe` with
-> `npm run run --` in the `app/ts` folder. In the Node.js folder package, use
-> `node js/host/main.js` in its place.
+> folder. Running from source instead? In `app/ts`, use `npm start` for a start with no
+> flags (or with only `--diagnose`) and `npm run run --` when you give flags. In the Node.js
+> folder package, use `node js/host/launch.js` and `node js/host/main.js` the same way.
 
 ---
 
@@ -76,7 +76,7 @@ permission, each channel's level, the console's meter feed and phone or tablet a
 not test that fader and EQ commands land correctly; that is §2.4.
 
 Settings and logs live in `~/Library/Application Support/TrioMixAssistant` (macOS) or
-`%LOCALAPPDATA%\TrioMixAssistant` (Windows); the folder is printed at
+`%LOCALAPPDATA%\TrioMixAssistant` (Windows); the downloaded app prints the folder at
 every start.
 
 > **Before you rely on it:** listening on a Mac and capture from a console's
@@ -85,7 +85,7 @@ every start.
 >
 > **From source** (developers): Node.js 22.13+ and `npm install` in `app/ts`. Live
 > listening then needs the native module `naudiodon2`, which `npm install` compiles
-> when a C++ compiler is present. The zip package made by `npm run package` does not
+> when a C++ compiler is present. The Node.js folder package made by `npm run package` does not
 > carry it.
 
 ---
@@ -101,10 +101,10 @@ Do this with the **PA off or at low volume**, hand on the console.
 
 ### 2.2 Find the audio interface
 ```bash
-$ ./TrioMixAssistant --hardware --console-ip 192.168.1.50 --list-devices
+$ ./TrioMixAssistant --list-devices
 ```
 ```powershell
-PS> .\TrioMixAssistant.exe --hardware --console-ip 192.168.1.50 --list-devices
+PS> .\TrioMixAssistant.exe --list-devices
 ```
 Note the **index** of the input device carrying the console's USB/card return **and**
 your measurement mic.
@@ -168,7 +168,7 @@ Optional add‑ons (either OS):
   - macOS: `$ export ANTHROPIC_API_KEY=sk-...`
   - Windows: `PS> $env:ANTHROPIC_API_KEY="sk-..."`
 - Drop `--audio-device` to run **manual mixing + scene recall only** (assistant idle).
-- Drop `--https` if you don't need tablet Wake Lock (plain http is fine on the laptop).
+- Without `--lan` (laptop only), `--https` and `--pin` can be dropped: plain http is fine on the laptop itself.
 
 On launch it prints the dashboard URL (and a scan‑to‑open QR when `--lan`).
 
@@ -179,7 +179,7 @@ On launch it prints the dashboard URL (and a scan‑to‑open QR when `--lan`).
 | Status pill | **AUTO** (green), not **ALERT** |
 | Footer audio chip | `audio: <your interface> ok` (not SILENT / DEAD / XRUN) |
 | Settings → Connections → **Console feed** | `connected · N meters` (not `no feed`) |
-| Footer latency | `loop … ms` small, stable |
+| Footer loop time | `loop …ms · jit …ms` small, stable |
 
 The app actively watches the hardware and raises an alert for the common
 problems (a banner, or a full-screen **NEEDS ATTENTION** overlay for the critical ones), so
@@ -290,7 +290,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--emulate` | full stack against the built‑in desk emulator (no gear) |
 | `--console-ip <ip>` | the M32C's IP (hardware mode) |
 | `--audio-device <n>` | input device index/name for the listening half |
-| `--output-device <n>` | output device the calibration pink noise plays to (point at the PA) |
+| `--output-device <name>` | output device (name, or index) the calibration pink noise plays to; point it at the PA |
 | `--auto` | auto-detect the best input device, size the channel map to it, auto-set input gain |
 | `--input-gain <dB>` | digital input boost for a quiet mic/interface (try 20–40) |
 | `--channel-map "1:0,…"` | explicit console-channel:device-column map (console 1-based, column 0-based); default N→N−1 |
@@ -331,16 +331,16 @@ The dashboard names most of these in an alert; this table gives the fix.
 | **"audio … dropping samples (xruns)" / chip = XRUN** | Device buffer too small / CPU contention. Raise the interface buffer size; close other audio apps. |
 | **"audio capture off — … has N input channel(s) but this setup needs M"** | The selected device has too few inputs. Pick a fuller interface, or make a macOS Aggregate Device (§2.2). |
 | **"audio capture off — could not open audio device … It may be in use by another app, or not support 48000 Hz"** | Another app (a DAW) holds the device, or the device is not set to 48000 Hz. Close the other app, set the device to 48000 Hz, or pick a different device. |
-| **"Could not open the dashboard on port 8770"** | A second copy is already running. Stop it, or launch with a different `--port`. |
+| **"Could not open the dashboard on port 8770"** | A second copy is already running. Stop it, or use a different port (`--port`, or `PORT=` in `show.conf`). |
 | **"meter port busy" / "Desk emulator could not bind…"** | Two copies running. Stop the other instance. |
 | **"calibration heard only … dBFS at the mic … the test tone could not be played"** | No/locked **output** device for the pink noise. Check the PA feed/output selection. |
 | **Tablet can't open the page** | Not launched with `--lan`; firewall blocking inbound; different Wi‑Fi/VLAN; AP "client isolation" on. Use the exact printed URL/QR. |
 | **HTTPS cert warning on tablet** | Expected with self‑signed. Tap **Advanced → proceed**, then Add to Home Screen. **To remove the warning entirely,** launch with `--trust`: it prints steps to install a local root CA once per device (`…/ca.pem`), after which https is fully trusted (no warning). If a browser won't let you proceed *and* you're not using `--trust`, delete the `.certs` folder beside `show.conf` and relaunch to make a fresh certificate. Always open via the exact **IP** URL the app prints. |
 | **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `ts/src/core/console.ts`. |
-| **Wrong meter moves when you play an input** | Channel‑map mismatch. The dashboard's Decision log shows `listening on '<device>' (N ch)`; verify the patch order (§2.2) and the channel map. |
+| **Wrong meter moves when you play an input** | Channel‑map mismatch. The dashboard's Decision log shows `listening on '<device>' (N ch)`; verify the patch order and the channel map (`--channel-map`, §9). |
 | **`node` not found** | Only when running from source or the Node.js folder package: install Node.js 22.13+ from nodejs.org, then open a new terminal. The downloaded app does not need it. |
 | **Not sure what is wrong** | Run the checks: **Settings → Run checks**, or `--diagnose` in a terminal (§1.1). Each failed line comes with its fix. |
-| **"live audio input needs the optional native audio module 'naudiodon2'"** | Only when running from source or the zip package: use the downloaded app (it carries the module), run `npm install` with a C++ compiler present, or run without `--audio-device`. |
+| **"live audio input needs the optional native audio module 'naudiodon2'"** | Only when running from source or the Node.js folder package. From source, run `npm install` with a C++ compiler present. In the folder package, use the downloaded app instead (it carries the module). Or run without `--audio-device`. |
 | **Audio device index changed between shows** | Indexes shift when devices are added/removed. The dashboard's Decision log shows the resolved name; prefer the device **name** in `show.conf` over the index. |
 
 ---

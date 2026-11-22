@@ -28,7 +28,7 @@ Small acoustic acts often play with no one at front‑of‑house. This app watch
 
 ## Screenshots
 
-| Mix: jobs, faders, channels, decision log | EQ: per‑channel 4‑band PEQ |
+| Mix: jobs, faders, channels (click for the full page with the decision log) | EQ: per‑channel 4‑band PEQ |
 |---|---|
 | [![Mix](docs/screenshots/dashboard.png)](docs/screenshots/dashboard-full.png) | ![EQ](docs/screenshots/eq.png) |
 | **FX: per‑channel sends + wet returns** | **Settings: status, performance, calibration** |
@@ -88,10 +88,10 @@ The app runs on the laptop; a phone or tablet on the same WiFi opens its dashboa
 | **Simulation and the built-in console emulator** | Tested automatically on macOS, Windows and Linux on every change. |
 | **Listening on a Mac** | **Not tried yet.** Both Mac builds start, serve the dashboard and list devices on test computers with no audio hardware. |
 | **Dashboard on an iPhone or iPad** | **Not tried yet** on a real device. |
-| **Listening on Windows** | Run on real one- and two-channel inputs, including a nine-minute run with no dropped audio. |
+| **Listening on Windows** | Run on real one- and two-channel inputs, including a nine-minute run with no dropped audio. The built-in checks ran there too. |
 | **Console USB audio** (M32 / X32 multichannel feed) | **Not tried yet** on any system. |
 | **Console control over the network** | Tested against the built-in emulator. Check it against your own console first: [bring-up checklist](app/HARDWARE_BRINGUP.md). |
-| **Mixer apps against the emulator** | Mixing Station (on Android) and X32-Edit connected to the built-in emulator and synced. M32-Edit has not been tried. |
+| **Mixer apps against the emulator** | Mixing Station (on Android) and X32-Edit connected to the built-in emulator and synced; fader levels sent by the app showed the same dB in X32-Edit. M32-Edit has not been tried. |
 
 Rehearse with your own gear before relying on it at a show. The apps are unsigned, and on Windows there is no ASIO support (pick the **WASAPI** entry for your device).
 
@@ -123,7 +123,7 @@ These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, typ
 2. **Open the settings file.** The app creates `show.conf` on its first run and prints the folder at every start:
    - Mac: `~/Library/Application Support/TrioMixAssistant/show.conf`
    - Windows: `%LOCALAPPDATA%\TrioMixAssistant\show.conf`
-3. **Set** `MODE=hardware`, `CONSOLE_IP` and `AUDIO_DEVICE` (or `AUTO=yes` to auto-detect the input). For a phone or tablet, set `LAN=yes` and a `PIN` of six or more characters.
+3. **Set** `MODE=hardware`, `CONSOLE_IP` and `AUDIO_DEVICE` (the number from step 1). With a small interface or a single USB mic, `AUTO=yes` picks the input for you instead; leave it off with the console's 32-input USB feed, where it would pick the wrong channel for the measurement mic. For a phone or tablet, set `LAN=yes` and a `PIN` of six or more characters.
 4. **Start the app** the same way as before. On a Mac, click **Allow** when macOS asks to let Terminal use the microphone and the network, or the app hears silence.
 
 ### Check your setup
@@ -135,9 +135,9 @@ The app can check itself. It listens for about eight seconds, **changes nothing 
 
 It checks that the audio module loads, the chosen input opens at 48000 Hz, audio arrives without gaps, the signal is not blocked by the system's microphone permission, each channel shows a level, the console answers, and tablet access is protected by a PIN. It cannot prove the console's control formats are right; that is still the [bring-up checklist](app/HARDWARE_BRINGUP.md).
 
-The report can be copied. If something fails on your gear, or you got a Mac or a console's USB feed working, please paste the report into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues): those are the setups nobody has confirmed yet. It never contains the PIN, and the path of your home folder is removed. From a terminal, copy from the `===== Trio Mix-Assistant checks =====` line down: the line above it shows your settings folder.
+The report can be copied. If something fails on your gear, or you got a Mac or a console's USB feed working, please paste the report into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues): those are the setups nobody has confirmed yet. It never contains the PIN, and the path of your home folder is removed. From a terminal, copy from the `===== Trio Mix-Assistant checks =====` line down: the first line the app prints shows your settings folder.
 
-> **No console yet:** run `TrioMixAssistant --emulate` to rehearse the whole app against the built-in console emulator. Add `--audio-device <number>` to listen on a real mic.
+> **No console yet:** run `TrioMixAssistant --emulate` to rehearse the whole app against the built-in console emulator. Add `--auto` to listen on a real mic.
 >
 > **iPhone, iPad or Android:** with `LAN=yes` and a `PIN`, the start window prints a **scan-to-open QR code**. See [On a phone or tablet](#phone).
 >
@@ -170,7 +170,7 @@ Open **http://127.0.0.1:8770/**.
 
 The commands below are for the downloaded app on a Mac. On Windows, type `.\TrioMixAssistant.exe` in place of `./TrioMixAssistant`.
 
-Started with no flags, the app uses `show.conf` (simulation until you change it). Started with flags, it ignores `show.conf`, so put everything on the command line; `--diagnose` and `--list-devices` on their own still read `show.conf`. From source, in the **`app/ts`** folder, `npm start` is the no-flag form and `npm run run --` takes the flags.
+Started with no flags, the app uses `show.conf` (simulation until you change it). Started with flags, it ignores `show.conf`, so put everything on the command line; `--diagnose` on its own still reads `show.conf`. From source, in the **`app/ts`** folder, `npm start` is the no-flag form and `npm run run --` takes the flags.
 
 ### Run modes
 
@@ -179,7 +179,7 @@ Started with no flags, the app uses `show.conf` (simulation until you change it)
 | **Simulation** | `./TrioMixAssistant` | Closed‑loop synthetic stage. Learn the UI, demo, no gear. |
 | **Emulate (no console)** | `./TrioMixAssistant --emulate --lan --https --pin 123456` | Real production stack vs. a built‑in M32C emulator. |
 | **Emulate + real mic** | `./TrioMixAssistant --emulate --lan --https --pin 123456 --auto` | Same, but listens on your real USB mic, so you can run a true room calibration & feedback test. |
-| **Production** | `./TrioMixAssistant --hardware --console-ip 192.168.1.50 --auto --lan --https --pin 123456` | Drive the real M32C. `--auto` detects the mic; or use `--audio-device N`. |
+| **Production** | `./TrioMixAssistant --hardware --console-ip 192.168.1.50 --audio-device <number> --lan --https --pin 123456` | Drive the real M32C. `<number>` comes from `--list-devices`; with a small interface, `--auto` picks the input instead. |
 
 Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets + print a QR), `--https` (TLS, enables the tablet PWA + screen wake‑lock), `--pin "123456"` (a PIN of at least 6 characters to open the dashboard + control the console; required whenever the dashboard is served to the network, paired with `--https`; `--insecure-open` allows an open dashboard), `--template set.json` (per‑song scenes), `--venue "The Cellar"` (session log + learning), `--advisor` (optional Claude notes; needs `ANTHROPIC_API_KEY`).
 
@@ -187,7 +187,7 @@ Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets +
 - **AUTOMATIC JOBS**: toggle Feedback notch, Clip protection, Vocal ride, Balance hold, Phase / polarity and Vocal unmask. Feedback notch and Clip protection are on at start.
 - **MIXING SURFACE**: drag faders, tap **M** to mute; a human move makes auto‑ride yield on that channel.
 - **Pink‑noise calibration** (Settings → *Run calibration*) measures the room, parks gentle cuts on the worst peaks, and builds a feedback watch‑list. The result shows as an octave‑band chart with ▲ watch / ▼ cut chips.
-- **Scenes**: recall console scenes; with a show template they recall automatically per song.
+- **Scenes**: recall console scenes; with a show template they recall automatically per song (on a real console this also needs AbleSet, `--ableset-port`).
 - **COACH**: flips the assistant from *acting* to *advising*. It stops touching the console and lists every move it would make (feedback notch, clip trim, vocal ride, calibration, even scene recall) as a plain manual instruction in a **Coach — manual moves** panel + the log, for you to dial in by hand. Only your own manual moves act.
 - **TAKEOVER**: mutes the main and holds all jobs so a human always wins.
 - **Deep links**: `…:8770/#eq`, `#fx`, `#settings` open straight to a tab (handy on a tablet).
@@ -202,14 +202,14 @@ Run with `--lan --https --pin <PIN>`. At startup the terminal prints the dashboa
 
 1. **FOH laptop:** `./TrioMixAssistant --emulate --lan --pin 123456 --https` on a Mac, `.\TrioMixAssistant.exe` with the same flags on Windows (or your production command). The start window prints the URL + QR (this is what `--lan` does; `--https` enables the PWA + wake‑lock).
 2. **Phone or tablet:** join the **same WiFi** as the laptop.
-3. **Scan the QR** in the terminal with the camera, or open the printed `https://<laptop‑ip>:8770/` URL.
+3. **Scan the QR** in the terminal with the camera, or open the printed `https://<laptop-ip>:8770/` URL.
 4. Accept the **self‑signed certificate** warning once, then **Add to Home Screen** for a full‑screen app. On an iPhone or iPad, open it in Safari and use **Share → Add to Home Screen**; on Android, use the Chrome menu.
 
 The QR at right is an *example* (`https://192.168.1.50:8770/`); yours encodes the laptop's real LAN IP. On a Mac, click **Allow** when macOS asks to let the app accept incoming network connections. On Windows, click **Allow** on the first‑run **Firewall** prompt (the laptop must be on a *Private* network). Over plain `http` (no `--https`), Wake Lock no‑ops, so set the device's auto‑lock to *Never* instead.
 
 ### Locking it down (untrusted networks)
 
-Serving the dashboard to the network (`--lan`) needs a PIN of at least 6 characters, and the app refuses to start without one unless you pass **`--insecure-open`** (or `ALLOW_OPEN=yes` in `show.conf`) on a network you fully trust. Set **`PIN=123456`** in `show.conf` or add **`--pin "123456"`** (ideally with `--https`): the dashboard then asks for the PIN before it opens, and every control endpoint and the telemetry stream require it, so a stranger on the WiFi can't touch the console. The PIN is entered once per device (a `HttpOnly; SameSite=Strict` session cookie). Five wrong tries lock out only the device that made them for 30 seconds, doubling on each repeat up to 15 minutes, and devices already signed in keep control throughout. Across all devices, unsuccessful sign-in attempts are capped at 20 to 30 a minute; past the cap, devices that have not signed in before are refused until the minute passes. With or without a PIN, the server validates the `Host` header (DNS‑rebinding guard) and refuses control requests and WebSocket connections that come from another website (`Origin` check), so a page open in the operator's browser cannot drive the console.
+Serving the dashboard to the network (`--lan`) needs a PIN of at least 6 characters, and the app refuses to start without one unless you pass **`--insecure-open`** (or `ALLOW_OPEN=yes` in `show.conf`) on a network you fully trust. Set **`PIN=123456`** in `show.conf` or add **`--pin "123456"`** (ideally with `--https`): the dashboard then asks for the PIN before it opens, and every control endpoint and the telemetry stream require it, so a stranger on the WiFi can't touch the console. The PIN is entered once per device for each run of the app (a `HttpOnly; SameSite=Strict` session cookie). Five wrong tries lock out only the device that made them for 30 seconds, doubling on each repeat up to 15 minutes, and devices already signed in keep control throughout. Across all devices, unsuccessful sign-in attempts are capped at 20 to 30 a minute; past the cap, devices that have not signed in before are refused until the minute passes. With or without a PIN, the server validates the `Host` header (DNS‑rebinding guard) and refuses control requests and WebSocket connections that come from another website (`Origin` check), so a page open in the operator's browser cannot drive the console.
 
 **Zero cert warnings:** a self‑signed cert always shows a one‑time browser warning (it's encrypted but not *trusted*). To remove it completely, launch with **`--trust`**: the app runs a local root CA and serves a cert signed by it, then prints steps to install that root **once per device** (browse to `/ca.pem`, or copy `ca.pem` from the `.certs` folder beside `show.conf`). After the one‑time install, every https connection is fully trusted: green padlock, no warning. (There's no server‑only way to skip the per‑device install; that's how certificate trust works. The alternative is plain http, with no cert and no warning, but also no PWA/Wake‑Lock, and the PIN travels in clear.)
 
@@ -237,13 +237,13 @@ The emulator answers Mixing Station's full discovery + sync + metering protocol,
 
 1. `./TrioMixAssistant --emulate --lan --https --pin 123456` on the laptop (`.\TrioMixAssistant.exe` on Windows).
 2. Phone/tablet on the same WiFi → Mixing Station → **Behringer X32** → the emulated desk appears as **MixAssist** in the search list (or enter the laptop's IP manually) → **Connect**, access **Full**.
-3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list (recall one and the app follows). The assistant's moves mirror live; your fader moves win instantly. From source you can push test moves: `npm run osc-demo -- --animate` in `app/ts`.
+3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list. The assistant's moves mirror live; your fader moves win instantly. From source you can push test moves: `npm run osc-demo -- --animate` in `app/ts`.
 
-**Split screen on the operator's Android device**, with the assistant's dashboard (top, song bar + COACH + TAKEOVER) and Mixing Station (bottom, the setlist's channels with live meters) both connected to the emulator at once:
+**Split screen on one Android device** during an emulator session: the assistant's dashboard (top) and Mixing Station (bottom, the setlist's channels with live meters):
 
-<img src="docs/screenshots/mixingstation-split.jpg" width="360" alt="Trio Mix-Assistant dashboard and Mixing Station split-screen on one Android device, both live against the emulator">
+<img src="docs/screenshots/mixingstation-split.jpg" width="360" alt="Trio Mix-Assistant dashboard and Mixing Station split-screen on one Android device during an emulator session">
 
-This also validates the OSC against a production mixer app with no gear. Set a fader to a known dB in the dashboard and confirm Mixing Station shows the same value (the fader law is verified this way).
+This also validates the OSC against a production mixer app with no gear. Set a fader to a known dB in the dashboard and confirm Mixing Station shows the same value (the fader law was checked this way against X32-Edit).
 
 > **Other editors:** Behringer **X32‑Edit** / Midas **M32‑Edit** (the official desktop editors) also connect to the emulator the same way. They are free fallback mirrors on the same UDP 10023, with the same MixAssist discovery. Only X32-Edit has been tried.
 
@@ -316,7 +316,7 @@ See **[AUTHORS.md](AUTHORS.md)**. To cite the project, use **[CITATION.cff](CITA
 
 ## Contributing
 
-This is a community project and musicians' feedback is as welcome as code. See **[CONTRIBUTING.md](CONTRIBUTING.md)**, or open an issue and pick *Preference*, *Flow* or *UI suggestion*. Download **[docs/feedback-board.html](docs/feedback-board.html)** and open it in a browser to see the open feedback sorted into those three columns (choose *All* to include finished items).
+This is a community project and musicians' feedback is as welcome as code. See **[CONTRIBUTING.md](CONTRIBUTING.md)**, or open an issue and pick *Preference*, *Flow* or *UI suggestion*. Download **[docs/feedback-board.html](docs/feedback-board.html)**, open it in a browser, type `kootru-repo/trio-mix-assistant` in the box and press **Load**. It shows the open feedback in those three columns (under **Show**, choose *All* to include finished items).
 
 ## License & disclaimer
 

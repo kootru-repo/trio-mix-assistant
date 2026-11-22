@@ -149,9 +149,9 @@
     <p class="sub">A deliberately small system that <b>listens</b> to the room and <b>nudges</b> the console, reliably and reversibly handling the handful of things an absent sound engineer gets wrong. The console does all the real audio; the app only observes and corrects within hard limits.</p>
     <div class="badges">
       <span class="badge">TypeScript program</span>
-      <span class="badge no">✕ No LLM / no machine learning</span>
+      <span class="badge no">✕ No LLM or machine learning in the control path</span>
       <span class="badge no">✕ No MCP needed</span>
-      <span class="badge yes">✓ OSC + JACK/ASIO only</span>
+      <span class="badge yes">✓ OSC + the computer's audio input only</span>
       <span class="badge yes">✓ Human override always in hand</span>
     </div>
   </header>
@@ -168,7 +168,7 @@
       <div class="seg listen">
         <div class="lab">Listen path (analysis only)</div>
         <div class="big">Audio in via USB / card</div>
-        <div class="small">8 channel taps + a dedicated FOH measurement mic. Read-only, so it can never sit in your signal chain.</div>
+        <div class="small">7 channel taps + a dedicated FOH measurement mic (channel 8). Read-only, so it can never sit in your signal chain.</div>
       </div>
       <div class="seg ctrl">
         <div class="lab">Control path</div>
@@ -182,19 +182,19 @@
   <section>
     <div class="h"><span class="num">1</span><h2>How the control brain runs: sense → decide → actuate</h2><span class="tag">per block · 1024 samples ≈ 21 ms @ 48 kHz</span></div>
     <div class="flow">
-      <div class="node n-sense"><div class="nlab">Sense</div><div class="nt">DSP features</div><div class="nd">RMS, peak, spectrum, ring-detect per channel</div><div class="nd code" style="margin-top:6px;color:var(--advisory)">analyse_block()</div></div>
+      <div class="node n-sense"><div class="nlab">Sense</div><div class="nt">DSP features</div><div class="nd">RMS, peak, spectrum, ring-detect per channel</div><div class="nd code" style="margin-top:6px;color:var(--advisory)">analyseBlock()</div></div>
       <div class="arrow">▸</div>
       <div class="node n-think"><div class="nlab">Estimate</div><div class="nt">Believed state</div><div class="nd">Fader/gain positions, room baseline, feedback streaks</div></div>
       <div class="arrow">▸</div>
-      <div class="node n-think"><div class="nlab">Decide</div><div class="nt">4 policies</div><div class="nd">Feedback · clip · vocal-ride · balance</div><div class="nd code" style="margin-top:6px;color:#cbd5e1">MixAssistant</div></div>
+      <div class="node n-think"><div class="nlab">Decide</div><div class="nt">6 policies</div><div class="nd">Feedback · clip · vocal-ride · balance · phase · unmask</div><div class="nd code" style="margin-top:6px;color:#cbd5e1">MixAssistant</div></div>
       <div class="arrow">▸</div>
       <div class="node n-act"><div class="nlab">Clamp</div><div class="nt">Guardrails</div><div class="nd">Every move bounded in size &amp; speed</div></div>
       <div class="arrow">▸</div>
-      <div class="node n-out"><div class="nlab">Actuate</div><div class="nt">OSC out → Console</div><div class="nd">Smooth ramps, logged &amp; reversible</div><div class="nd code" style="margin-top:6px;color:var(--console)">Console.send()</div></div>
+      <div class="node n-out"><div class="nlab">Actuate</div><div class="nt">OSC out → Console</div><div class="nd">Smooth ramps, logged &amp; reversible</div><div class="nd code" style="margin-top:6px;color:var(--console)">OscConsole</div></div>
     </div>
     <div class="loopnote">
       <span style="font-size:18px;line-height:1">↺</span>
-      <div><b>Closed loop:</b> the console streams meters back so the app keeps its “believed state” honest against reality, which is essential because a human can move faders at the same time.<span class="pill">iPad Mixing Station = parallel human override</span><br><span style="color:var(--dim)">⚠ This reconciliation is the one major piece still stubbed in the reference code, and the hardest real part to build.</span></div>
+      <div><b>Closed loop:</b> the console streams meters back so the app keeps its “believed state” honest against reality, which is essential because a human can move faders at the same time.<span class="pill">iPad Mixing Station = parallel human override</span><br><span style="color:var(--dim)">The app reads fader moves back from the console and adopts them, so it never fights a move a human made.</span></div>
     </div>
     <div class="legend">
       <span><i class="dotc" style="background:var(--advisory)"></i> sense / advisory</span>
@@ -210,40 +210,50 @@
   <section>
     <div class="h"><span class="num">2</span><h2>Pre-show: pink-noise room calibration</h2><span class="tag">tunes the system to the room before doors</span></div>
     <div class="steps">
-      <div class="step"><div class="sn">1 · Emit</div><div class="st">Play ~10 s pink noise</div><div class="sd">A known reference out the main bus.</div></div>
+      <div class="step"><div class="sn">1 · Emit</div><div class="st">Play ~10 s pink noise</div><div class="sd">From the laptop's audio output into the PA.</div></div>
       <div class="step"><div class="sn">2 · Capture</div><div class="st">Record at the meas mic</div><div class="sd">= the real room + PA spectrum in the air.</div></div>
-      <div class="step"><div class="sn">3 · Baseline</div><div class="st">Compare to ideal pink</div><div class="sd">The room-response curve (its “normal”).</div></div>
+      <div class="step"><div class="sn">3 · Baseline</div><div class="st">Compare octave bands</div><div class="sd">Each band against its neighbours: the room-response curve.</div></div>
       <div class="step"><div class="sn">4 · Watch-list</div><div class="st">Rank resonant peaks</div><div class="sd">The exact feedback-prone frequencies.</div></div>
       <div class="step"><div class="sn">5 · Auto-apply</div><div class="st">Cut peaks + pre-dip</div><div class="sd">Flatter room, fewer rings before anyone sings.</div></div>
     </div>
     <div class="card" style="margin-top:12px;border-left:3px solid var(--cal)">
-      <b style="color:var(--cal)">Why it's the “smart” part:</b> <span style="color:var(--mut);font-size:13.5px">the baseline stops a room's normal 250 Hz boom from being mis-flagged as feedback, while the watch-list pre-loads where feedback <i>will</i> start, so the live detector reacts a beat sooner there. That's the system's “learned-this-room” prior, standing in for any machine learning.</span>
+      <b style="color:var(--cal)">Why it's the “smart” part:</b> <span style="color:var(--mut);font-size:13.5px">the measured curve sets gentle main-bus cuts for the room's own boom, while the watch-list pre-loads where feedback <i>will</i> start, so the live detector reacts one block sooner there. That's the system's “learned-this-room” prior, standing in for any machine learning.</span>
     </div>
   </section>
 
-  <!-- 3. Four jobs -->
+  <!-- 3. Six jobs -->
   <section>
-    <div class="h"><span class="num">3</span><h2>The four live jobs: two tiers by reaction time</h2><span class="tag">reflex &lt; ~85 ms · advisory ~0.5 s</span></div>
+    <div class="h"><span class="num">3</span><h2>The six live jobs: two tiers by reaction time</h2><span class="tag">reflex ≈ 85–110 ms · advisory 0.25–1 s</span></div>
     <div class="grid g2">
       <div class="job reflex">
         <div class="jtop"><span class="icon">🔁</span><h3>Feedback catch-and-notch</h3><span class="tier r">Reflex</span></div>
         <p>Detect a narrowband ring that is <b>rising</b> and <b>frequency-stable</b> (a held vocal note wanders and doesn't climb, so it's ignored). Park a sharp EQ cut on it. Watch-list frequencies fire one block sooner.</p>
-        <div class="law"><span class="c"># confirm over consecutive blocks, then:</span><br>set_eq_notch(ch, band, freq, −9 dB, Q 8)</div>
+        <div class="law"><span class="c"># confirm over consecutive blocks, then:</span><br>setEqNotch(ch, band, freq, −9 dB, Q 8)</div>
       </div>
       <div class="job reflex">
         <div class="jtop"><span class="icon">🛡️</span><h3>Clip / overload protection</h3><span class="tier r">Reflex</span></div>
         <p>When a channel peaks within 1 dB of full scale, trim its preamp gain down a touch so nothing distorts. Pure threshold reflex, with no judgement required.</p>
-        <div class="law"><span class="c"># peak &gt; −1 dBFS →</span><br>nudge_gain_db(ch, −2 dB)</div>
+        <div class="law"><span class="c"># peak &gt; −1 dBFS →</span><br>nudgeGainDb(ch, −2 dB)</div>
       </div>
       <div class="job adv">
         <div class="jtop"><span class="icon">🎤</span><h3>Lead-vocal level riding</h3><span class="tier a">Advisory</span></div>
         <p>Hold the lead vocal at a loudness target as input drifts. A clamped proportional controller: error = target − measured, with a deadband, a per-step limit, and a smooth ramp so it never jumps.</p>
-        <div class="law"><span class="c"># |target − avg| &gt; 2 dB →</span><br>ramp_fader_db(lead, step ≤ ±1 dB, 350 ms)</div>
+        <div class="law"><span class="c"># |target − avg| &gt; 2 dB →</span><br>rampFaderDb(lead, step ≤ ±1 dB, 350 ms)</div>
       </div>
       <div class="job adv">
         <div class="jtop"><span class="icon">⚖️</span><h3>Balance hold</h3><span class="tier a">Advisory</span></div>
-        <p>Recall a good starting scene and gently pull the mix back when it wanders. Same clamped-controller pattern, regulating several channels toward a stored snapshot.</p>
-        <div class="law"><span class="c"># spec'd; not yet in the reference code —</span><br>recall_scene() + slow drift correction</div>
+        <p>Capture the levels of the supporting channels once the mix sounds right, then gently pull each one back when it wanders. Same clamped-controller pattern as the vocal ride, at a slower pace.</p>
+        <div class="law"><span class="c"># level off its captured target, at most once a second →</span><br>rampFaderDb(ch, step ≤ ±1 dB, 350 ms)</div>
+      </div>
+      <div class="job adv">
+        <div class="jtop"><span class="icon">🔀</span><h3>Phase / polarity check</h3><span class="tier a">Advisory</span></div>
+        <p>For two mics on one source, track how their signals correlate. If the pair stays out of polarity, flip the polarity on one of them; a timing (comb-filter) problem is only reported. Off until the template names a pair.</p>
+        <div class="law"><span class="c"># correlation &lt; −0.35, sustained →</span><br>setPolarity(ch, inverted)</div>
+      </div>
+      <div class="job adv">
+        <div class="jtop"><span class="icon">🎯</span><h3>Vocal unmask</h3><span class="tier a">Advisory</span></div>
+        <p>While the lead vocal is up, dip a broad band around 3 kHz on the chosen instruments so the words stay clear, and release it when the vocal stops. Off until the template names the instruments.</p>
+        <div class="law"><span class="c"># vocal above its gate →</span><br>setEqBand(ch, band 4, 3 kHz, −4 dB, Q 1.2)</div>
       </div>
     </div>
   </section>
@@ -255,9 +265,9 @@
       <h3>Bounded · smoothed · logged · reversible</h3>
       <span style="color:var(--mut);font-size:13.5px">The policies only <i>propose</i>; this layer <i>disposes</i>. No rule can exceed a hard fader range, oversize a single step, or move audibly fast, and every action is timestamped and undoable.</span>
       <div class="chips">
-        <span class="chip">FADER_MIN/MAX = −12 … +6 dB</span>
-        <span class="chip">MAX_STEP = 1 dB / move</span>
-        <span class="chip">RAMP = 350 ms (no jumps)</span>
+        <span class="chip">FADER_MIN_DB / FADER_MAX_DB = −12 … +6 dB</span>
+        <span class="chip">MAX_STEP_DB = 1 dB / move</span>
+        <span class="chip">RAMP_MS = 350 ms (no jumps)</span>
         <span class="chip">notch ≤ −9 dB, narrow Q</span>
         <span class="chip">every move → decision log</span>
         <span class="chip">human override wins instantly</span>
@@ -290,8 +300,8 @@
         <div class="h"><span class="num">6</span><h2>Build &amp; rollout order</h2></div>
         <div class="card">
           <div class="timeline">
-            <div class="ev done"><span class="dot"></span><div class="et">Step 0 · Mic + calibration</div><div class="ed">Patch the meas mic to Ch 8; run pink-noise read-only, then enable auto-correction.</div></div>
-            <div class="ev done"><span class="dot"></span><div class="et">Step 1 · Prove listening (no control)</div><div class="ed">Feature extractor + per-channel level &amp; feedback lights. Push nothing yet.</div></div>
+            <div class="ev"><span class="dot"></span><div class="et">Step 0 · Mic + calibration</div><div class="ed">Patch the meas mic to Ch 8; run pink-noise read-only, then enable auto-correction.</div></div>
+            <div class="ev"><span class="dot"></span><div class="et">Step 1 · Prove listening (no control)</div><div class="ed">Feature extractor + per-channel level &amp; feedback lights. Push nothing yet.</div></div>
             <div class="ev"><span class="dot"></span><div class="et">Step 2 · Add OSC control (bench)</div><div class="ed">Verify exact scalings with a sniffer; test ramps &amp; a notch with the PA off.</div></div>
             <div class="ev"><span class="dot"></span><div class="et">Step 3 · Gig as safety-net only</div><div class="ed">Auto-engage feedback + clip. Vocal-ride / balance stay advisory. iPad in hand.</div></div>
             <div class="ev"><span class="dot"></span><div class="et">Step 4 · Enable ride &amp; balance</div><div class="ed">Set targets at soundcheck; turn on each once you trust it.</div></div>

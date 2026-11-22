@@ -17,7 +17,7 @@ Beyond the safety net it implements these show-side features:
 - **AbleSet show clock → automatic scene recall** with per-song reference levels;
 - a **performer dashboard** with Mix, **EQ** (per-channel 4-band PEQ with a live
   curve), **FX** (per-channel sends + wet returns) and **Settings** (status)
-  screens, an AUTO/ALERT/MANUAL headline, and a **4-level notification hierarchy**
+  screens, an AUTO/ALERT/COACH/MANUAL headline, and a **4-level notification hierarchy**
   (silent → log → banner → full-screen acknowledged overlay) with an **8-bar
   opening gate**;
 - **template-driven channel maps** (the 8-ch trio *or* a 13-input rig from one JSON),
@@ -68,7 +68,7 @@ The executable carries the Node.js runtime and the whole app, so the computer
 that runs it needs nothing installed. Start it with no flags to run from `show.conf`
 and open the dashboard, or pass the same flags as `npm run run --`
 (`./TrioMixAssistant --emulate --lan --pin <pin>` on a Mac,
-`TrioMixAssistant.exe` with the same flags on Windows).
+`.\TrioMixAssistant.exe` with the same flags on Windows).
 
 - **Settings and logs** (`show.conf`, `sessions.db`, `.certs`, `venues`) live in
   `~/Library/Application Support/TrioMixAssistant` on a Mac and
@@ -131,8 +131,9 @@ need their own build.
    to open a downloaded build, go to System Settings → Privacy & Security, click
    **Open Anyway**, and run it again.
 2. `./TrioMixAssistant` starts the simulation and prints the dashboard address.
-3. `./TrioMixAssistant --emulate --audio-device <number>` listens on the input
-   you picked. Click **Allow** when macOS asks to let Terminal use the
+3. `./TrioMixAssistant --emulate --auto` listens on the best input it finds
+   (`--audio-device <number>` picks one yourself, but on its own it needs a
+   device with at least 8 inputs). Click **Allow** when macOS asks to let Terminal use the
    microphone; if it was denied, the app hears silence (System Settings →
    Privacy & Security → Microphone).
 4. Press Ctrl+C to stop.
@@ -318,17 +319,17 @@ The tests cover OSC scaling round-trips + guardrail clamps, DSP/detection,
 the six decision loops (incl. that a steady sung note is *not* notched and a
 rising ring *is*), calibration, the HTTP/SSE/WebSocket endpoints, the
 **hardware** path (capture buffering/mapping/meas with an injected stream, meter
-blob decode, console-fader reconciliation, dead-stream silence + recovery, silent-
-mic detection, and an injected source driving the
+blob decode, console-fader reconciliation, dead-stream silence + recovery,
+silent-mic detection, and an injected source driving the
 assistant), the **show side** (template validation, sim + AbleSet show clocks,
-auto scene recall, AUTO/ALERT/MANUAL mode, notification levels, 8-bar gate, manual
+auto scene recall, AUTO/ALERT/COACH/MANUAL mode, notification levels, 8-bar gate, manual
 scene recall), the **performer surface** (EQ/FX/send commands + clamping, detect→actuate latency, room-mic SNR confidence),
 the **advisor/logging layer** (SQLite session log off the real-time path, the advisory
 loop with an injected caller, advisory-only safety, **venue learning** model
 build/save/load + watch-list seeding), the **extensions** (guest mode, stage-mic detection), a **contract** suite that pins the X32/M32 wire
 layout + a full real-socket round-trip against the desk emulator, and a
-**robustness** suite: concurrent-client stress tests, malformed/NaN/
-deeply-nested input rejection, the calibration-vs-takeover guard, the main-bus
+**robustness** suite: concurrent-client stress tests,
+malformed/NaN/deeply-nested input rejection, the calibration-vs-takeover guard, the main-bus
 band allocator, scaling-domain safety, and WebSocket fragmentation / masking /
 body-size limits.
 

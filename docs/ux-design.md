@@ -50,7 +50,7 @@ Notes:
 Pad (or a phone) on a mic stand at the edge of the stage, **dashboard PWA
 full‑screen**. Mixing Station may not be installed at all.
 
-- Glanceable from meters away: the status pill (AUTO / ALERT / COACH / MANUAL)
+- Glanceable from meters away: the status pill (AUTO / ALERT / COACH / MANUAL, or CALIBRATING during a calibration run)
   and the 4‑level notification ladder (silent → log → banner → acknowledge
   overlay) carry the whole story.
 - Anything the band must do mid‑set is one tap: TAKEOVER, a scene, a guest mute.
@@ -77,7 +77,7 @@ The inverted experience, and the pairing that shows both apps at their best.
 
 - Split view: **coach cards on one side, Mixing Station on the other.**
 - Card lifecycle (existing engine behavior, now a UX contract):
-  1. problem detected → card appears ≤ 100 ms later, freshest‑first;
+  1. problem detected → card appears about 100 ms later, freshest‑first;
   2. card text **updates in place** if the problem evolves (no duplicates);
   3. operator dials the move into Mixing Station;
   4. detector stops firing → card **self‑clears after ~8 s**. The card
@@ -92,7 +92,7 @@ Identical to J2/J3 with one substitution: the laptop runs `--emulate --lan` (wit
 Station connects to the **laptop's IP**.
 
 - The emulator answers the discovery broadcast, so Mixing Station's console picker
-  shows **“MixAssist”**, so connecting is a tap, not an IP form.
+  shows **“MixAssist”**: connecting is a tap, not an IP form.
 - A USB mic makes feedback/calibration rehearsal real; without one, the emulator's timed audio feed
   still drives the full coach/override loop.
 - **Design rule:** zero rehearsal‑only UI. If rehearsal needs a different habit

@@ -45,31 +45,35 @@ export function bannerLines(input: BannerInput): string[] {
   if (args.trust && scheme === "https") lines.push(...trustStepsLines(args, scheme, ip, input.caPath));
   if (args.emulate) {
     lines.push("  Real OSC stack over localhost sockets against the desk emulator.");
-    lines.push("  NB: wire formats are assumptions — see HARDWARE_BRINGUP.md to validate.");
+    lines.push("  NB: wire formats are assumptions — validate them with the bring-up checklist:");
+    lines.push("      https://github.com/kootru-repo/trio-mix-assistant/blob/main/app/HARDWARE_BRINGUP.md");
   }
   if (WILDCARD_HOSTS.includes(args.host) && ip) {
     const tabletUrl = `${scheme}://${ip}:${args.port}/`;
-    lines.push(`  Tablet (iPad / Galaxy Tab S7): open  ${tabletUrl}  then Add to Home Screen`);
+    lines.push(`  Phone or tablet (iPhone, iPad, Android): open  ${tabletUrl}  then Add to Home Screen`);
     const alts = input.altIps.filter((a) => a !== ip);
     if (alts.length) {
       lines.push("  If that's unreachable, try: " + alts.map((a) => `${scheme}://${a}:${args.port}/`).join(", "));
     }
-    if (scheme === "https") lines.push("  (self-signed: accept the certificate warning once on the tablet)");
+    if (scheme === "https" && !args.trust) lines.push("  (self-signed: accept the certificate warning once on each device)");
     if (input.qr) {
-      lines.push("  Scan with the tablet camera:");
+      lines.push("  Scan with the phone or tablet camera:");
       lines.push(...input.qr);
     }
   } else if (scheme === "http") {
-    lines.push("  For a tablet, restart with  --lan  (add --https for Wake Lock).");
+    lines.push("  For a phone or tablet, restart with  --lan --https --pin <6+ characters>");
+    lines.push("  (or set LAN=yes and PIN= in show.conf).");
   }
   lines.push("Press Ctrl+C to stop.");
   return lines;
 }
 
 export function emulatorLines(ip: string | null, listenPort: number, trace: boolean): string[] {
-  return [
+  const lines = [
     "  Mixer app: connect Mixing Station (console type Behringer X32, access",
     `             Full) to  ${ip ?? "127.0.0.1"}:${listenPort}  — appears as "${C.X32_NAME}" in search.`,
-    `             X32-Edit/M32-Edit also work; identity = ${C.X32_MODEL}/${C.X32_FW}` + (trace ? "  [--trace-osc ON]" : ""),
+    `             X32-Edit also works; identity = ${C.X32_MODEL}/${C.X32_FW}` + (trace ? "  [--trace-osc ON]" : ""),
   ];
+  if (ip === null) lines.push("             This computer only: add --lan (with a PIN) to reach it from a phone or tablet.");
+  return lines;
 }
