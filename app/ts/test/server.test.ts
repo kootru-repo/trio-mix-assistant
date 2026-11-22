@@ -1034,7 +1034,7 @@ test("every response carries the security headers and the inline script carries 
     ]) {
       assert.ok(csp.includes(part), part);
     }
-    const scripts = a.body.match(/<script\b[^>]*>/g) ?? [];
+    const scripts = a.body.match(/<script\b[^>]*>/gi) ?? [];
     assert.ok(scripts.length >= 2);
     for (const tag of scripts) assert.ok(tag.includes("src=") || tag.includes(`nonce="${nonce}"`), tag);
     assert.ok(!/<[a-z][^>]*\son[a-z]+\s*=/i.test(a.body));
@@ -1069,7 +1069,7 @@ test("every response carries the security headers and the inline script carries 
 
 test("the shipped dashboard page has exactly one inline script and no inline handlers", () => {
   const html = readFileSync(join(staticDir, "index.html"), "utf8");
-  const inline = html.match(/<script\b(?![^>]*\bsrc=)[^>]*>/g) ?? [];
+  const inline = html.match(/<script\b(?![^>]*\bsrc=)[^>]*>/gi) ?? [];
   assert.equal(inline.length, 1);
   assert.ok(inline[0]!.includes('nonce="__NONCE__"'));
   assert.ok(!/<[a-z][^>]*\son[a-z]+\s*=/i.test(html));
