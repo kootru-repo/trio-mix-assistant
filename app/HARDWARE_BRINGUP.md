@@ -3,7 +3,7 @@
 The software is feature-complete, but **production readiness is gated by validation
 against your real M32C + audio interface**, and that can only be done with the gear
 in front of you. The X32/M32 OSC scalings and the `/meters` blob layout vary by
-firmware; the spec says to verify every constant with a sniffer before trusting it
+firmware, so verify every constant with a sniffer before trusting it
 live. Work through this once on the bench, then once at a real soundcheck.
 
 Nothing here is destructive to a show: do it with the PA off or at low volume, and
@@ -14,7 +14,7 @@ takeover always wins.
 
 ## What the emulator already covers (and what it can't)
 
-Before you touch hardware, `npm run run -- --emulate` (in `app/ts`) runs the **entire** real stack:
+Before you touch hardware, `TrioMixAssistant --emulate` runs the **entire** real stack:
 `OscConsole` → UDP socket → a protocol-faithful desk emulator → `/meters` stream +
 `/xremote` echoes → `MeterReceiver` → reconciliation, plus the real capture queue fed
 by a timed audio stream. `npm test` (the emulator and protocol tests)
@@ -42,7 +42,7 @@ For each, move it in the app and confirm the console does the **same** thing, an
 move it on the console and confirm the value the app reports matches.
 - [x] **Fader**: VALIDATED against **X32-Edit** (2026-06-30). The emulated desk now
       serves X32-Edit's discovery + sync, so X32-Edit renders what the app sends.
-      Pushed 0/+5/−10/−20/−40 dB via `db_to_fader` → X32-Edit displayed exactly those
+      Pushed 0/+5/−10/−20/−40 dB via `dbToFader` → X32-Edit displayed exactly those
       dB. The linear 0..1 ↔ dB law in `ts/src/core/console.ts` matches Behringer's. (Re-confirm on the
       real M32C, but the scaling itself is no longer an assumption.)
       **Also (2026-07-03): Mixing Station (Android) fully syncs the emulated desk**,
@@ -82,7 +82,7 @@ move it on the console and confirm the value the app reports matches.
 
 ## 3. Audio capture (the listening half)
 - [ ] Run the built-in checks first: `TrioMixAssistant --diagnose --hardware --console-ip <ip> --audio-device <N>`. They are read-only and cover most of this section: the input opens with enough channels, audio arrives without gaps, the signal is not digital silence, and each channel shows a level. Keep the report.
-- [ ] `npm run run -- --hardware --console-ip <ip> --list-devices` → find the interface
+- [ ] `TrioMixAssistant --hardware --console-ip <ip> --list-devices` → find the interface
       (the console's USB/card return + the FOH measurement mic).
 - [ ] Launch with `--audio-device <n>`; confirm `capture: {kind: audio, dead: false}`
       and that channel meters move with real input.
@@ -117,7 +117,7 @@ move it on the console and confirm the value the app reports matches.
 ## 6. Latency / success criteria
 - [ ] Watch the footer `loop … ms · jit … ms`. Reflex actions (feedback/clip) should be
       well under the spec's targets; investigate if `tick_ms` approaches the audio block
-      period or jitter is large (CPU contention, too small a `--audio-device` buffer).
+      period or jitter is large (CPU contention, or too small a buffer on the audio interface).
 
 ## 7. First real show: safety-net only
 - [ ] Run with automatic **jobs disabled**; watch the decision log to confirm what it
@@ -146,8 +146,8 @@ move it on the console and confirm the value the app reports matches.
 - **Channel EQ shares 4 bands.** The X32/M32 input has 4 PEQ bands; the performer EQ
   view and the automatic feedback notcher use the *same* 4 bands. The EQ view shows
   active notches as dashed markers + a note, but an operator edit and an auto-notch
-  can land on the same band. The operator (or TAKEOVER) wins. The feedback FX/aux
-  send OSC addresses are tagged `VERIFY:` like the rest.
+  can land on the same band. The operator (or TAKEOVER) wins. The FX/aux send
+  OSC addresses are unverified against a real desk, like the rest.
 - **TAKEOVER holds the *automatic* system, not your hands.** Takeover mutes the main
   and freezes all automatic jobs + scene recall + calibration; the manual surface
   (faders, mutes, EQ, FX, sends from the dashboard on the laptop, iPhone or iPad) stays live so you can fix

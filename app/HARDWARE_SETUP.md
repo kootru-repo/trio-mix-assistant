@@ -68,7 +68,7 @@ clock master, so there is no sample-rate conversion.
 This is the one non-obvious choice. Because the engine opens **one** device, a USB
 measurement mic (e.g. miniDSP UMIK-1) is a *second* device and forces you into a
 fragile OS aggregate. Instead use an **analog** measurement mic into a console preamp,
-so it arrives on the same USB stream as the measurement mic:
+so it arrives on the same USB stream as every other channel:
 
 | Mic | Notes |
 |---|---|
@@ -96,7 +96,8 @@ capsule is fine: `--auto` sets digital input gain automatically, or use `--input
 
 ### 3.4 Control network: wired Ethernet
 Put the **OSC control path** (console ↔ laptop, UDP 10023/10024) on **wired Ethernet**
-with static IPs, never Wi-Fi. A dashboard **phone or tablet** may use Wi-Fi (the dashboard is
+with static IPs. Wi-Fi on a dedicated access point works (the Minimum tier below) but
+is less dependable in a crowded room. A dashboard **phone or tablet** may use Wi-Fi (the dashboard is
 SSE/WebSocket and tolerant); keep it on the same subnet, client-isolation off.
 
 ---

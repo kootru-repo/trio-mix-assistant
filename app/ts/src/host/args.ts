@@ -85,9 +85,9 @@ options:
                         it never changes the console and plays no sound
   --https               serve over TLS (self-signed) so iPad/Android get Wake Lock + a real
                         PWA install
-  --pin PIN             require this access PIN to open the dashboard and control the
-                        console (recommended on untrusted networks; pair with --https).
-                        Omit for no auth on a trusted FOH LAN.
+  --pin PIN             require this access PIN (at least 6 characters) to open the
+                        dashboard and control the console; pair with --https.
+                        Required with --lan unless --insecure-open is given.
   --trust               serve a cert signed by a local root CA (implies --https). Install
                         the printed root once per device (browse to /ca.pem) for a
                         fully-trusted, warning-FREE https connection.
@@ -104,8 +104,8 @@ options:
   --no-show-clock       disable the simulated show clock (no auto song changes)
   --venue VENUE         venue name — tags the session log for venue learning
   --session-db SESSION_DB
-                        SQLite path for session logging (default: ./sessions.db; use 'off'
-                        to disable)
+                        SQLite path for session logging (default: sessions.db in the
+                        app's folder; use 'off' to disable)
   --advisor             enable the Claude advisory layer (needs ANTHROPIC_API_KEY; advisory
                         notes only — never controls the mix)
   --advisor-interval ADVISOR_INTERVAL

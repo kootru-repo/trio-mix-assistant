@@ -1,6 +1,6 @@
 # UX Design: Operating with Mixing Station (no X32‑Edit)
 
-> **Status:** design · supersedes the X32‑Edit‑centric rehearsal story in the README.
+> **Status:** design. Sections 1 to 3 and 6 describe how the app works today. The launch banner and firewall check (section 4), the `--model` flag and the Signal job (section 5) are proposals and are not built.
 > **Scope:** the operator/performer experience across all three modes (simulation,
 > emulation, production) with **Mixing Station** as the manual mixer surface and the
 > **dashboard PWA** as the assistant surface. X32‑Edit is demoted to an appendix‑level
@@ -100,7 +100,7 @@ Station connects to the **laptop's IP**.
 
 ## 4. Onboarding & connection UX
 
-Startup currently prints/QRs the dashboard URL. Extend the launch banner to tell
+*Proposal, not built.* Startup currently prints/QRs the dashboard URL. Extend the launch banner to tell
 the whole two‑surface story in one glance:
 
 ```
@@ -116,6 +116,8 @@ the whole two‑surface story in one glance:
 - RUNBOOK gains a “Connect your mixer app” step mirroring the tablet‑PWA step.
 
 ## 5. Console‑native signaling *(new, optional job: “Signal”)*
+
+*Proposal, not built.*
 
 **Problem:** inside Mixing Station, an assistant move is anonymous: a fader glides
 and the operator can't tell assistant from ghost without looking at the dashboard.
@@ -147,24 +149,26 @@ Guardrails (non‑negotiable):
 | Operator and assistant touch the same channel | Human wins; assistant yields that channel briefly (existing reconciliation), then resumes guardrail duty. |
 | Both surfaces on one pad | iPad Split View keeps both live. If the OS suspends the PWA half, banners are missed but nothing breaks. Recommend the two‑device layout for shows. |
 
-## 7. Implementation checklist (ordered)
+## 7. Status of the work
 
-1. **Emulator fidelity vs Mixing Station**: point Mixing Station at
-   `--emulate` with request tracing on, extend `_seed_params()`/handlers from
-   `req_log`, add `ts/test/mixingstation.test.ts` pinning its sync flow (twin of
-   the emulator tests).
-2. **Discovery + identity**: verify broadcast `/info` discovery from a real pad on
-   the LAN; add `--model X32|M32`.
-3. **Launch banner**: the two‑line “Dashboard / Mixer app” connect story + firewall
+Done:
+
+- **Emulator fidelity with Mixing Station.** Mixing Station discovers the emulated
+  desk as *MixAssist*, syncs it, reads the scene list and shows live meters
+  (checked 2026-07-03; see `app/HARDWARE_BRINGUP.md`). `--trace-osc` prints every
+  address a mixer app asks for.
+- **Docs.** The README and runbook are written around Mixing Station, with
+  X32-Edit and M32-Edit as other editors.
+
+Not built:
+
+1. **Identity flag**: `--model X32|M32`, so M32-Edit and the Q apps connect
+   without config edits.
+2. **Launch banner**: the Dashboard / Mixer app connect lines, and a firewall
    check on `--emulate --lan`.
-4. **Docs**: README + RUNBOOK rewritten around Mixing Station (X32‑Edit →
-   appendix “other editors”); design doc: mark reconciliation as built, add the
-   two‑surface section, link here.
-5. **Signal job**: scribble‑strip color/name annotation with the §5 guardrails
-   (emulator already models the addresses; `VERIFY` color enum against firmware).
-6. *(later)* **Q‑app story**: document performer self‑serve monitor mixes; confirm
-   the Q handshake against the emulator.
-
-Items 1–2 are validation‑bound: they need a human to point the real apps at the
-emulator once so the request log can be harvested; everything after is normal
-code + docs work.
+3. **Runbook step**: a short step on connecting the mixer app, beside the
+   phone and tablet step.
+4. **Signal job**: scribble-strip color and name annotation with the section 5
+   guardrails. The color values need checking against console firmware.
+5. **Q-app story**: document performer self-serve monitor mixes, and confirm the
+   Q handshake against the emulator.

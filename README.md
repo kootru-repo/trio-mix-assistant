@@ -106,7 +106,7 @@ The app has three modes, and each needs different things. Simulation needs only 
 | **Console** | n/a | Emulated | **Midas M32C** or X32‑family, on the LAN |
 | **Audio interface** | n/a | Optional (USB mic to test calibration/feedback) | Console USB/card feed or an interface (e.g. Focusrite Scarlett) |
 | **Measurement mic** | n/a | Optional | **Yes**: a mic at FOH for room + feedback listening |
-| **Network** | n/a | n/a | WiFi router/switch linking laptop ↔ console (↔ tablet) |
+| **Network** | n/a | n/a | Wired Ethernet between laptop and console (recommended; a dedicated WiFi access point also works). WiFi for a phone or tablet |
 | **Phone or tablet** | n/a | Optional | Optional: iPhone, iPad or Android for a wireless dashboard |
 | **AbleSet** | n/a | n/a | Optional: automatic scene recall from the setlist |
 
@@ -137,7 +137,9 @@ It checks that the audio module loads, the chosen input opens at 48000 Hz, audio
 The report can be copied. If something fails on your gear, or you got a Mac or a console's USB feed working, please paste the report into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues): those are the setups nobody has confirmed yet. It never contains the PIN, and the path of your home folder is removed.
 
 > **No console yet:** run `TrioMixAssistant --emulate` to rehearse the whole app against the built-in console emulator. Add `--audio-device <number>` to listen on a real mic.
+>
 > **iPhone, iPad or Android:** with `LAN=yes` and `HTTPS=yes`, the start window prints a **scan-to-open QR code**. See [On a phone or tablet](#phone).
+>
 > **Show day:** the full guide is the [runbook](app/RUNBOOK.md).
 
 <a id="from-source"></a>
@@ -165,16 +167,16 @@ Open **http://127.0.0.1:8770/**.
 
 ## Operating it
 
-The downloaded app takes the flags below directly, for example `./TrioMixAssistant --emulate --lan --pin 123456` on a Mac (`TrioMixAssistant.exe` on Windows). From source, run them from the **`app/ts`** folder as `npm run run -- <flags>`, as the table shows.
+The commands below are for the downloaded app on a Mac. On Windows, type `TrioMixAssistant.exe` in place of `./TrioMixAssistant`. From source, type `npm run run --` in its place, in the **`app/ts`** folder.
 
 ### Run modes
 
 | Mode | Command | What it does |
 |---|---|---|
-| **Simulation** | `npm run run` | Closed‑loop synthetic stage. Learn the UI, demo, no gear. |
-| **Emulate (no console)** | `npm run run -- --emulate --lan --pin 123456` | Real production stack vs. a built‑in M32C emulator. |
-| **Emulate + real mic** | `npm run run -- --emulate --lan --pin 123456 --auto` | Same, but listens on your real USB mic, so you can run a true room calibration & feedback test. |
-| **Production** | `npm run run -- --hardware --console-ip 192.168.1.50 --auto --lan --pin 123456` | Drive the real M32C. `--auto` detects the mic; or use `--audio-device N`. |
+| **Simulation** | `./TrioMixAssistant` | Closed‑loop synthetic stage. Learn the UI, demo, no gear. |
+| **Emulate (no console)** | `./TrioMixAssistant --emulate --lan --pin 123456` | Real production stack vs. a built‑in M32C emulator. |
+| **Emulate + real mic** | `./TrioMixAssistant --emulate --lan --pin 123456 --auto` | Same, but listens on your real USB mic, so you can run a true room calibration & feedback test. |
+| **Production** | `./TrioMixAssistant --hardware --console-ip 192.168.1.50 --auto --lan --pin 123456` | Drive the real M32C. `--auto` detects the mic; or use `--audio-device N`. |
 
 Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets + print a QR), `--https` (TLS, enables the tablet PWA + screen wake‑lock), `--pin "123456"` (a PIN of at least 6 characters to open the dashboard + control the console; required whenever the dashboard is served to the network, paired with `--https`; `--insecure-open` allows an open dashboard), `--template set.json` (per‑song scenes), `--venue "The Cellar"` (session log + learning), `--advisor` (optional Claude notes; needs `ANTHROPIC_API_KEY`).
 
@@ -204,9 +206,9 @@ The QR at right is an *example* (`https://192.168.1.50:8770/`); yours encodes th
 
 ### Locking it down (untrusted networks)
 
-Serving the dashboard to the network (`--lan`) needs a PIN of at least 6 characters, and the app refuses to start without one unless you pass **`--insecure-open`** (or `ALLOW_OPEN=yes` in `show.conf`) on a network you fully trust. Set **`PIN=123456`** in `show.conf` or add **`--pin "123456"`** (ideally with `--https`): the dashboard then asks for the PIN before it opens, and every control endpoint and the telemetry stream require it, so a stranger on the WiFi can't touch the console. The PIN is entered once per device (a `HttpOnly; SameSite=Strict` session cookie), Five wrong tries lock out only the device that made them, for 30 seconds, and devices already signed in keep control throughout. At most 20 unsuccessful sign-in attempts a minute are accepted across all devices; past that, new sign-ins are refused until the minute passes. With or without a PIN, the server validates the `Host` header (DNS‑rebinding guard) and refuses control requests and WebSocket connections that come from another website (`Origin` check), so a page open in the operator's browser cannot drive the console.
+Serving the dashboard to the network (`--lan`) needs a PIN of at least 6 characters, and the app refuses to start without one unless you pass **`--insecure-open`** (or `ALLOW_OPEN=yes` in `show.conf`) on a network you fully trust. Set **`PIN=123456`** in `show.conf` or add **`--pin "123456"`** (ideally with `--https`): the dashboard then asks for the PIN before it opens, and every control endpoint and the telemetry stream require it, so a stranger on the WiFi can't touch the console. The PIN is entered once per device (a `HttpOnly; SameSite=Strict` session cookie). Five wrong tries lock out only the device that made them for 30 seconds, doubling on each repeat up to 15 minutes, and devices already signed in keep control throughout. At most 20 unsuccessful sign-in attempts a minute are accepted across all devices; past that, new sign-ins are refused until the minute passes. With or without a PIN, the server validates the `Host` header (DNS‑rebinding guard) and refuses control requests and WebSocket connections that come from another website (`Origin` check), so a page open in the operator's browser cannot drive the console.
 
-**Zero cert warnings:** a self‑signed cert always shows a one‑time browser warning (it's encrypted but not *trusted*). To remove it completely, launch with **`--trust`**: the app runs a local root CA and serves a cert signed by it, then prints steps to install that root **once per device** (browse to `/ca.pem`, or copy `app/.certs/ca.pem`). After the one‑time install, every https connection is fully trusted: green padlock, no warning. (There's no server‑only way to skip the per‑device install; that's how certificate trust works. The alternative is plain http, with no cert and no warning, but also no PWA/Wake‑Lock, and the PIN travels in clear.)
+**Zero cert warnings:** a self‑signed cert always shows a one‑time browser warning (it's encrypted but not *trusted*). To remove it completely, launch with **`--trust`**: the app runs a local root CA and serves a cert signed by it, then prints steps to install that root **once per device** (browse to `/ca.pem`, or copy `ca.pem` from the `.certs` folder beside `show.conf`). After the one‑time install, every https connection is fully trusted: green padlock, no warning. (There's no server‑only way to skip the per‑device install; that's how certificate trust works. The alternative is plain http, with no cert and no warning, but also no PWA/Wake‑Lock, and the PIN travels in clear.)
 
 <img src="docs/screenshots/pin-login.png" width="360" alt="PIN login screen">
 
@@ -222,7 +224,7 @@ The M32C has no faders or screen of its own. It is a stage box, controlled entir
 
 | App | Platform | Download |
 |---|---|---|
-| **Mixing Station** | iOS / macOS / Android / Windows / Linux | [mixingstation.app](https://mixingstation.app) · App Store · [Google Play](https://play.google.com/store/apps/details?id=org.devcore.mixingstation) |
+| **Mixing Station** | iOS / macOS / Android / Windows / Linux | [mixingstation.app](https://mixingstation.app) · App Store (search "Mixing Station") · [Google Play](https://play.google.com/store/apps/details?id=org.devcore.mixingstation) |
 
 > In Mixing Station choose console type **Behringer X32** (the M32 speaks the same protocol) and access mode **Full**. It talks to the console over UDP **10023**.
 
@@ -230,9 +232,9 @@ The M32C has no faders or screen of its own. It is a stage box, controlled entir
 
 The emulator answers Mixing Station's full discovery + sync + metering protocol, so you can rehearse the exact show‑day setup on a couch:
 
-1. `npm run run -- --emulate --lan --pin 123456` on the laptop.
+1. `./TrioMixAssistant --emulate --lan --pin 123456` on the laptop (`TrioMixAssistant.exe` on Windows).
 2. Phone/tablet on the same WiFi → Mixing Station → **Behringer X32** → the emulated desk appears as **MixAssist** in the search list (or enter the laptop's IP manually) → **Connect**, access **Full**.
-3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list (recall one and the app follows). The assistant's moves mirror live; your fader moves win instantly. Push test moves: `npm run osc-demo -- --animate`.
+3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list (recall one and the app follows). The assistant's moves mirror live; your fader moves win instantly. From source you can push test moves: `npm run osc-demo -- --animate` in `app/ts`.
 
 **Split screen on the operator's Android device**, with the assistant's dashboard (top, song bar + COACH + TAKEOVER) and Mixing Station (bottom, the setlist's channels with live meters) both connected to the emulator at once:
 
@@ -263,7 +265,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 
 **Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends every automatic move, covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
-Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is logged and reversible. automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
+Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is logged and reversible. Automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 
 ## Project layout
 
@@ -319,4 +321,4 @@ Copyright © 2026 the Trio Mix-Assistant authors (see [AUTHORS.md](AUTHORS.md)).
 
 Released under the **[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0). You may use it for anything, including paid gigs, and you may copy, change and share it. If you share a changed version, or run one for other people over a network, you must make your source available under the same license. It comes with no warranty.
 
-Not affiliated with or endorsed by Music Tribe, Behringer, or Midas. *X32‑Edit*, *M32‑Edit*, *X32*, and *M32* are trademarks of their respective owners. Download their software only from the official links above. **OSC scalings vary across firmware; validate against your console before trusting it live** (see [HARDWARE_BRINGUP.md](app/HARDWARE_BRINGUP.md)). *Mixing Station* is a product of dev-core.org.
+Not affiliated with or endorsed by Music Tribe, Behringer, or Midas. *X32‑Edit*, *M32‑Edit*, *X32*, and *M32* are trademarks of their respective owners. Download their software only from Behringer's and Midas's own websites. **OSC scalings vary across firmware; validate against your console before trusting it live** (see [HARDWARE_BRINGUP.md](app/HARDWARE_BRINGUP.md)). *Mixing Station* is a product of dev-core.org.

@@ -23,20 +23,21 @@ WHAT YOU NEED
   MAC
 ------------------------------------------------------------
   Open Terminal, drag this folder onto it (or 'cd' into it), then:
-  1.  bash list-devices.command  (note the audio device number)
-  2.  open show.conf             (set MODE=hardware, CONSOLE_IP and AUDIO_DEVICE, save;
+  1.  open show.conf             (set MODE=hardware and CONSOLE_IP, save;
                                   add PIN=, 6 or more characters, if LAN=yes)
-  3.  bash start.command
-  The first run, macOS asks for MICROPHONE and NETWORK permission. Allow both
-  (System Settings > Privacy & Security > Microphone), or capture stays silent.
+  2.  bash start.command
+  The first run, macOS asks for NETWORK permission. Allow it.
 
 ------------------------------------------------------------
   WINDOWS
 ------------------------------------------------------------
-  1. Double-click   list-devices.bat (note the audio device number)
-  2. Open           show.conf        in Notepad, set MODE=hardware, CONSOLE_IP and AUDIO_DEVICE
+  1. Open           show.conf        in Notepad, set MODE=hardware and CONSOLE_IP
                                      (and PIN=, 6 or more characters, if LAN=yes)
-  3. Double-click   start.bat        (the dashboard opens in your browser)
+  2. Double-click   start.bat        (the dashboard opens in your browser)
+
+  Leave AUDIO_DEVICE empty on both: this folder cannot listen to audio
+  (see LIVE AUDIO INPUT below), so it runs manual mixing and scene recall.
+  The list-devices scripts only work once the audio module is added.
 
 ------------------------------------------------------------
   SOMETHING NOT WORKING?

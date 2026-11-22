@@ -52,8 +52,9 @@ PS> .\TrioMixAssistant.exe --list-devices
 
 ### 1.1 Let the app check the setup
 
-Once `show.conf` is filled in (§2), run the built-in checks. They listen for about
-eight seconds, change nothing on the console and play no sound:
+Once the rig is set up (§2), run the built-in checks. They listen for about
+eight seconds, change nothing on the console and play no sound. With no other flags
+they check the setup saved in `show.conf`:
 ```bash
 $ ./TrioMixAssistant --diagnose
 ```
@@ -94,7 +95,8 @@ Do this with the **PA off or at low volume**, hand on the console.
 
 ### 2.1 Put everything on one network
 - Console, FOH laptop (and tablet if used) on the **same LAN/subnet**, wired or a
-  dedicated Wi‑Fi AP. Note the **console IP**.
+  dedicated Wi‑Fi AP. Wire the laptop to the console where you can (`HARDWARE_SETUP.md` §3.4). Note
+  the **console IP**.
 
 ### 2.2 Find the audio interface
 ```bash
@@ -142,7 +144,7 @@ $ ./TrioMixAssistant --hardware \
       --audio-device 2 \
       --template myset.json \
       --venue "The Cellar" \
-      --lan --https
+      --lan --https --pin 123456
 ```
 
 ### Windows
@@ -152,8 +154,12 @@ PS> .\TrioMixAssistant.exe --hardware `
       --audio-device 2 `
       --template myset.json `
       --venue "The Cellar" `
-      --lan --https
+      --lan --https --pin 123456
 ```
+
+Use a PIN of your own, six or more characters: the app refuses to serve the
+network without one. The same settings can be saved in `show.conf` (`MODE`,
+`CONSOLE_IP`, `AUDIO_DEVICE`, `LAN`, `HTTPS`, `PIN`); then start the app with no flags.
 
 Optional add‑ons (either OS):
 - `--ableset-port 39051`: AbleSet drives automatic scene recall.
@@ -286,6 +292,8 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--input-gain <dB>` | digital input boost for a quiet mic/interface (try 20–40) |
 | `--channel-map "1:0,…"` | explicit console-channel:device-column map (console 1-based, column 0-based); default N→N−1 |
 | `--list-devices` | print input devices (with host API) and exit |
+| `--diagnose` | run the built-in checks (§1.1), print the report and exit; read-only |
+| `--trace-osc` | with `--emulate`, print every OSC address a mixer app asks the emulated desk for |
 | `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `templates/autofoh_pilot.json` = a 13‑input rig); else the built‑in 8‑ch trio |
 | `--ableset-port <p>` | listen for AbleSet song/section OSC → auto scene recall |
 | `--ableset-from <ip>` | accept AbleSet messages only from this address (default: the first computer that sends them) |
@@ -311,7 +319,7 @@ The dashboard now names most of these in an **ALERT banner**; this table gives t
 
 | Symptom (banner / message) | Likely cause → fix |
 |---|---|
-| **"no console feed … check the console IP, network, and firewall"** | Wrong `--console-ip`, console on a different subnet, or firewall blocking UDP. Ping the console; allow Node.js through the firewall (Win §2.3); confirm `/xremote` with a sniffer. Recovers automatically when the feed returns. |
+| **"no console feed … check the console IP, network, and firewall"** | Wrong `--console-ip`, console on a different subnet, or firewall blocking UDP. Ping the console; allow the app through the firewall (§2.3); confirm `/xremote` with a sniffer. Recovers automatically when the feed returns. |
 | **"inputs are silent" / footer chip = SILENT** | **macOS Microphone permission denied** (System Settings → Privacy → Microphone → enable Terminal) is the #1 cause. Also: input gain too low, wrong device, or input muted at the desk. |
 | **"audio capture stopped — the assistant is deaf" / chip = DEAD** | Interface unplugged or driver wedged. Re‑connect it; the app **auto‑retries every 3 s** and clears the banner ("audio capture recovered"). |
 | **"audio … dropping samples (xruns)" / chip = XRUN** | Device buffer too small / CPU contention. Raise the interface buffer size; close other audio apps. |
@@ -321,10 +329,10 @@ The dashboard now names most of these in an **ALERT banner**; this table gives t
 | **"meter port busy" / "Desk emulator could not bind…"** | Two copies running. Stop the other instance. |
 | **calibration "heard near‑silence … the test tone could not be played"** | No/locked **output** device for the pink noise. Check the PA feed/output selection. |
 | **Tablet can't open the page** | Not launched with `--lan`; firewall blocking inbound; different Wi‑Fi/VLAN; AP "client isolation" on. Use the exact printed URL/QR. |
-| **HTTPS cert warning on tablet** | Expected with self‑signed. Tap **Advanced → proceed**, then Add to Home Screen. **To remove the warning entirely,** launch with `--trust`: it prints steps to install a local root CA once per device (`…/ca.pem`), after which https is fully trusted (no warning). If a browser won't let you proceed *and* you're not using `--trust`, you're on an old build's 10‑year cert; delete `app/.certs` and relaunch. Always open via the exact **IP** URL the app prints. |
+| **HTTPS cert warning on tablet** | Expected with self‑signed. Tap **Advanced → proceed**, then Add to Home Screen. **To remove the warning entirely,** launch with `--trust`: it prints steps to install a local root CA once per device (`…/ca.pem`), after which https is fully trusted (no warning). If a browser won't let you proceed *and* you're not using `--trust`, delete the `.certs` folder beside `show.conf` and relaunch to make a fresh certificate. Always open via the exact **IP** URL the app prints. |
 | **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `ts/src/core/console.ts`. |
 | **Wrong meter moves when you play an input** | Channel‑map mismatch. The startup log shows `listening on '<device>'`; verify the patch order (§2.2) and the channel map. |
-| **`node` not found** | Install Node.js 22.13+ from nodejs.org, then open a new terminal. |
+| **`node` not found** | Only when running from source or the Node.js folder package: install Node.js 22.13+ from nodejs.org, then open a new terminal. The downloaded app does not need it. |
 | **Not sure what is wrong** | Run the checks: **Settings → Run checks**, or `--diagnose` in a terminal (§1.1). Each failed line comes with its fix. |
 | **"live audio input needs the optional native module"** | Only when running from source or the zip package: use the downloaded app (it carries the module), run `npm install` with a C++ compiler present, or run without `--audio-device`. |
 | **Audio device index changed between shows** | Indexes shift when devices are added/removed. The startup log prints the resolved name; prefer the device **name** in `show.conf` over the index. |

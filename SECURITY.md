@@ -21,7 +21,7 @@ network. Reports are especially welcome for anything that lets someone:
 ## What to know when you run it
 
 - A PIN of at least 6 characters is required whenever the dashboard is served to the network (the app refuses to start without one unless `--insecure-open` or `ALLOW_OPEN=yes` is given, which is only for a network you fully trust) (`PIN=` in
-  `app/show.conf`, or `--pin`).
+  `show.conf`, or `--pin`).
 - Use `--https` with a PIN. Without it the PIN travels unencrypted on the
   network.
 - The HTTPS certificate is self-signed, so browsers show a warning the first

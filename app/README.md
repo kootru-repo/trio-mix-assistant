@@ -13,7 +13,7 @@ output-levelers. The one exception is an optional, latency-tolerant Claude
 *advisory only* and **never touches the mix**. That fast/slow split is the core
 safety boundary.
 
-Beyond the safety net it implements the AutoFOH show-side features:
+Beyond the safety net it implements these show-side features:
 - **AbleSet show clock → automatic scene recall** with per-song reference levels;
 - a **performer dashboard** with Mix, **EQ** (per-channel 4-band PEQ with a live
   curve), **FX** (per-channel sends + wet returns) and **Settings** (status)
@@ -164,7 +164,7 @@ and surfaced.
 
 > ⚠️ OSC scalings vary slightly across Behringer/Midas firmware. Verify every
 > constant against your console with a sniffer (Wireshark / X32 OSC monitor)
-> before trusting it live; the reference spec flags this repeatedly. The full
+> before trusting it live. The full
 > bench/soundcheck procedure is in **`HARDWARE_BRINGUP.md`**.
 
 ### Emulated hardware (full stack, no gear)
@@ -305,8 +305,6 @@ engine's timer.
 Transport is a **WebSocket** (`/ws`) for the bidirectional mixing surface
 (telemetry out, fader/mute/control in), implemented on Node's built-in modules (no web framework),
 with **SSE + POST** as automatic fallback. Same-origin, zero web framework.
-(This realigns the transport with the AutoFOH pilot's WebSocket spec and
-implements its Phase-4 performer surface: fader strip + EQ/FX/Settings screens.)
 
 ## Tests
 
@@ -362,14 +360,14 @@ body-size limits.
   `render()` tolerates missing/NaN fields; the wake lock isn't re-leaked; faders
   can't get stuck mid-drag; all server-derived values are escaped.
 
-## Notes / honest deltas from the reference skeleton
+## Design notes
 
-- **Vocal ride is an output-leveler.** The reference compared the input tap to
-  the target and would ramp to the rail; here the controller holds
-  `input + fader` at the target, which actually converges.
+- **Vocal ride is an output-leveler.** The controller holds `input + fader` at
+  the target, so it converges. Comparing the input tap alone to the target would
+  ramp the fader to the rail.
 - **Clip recovery** (creep the preamp back when clean) and **balance hold** are
-  implemented here; they were specified but stubbed in the reference.
-- **The listening half is wired** (`capture/`): a pluggable `CaptureSource`
+  both implemented.
+- **The listening half is wired** (`capture.ts`, `devicecapture.ts`): a pluggable `CaptureSource`
   (`SimCapture` for simulation, or `DeviceCapture` for real
   multichannel audio) feeds the assistant and the pink-noise calibration. The generic
   capture path was smoke-tested against a real input device; the **console-specific
@@ -378,4 +376,4 @@ body-size limits.
   `/meters` + `/xremote`, decodes the meter blob, and adopts a human's console
   fader move (auto-ride yields), suppressing the echo of its own moves. The one
   firmware-specific detail to verify with a sniffer is the exact `/meters` blob
-  layout and OSC scalings (the spec flags this).
+  layout and OSC scalings.
