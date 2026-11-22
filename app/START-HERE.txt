@@ -98,5 +98,6 @@ WHAT YOU NEED
   MORE
 ------------------------------------------------------------
   RUNBOOK.md          show-day guide
+  HARDWARE_SETUP.md   which audio connection and cables to use
   HARDWARE_BRINGUP.md one-time validation of the OSC scalings on the real desk
   README.md           how the app works

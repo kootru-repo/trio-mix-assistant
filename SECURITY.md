@@ -51,5 +51,5 @@ Nothing is sent anywhere unless you turn on `--advisor` (or `ADVISOR=yes` in `sh
 the advisor on, every 30 seconds (change it with `--advisor-interval`) the app sends a short summary
 to `api.anthropic.com`: recent event text, each channel's role, level and whether it is notched, the current and
 next song names with section, tempo and scene number, the lead-vocal status, the run mode,
-and any alerts. It does not send the venue name, the PIN, or audio. The API key is read
+and any alerts. Event and alert text can name the audio device and the console's IP address. It does not send the PIN or audio, and the venue name is not part of the summary. The API key is read
 from the `ANTHROPIC_API_KEY` environment variable and is only sent to that address.

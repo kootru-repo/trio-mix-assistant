@@ -54,7 +54,7 @@ PS> .\TrioMixAssistant.exe --list-devices
 ### 1.1 Let the app check the setup
 
 Once the rig is set up (§2), run the built-in checks. They listen for about
-eight seconds, change nothing on the console and play no sound. With no other flags
+eight seconds when a real input is set, change nothing on the console and play no sound. With no other flags
 they check the setup saved in `show.conf`:
 ```bash
 $ ./TrioMixAssistant --diagnose
@@ -121,7 +121,7 @@ your measurement mic.
   *silent*, the assistant is deaf, and calibration stops with "calibration heard only … dBFS at the mic".
 - **macOS Network:** when you launch with `--lan`, click **Allow** on the "accept
   incoming connections?" prompt.
-- **Windows Firewall:** the first `--lan` launch pops **Windows Defender Firewall**.
+- **Windows Firewall:** the first `--lan` or hardware-mode launch pops **Windows Defender Firewall**.
   Check **Private networks → Allow access** (otherwise the tablet can't connect, and
   the console's meter replies on UDP may be blocked).
 
@@ -160,7 +160,7 @@ PS> .\TrioMixAssistant.exe --hardware `
 
 Use a PIN of your own, six or more characters: the app refuses to serve the
 network without one. The same settings can be saved in `show.conf` (`MODE`,
-`CONSOLE_IP`, `AUDIO_DEVICE`, `OUTPUT_DEVICE`, `LAN`, `HTTPS`, `PIN`); then start the app with no flags.
+`CONSOLE_IP`, `AUDIO_DEVICE`, `OUTPUT_DEVICE`, `TEMPLATE`, `VENUE`, `LAN`, `HTTPS`, `PIN`); then start the app with no flags.
 
 Optional add‑ons (either OS):
 - `--ableset-port 39051`: AbleSet drives automatic scene recall.
@@ -207,7 +207,7 @@ interface (this catches a shifted device index). **Don't go live while the pill 
    start; Vocal ride and Balance hold start off). Watch the
    **decision log** and confirm what it does is correct before adding more.
 3. **Add vocal ride**, then **balance** (set your levels, tap *Capture balance now*).
-4. **Load the set:** confirm the song bar shows the right song/scene; tap a scene in the
+4. **Load the set:** confirm the song bar shows the right song/scene (it appears while a show clock runs, which on a real console needs AbleSet); tap a scene in the
    **Scenes** panel to test manual recall.
 5. Keep **TAKEOVER** within reach.
 
@@ -336,12 +336,12 @@ The dashboard names most of these in an alert; this table gives the fix.
 | **"calibration heard only … dBFS at the mic … the test tone could not be played"** | No/locked **output** device for the pink noise. Check the PA feed/output selection. |
 | **Tablet can't open the page** | Not launched with `--lan`; firewall blocking inbound; different Wi‑Fi/VLAN; AP "client isolation" on. Use the exact printed URL/QR. |
 | **HTTPS cert warning on tablet** | Expected with self‑signed. Tap **Advanced → proceed**, then Add to Home Screen. **To remove the warning entirely,** launch with `--trust`: it prints steps to install a local root CA once per device (`…/ca.pem`), after which https is fully trusted (no warning). If a browser won't let you proceed *and* you're not using `--trust`, delete the `.certs` folder beside `show.conf` and relaunch to make a fresh certificate. Always open via the exact **IP** URL the app prints. |
-| **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `ts/src/core/console.ts`. |
+| **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; the constant is in `ts/src/core/console.ts` (changing it needs the source; please report it in an issue). |
 | **Wrong meter moves when you play an input** | Channel‑map mismatch. The dashboard's Decision log shows `listening on '<device>' (N ch)`; verify the patch order and the channel map (`--channel-map`, §9). |
 | **`node` not found** | Only when running from source or the Node.js folder package: install Node.js 22.13+ from nodejs.org, then open a new terminal. The downloaded app does not need it. |
 | **Not sure what is wrong** | Run the checks: **Settings → Run checks**, or `--diagnose` in a terminal (§1.1). Each failed line comes with its fix. |
 | **"live audio input needs the optional native audio module 'naudiodon2'"** | Only when running from source or the Node.js folder package. From source, run `npm install` with a C++ compiler present. In the folder package, use the downloaded app instead (it carries the module). Or run without `--audio-device`. |
-| **Audio device index changed between shows** | Indexes shift when devices are added/removed. The dashboard's Decision log shows the resolved name; prefer the device **name** in `show.conf` over the index. |
+| **Audio device index changed between shows** | Indexes shift when devices are added/removed. The dashboard's Decision log shows the resolved name. On a Mac, put the device **name** in `show.conf` instead of the number. On Windows a name picks the first entry with that name, which is not the WASAPI one, so keep the WASAPI number and check it with `--list-devices` before each show. |
 
 ---
 

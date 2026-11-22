@@ -31,7 +31,7 @@ Small acoustic acts often play with no one at front‑of‑house. This app watch
 | Mix: jobs, faders, channels (click for the full page with the decision log) | EQ: per‑channel 4‑band PEQ |
 |---|---|
 | [![Mix](docs/screenshots/dashboard.png)](docs/screenshots/dashboard-full.png) | ![EQ](docs/screenshots/eq.png) |
-| **FX: per‑channel sends + wet returns** | **Settings: status, performance, calibration** |
+| **FX: per‑channel sends + wet returns** | **Settings: connections, performance, show, checks** |
 | ![FX](docs/screenshots/fx.png) | ![Settings](docs/screenshots/settings.png) |
 
 <div align="center">

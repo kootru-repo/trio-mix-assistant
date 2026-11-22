@@ -117,9 +117,11 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
       updates. Verify scene numbers in your `--template` match the console's scenes.
 
 ## 6. Latency / success criteria
-- [ ] Watch the footer `loop …ms · jit …ms`. Reflex actions (feedback/clip) should be
-      well under the audio block period (about 21 ms); investigate if `tick_ms` approaches the audio block
-      period or jitter is large (CPU contention, or too small a buffer on the audio interface).
+- [ ] Watch the **Detect→actuate** row on the Settings screen, and `capture.lag_ms` and
+      `capture.stale` in `/state`. Reflex actions (feedback/clip) should land within about
+      110 ms; investigate if the lag grows or `stale` keeps counting (CPU contention, or too
+      small a buffer on the audio interface). The footer's `loop …ms · jit …ms` only shows
+      that the app's timer is healthy: audio is analysed on a separate thread.
 
 ## 7. First real show: safety-net only
 - [ ] Run in **COACH** mode; the Coach panel and the decision log list each move it
@@ -136,8 +138,8 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
   audio device for the console returns **and** the measurement mic. If your meas mic
   is on a *separate* interface, combine them first: macOS → Audio MIDI Setup
   **Aggregate Device**; Windows → a single multichannel interface (the audio
-  module has no ASIO, so an ASIO aggregate such as ASIO4ALL will not work). A device with too few channels is rejected at launch with a
-  clear message.
+  module has no ASIO, so an ASIO aggregate such as ASIO4ALL will not work). A device with too few channels is rejected with a
+  clear message in the Decision log, and the app keeps running without listening.
 - **48 kHz, float32.** Capture runs at 48 kHz. A device locked to 44.1 kHz is rejected
   with a clear message (no auto-resample); set the interface to 48 kHz.
 - **Calibration output.** Pink noise plays to the OS default output unless you pass

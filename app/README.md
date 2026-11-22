@@ -20,7 +20,7 @@ Beyond the safety net it implements these show-side features:
   screens, an AUTO/ALERT/COACH/MANUAL headline, and a **4-level notification hierarchy**
   (silent → log → banner → full-screen acknowledged overlay) with an **8-bar
   opening gate**;
-- **template-driven channel maps** (the 8-ch trio *or* a 13-input rig, from one JSON file each),
+- **template-driven channel maps** (the built-in 8-ch trio, or another rig such as the 13-input example, from one JSON template),
   guest mode, and stereo links;
 - **venue learning**: post-show analysis writes a per-venue model (recurring
   feedback freqs + confidence) that pre-seeds the watch-list next time;
@@ -211,7 +211,7 @@ npm run run -- --advisor --venue "The Cellar"
 
 ### Larger bands & extensions
 
-The trio (8-channel) map is the default; the config is the single place to grow it.
+The trio (8-channel) map is the default; to grow it, use a template's channel map (RUNBOOK §9) or edit the config.
 In `ts/src/core/config.ts`: extend `CHANNELS`/`ROLE_LABELS`, then set `GUEST_CHANNELS`
 (unmuted on `guest` songs), `STEREO_LINKS` (e.g. `[[2, 3]]` so harmony L/R move
 together), and `STAGE_MIC_CH` (a second ambient mic that flags a sustained rise in
@@ -231,7 +231,7 @@ npm run run -- --lan --pin 123456 --https    # + TLS, so Wake Lock & PWA install
 # on the phone or tablet (same WiFi): scan the printed QR (or open the URL) -> Add to Home Screen
 ```
 
-The launcher prints the laptop's LAN URL **and a scan-to-open QR code**. Point
+The app prints the laptop's LAN URL **and a scan-to-open QR code**. Point
 the iPhone, iPad or Android camera at it. Both devices must be on the **same WiFi**.
 On a Mac, click **Allow** when macOS asks to accept incoming connections. On
 Windows the first run pops a **Firewall** prompt: click *Allow* on Private
@@ -323,7 +323,7 @@ rising ring *is*), calibration, the HTTP/SSE/WebSocket endpoints, the
 blob decode, console-fader reconciliation, dead-stream silence + recovery,
 silent-mic detection, and an injected source driving the
 assistant), the **show side** (template validation, sim + AbleSet show clocks,
-auto scene recall, AUTO/ALERT/COACH/MANUAL mode, notification levels, 8-bar gate, manual
+auto scene recall, AUTO/COACH/MANUAL mode, info/notice/warn notification levels, manual
 scene recall), the **performer surface** (EQ/FX/send commands + clamping, detect→actuate latency, room-mic SNR confidence),
 the **advisor/logging layer** (SQLite session log off the real-time path, the advisory
 loop with an injected caller, advisory-only safety, **venue learning** model

@@ -82,7 +82,7 @@ The inverted experience, and the pairing that shows both apps at their best.
   3. operator dials the move into Mixing Station;
   4. detector stops firing → card **self‑clears after ~8 s**. The card
      disappearing *is* the confirmation.
-  5. `persist` cards (room‑calibration EQ) stay until coach is toggled off.
+  5. `persist` cards (room‑calibration EQ, for example) stay until their cause clears or coach is toggled off.
 - **Design rule:** a card must name the move in console vocabulary (channel,
   band, Hz, dB, Q) exactly as Mixing Station labels it, so the operator never
   translates.

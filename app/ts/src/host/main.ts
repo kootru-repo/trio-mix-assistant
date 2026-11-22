@@ -404,7 +404,9 @@ const modeLabel = (args: Args): string =>
     ? "emulated console (this does not prove anything about a real console)"
     : args.hardware
       ? `hardware, console at ${args.consoleIp || C.CONSOLE_IP}`
-      : "simulation (nothing real is checked except the audio module)";
+      : args.audioDevice || args.auto
+        ? "simulation, checking one real audio input (no console)"
+        : "simulation (nothing real is checked except the audio module)";
 
 function fitMapToInput(args: Args, io: Io): void {
   let inputs: number;

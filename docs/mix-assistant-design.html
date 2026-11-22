@@ -194,7 +194,7 @@
     </div>
     <div class="loopnote">
       <span style="font-size:18px;line-height:1">↺</span>
-      <div><b>Closed loop:</b> the console streams meters back so the app keeps its “believed state” honest against reality, which is essential because a human can move faders at the same time.<span class="pill">iPad Mixing Station = parallel human override</span><br><span style="color:var(--dim)">The app reads fader moves back from the console and adopts them, so it never fights a move a human made.</span></div>
+      <div><b>Closed loop:</b> the console reports every fader move back so the app keeps its “believed state” honest against reality, which is essential because a human can move faders at the same time.<span class="pill">iPad Mixing Station = parallel human override</span><br><span style="color:var(--dim)">The app reads fader moves back from the console and adopts them, so it never fights a move a human made.</span></div>
     </div>
     <div class="legend">
       <span><i class="dotc" style="background:var(--advisory)"></i> sense / advisory</span>
@@ -214,7 +214,7 @@
       <div class="step"><div class="sn">2 · Capture</div><div class="st">Record at the meas mic</div><div class="sd">= the real room + PA spectrum in the air.</div></div>
       <div class="step"><div class="sn">3 · Baseline</div><div class="st">Compare octave bands</div><div class="sd">Each band against its neighbours: the room-response curve.</div></div>
       <div class="step"><div class="sn">4 · Watch-list</div><div class="st">Rank the peaks</div><div class="sd">The octave bands that stand out: where feedback is most likely.</div></div>
-      <div class="step"><div class="sn">5 · Auto-apply</div><div class="st">Cut peaks + pre-dip</div><div class="sd">Flatter room, fewer rings before anyone sings.</div></div>
+      <div class="step"><div class="sn">5 · Auto-apply</div><div class="st">Cut the peaks</div><div class="sd">Flatter room, fewer rings before anyone sings.</div></div>
     </div>
     <div class="card" style="margin-top:12px;border-left:3px solid var(--cal)">
       <b style="color:var(--cal)">Why it's the “smart” part:</b> <span style="color:var(--mut);font-size:13.5px">the measured curve sets gentle main-bus cuts for the room's own boom, while the watch-list pre-loads where feedback <i>will</i> start, so the live detector reacts one block sooner there. That's the system's “learned-this-room” prior, standing in for any machine learning.</span>
