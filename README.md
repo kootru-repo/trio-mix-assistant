@@ -6,7 +6,9 @@
 
 It *listens* to the band and the room, and gently *nudges* the console within hard guardrails. The console is always the source of truth, every move is logged and reversible, and a human can take over instantly. It runs, and is fully testable, with no hardware at all.
 
-[Try it in 60 seconds](#try-it-in-60-seconds) · [Requirements](#requirements) · [Setup (PC & Mac)](#setup) · [Operating it](#operating-it) · [Mixing Station](#mixing-station) · [How it works](#how-it-works)
+**[Download for Windows](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-windows-x64.zip)** · **[Mac (Apple Silicon)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-arm64.tar.gz)** · **[Mac (Intel)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-x64.tar.gz)**
+
+[Run it in a minute](#run-it) · [What has been tested](#tested) · [Set up for a show](#setup) · [Operating it](#operating-it) · [Mixing Station](#mixing-station) · [How it works](#how-it-works)
 
 ![Trio Mix-Assistant dashboard](docs/screenshots/dashboard.png)
 
@@ -46,37 +48,49 @@ Flip **COACH** and the app stops touching the console. Every move it would make 
 
 [![Coach mode: the assistant advises every manual move instead of applying it](docs/screenshots/coach.png)](docs/screenshots/coach-full.png)
 
-## Try it in 60 seconds
+<a id="run-it"></a>
 
-This runs in pure **simulation**, with no console, mic, or audio interface. A closed‑loop "stage" drives the assistant so you can watch feedback get notched, a clip get trimmed, and the vocal ride compensate, live.
+## Run it in a minute
 
-Get the code first: on this repository's page choose **Code → Download ZIP** and unzip it (or `git clone` the address shown there). Then open a terminal in the project folder.
+Nothing to install. The app carries everything it needs and starts in **simulation**, with no console, mic or audio interface. A closed-loop "stage" drives the assistant so you can watch feedback get notched, a clip get trimmed, and the vocal ride compensate, live.
 
-```bash
-cd app/ts
-npm install
-npm run run
-```
+### Windows
 
-Then open **http://127.0.0.1:8770/**, toggle the jobs, and watch the behaviour change.
+1. Download **[TrioMixAssistant-windows-x64.zip](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-windows-x64.zip)** and unzip it.
+2. Double-click **`TrioMixAssistant.exe`**. Windows warns that the app is unsigned: choose **More info**, then **Run anyway**.
+3. The dashboard opens in your browser. Toggle the jobs and watch the behaviour change.
 
-> **Without a terminal:** build the double‑click package with `npm run package` (it writes `app/ts/dist/package/TrioMixAssistant.zip`). See **[Setup](#setup)**.
+### Mac
+
+1. Download the build for your Mac: **[Apple Silicon (M1 or later)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-arm64.tar.gz)** or **[Intel](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-x64.tar.gz)**. Apple menu → **About This Mac** shows which you have.
+2. Open **Terminal** and run (use the `x64` file name on an Intel Mac):
+   ```bash
+   mkdir ~/TrioMix && cd ~/TrioMix
+   tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
+   ./TrioMixAssistant
+   ```
+   If macOS refuses to open it, go to System Settings → Privacy & Security, click **Open Anyway**, and run the last line again.
+3. Open the address it prints in your browser. Press Ctrl+C in Terminal to stop.
+
+> All downloads and checksums are on the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest). Developers can run from source instead: see [Run from source](#from-source).
+
+<a id="tested"></a>
+
+## What has been tested
+
+| | Status |
+|---|---|
+| **Simulation and the built-in console emulator** | Tested automatically on Windows, macOS and Linux on every change. |
+| **Listening on Windows** | Run on real one- and two-channel inputs, including a nine-minute run with no dropped audio. |
+| **Listening on a Mac** | **Not tried yet.** Both Mac builds start, serve the dashboard and list devices on test computers with no audio hardware. |
+| **Console USB audio** (M32 / X32 multichannel feed) | **Not tried yet** on any system. |
+| **Console control over the network** | Tested against the built-in emulator. Check it against your own console first: [bring-up checklist](app/HARDWARE_BRINGUP.md). |
+
+Rehearse with your own gear before relying on it at a show. The apps are unsigned, and on Windows there is no ASIO support (pick the **WASAPI** entry for your device).
 
 ## Requirements
 
-The app has three modes, and each needs different things. Simulation needs almost nothing.
-
-### Software
-
-| | Simulation | Emulation (rehearse the full rig) | Production (live show) |
-|---|---|---|---|
-| **Node.js** | 22.13+ | 22.13+ | 22.13+ |
-| **Packages** | none | none | none (live audio input needs one optional native module, see below) |
-| **Install** | nothing (`npm install` only to build or test) | nothing | nothing |
-
-The app is written in TypeScript and runs on Node.js. It has no runtime dependencies, so there is no setup step.
-
-> **Live audio input** (listening to the console's USB feed or a measurement mic) goes through an optional native module, `naudiodon2`. The single-file app carries it; a Node.js install compiles it during `npm install`. It has captured from one- and two-channel Windows inputs, and not yet from a console's multichannel USB feed. Without it the app still runs in simulation and emulation, and for manual mixing and scene recall.
+The app has three modes, and each needs different things. Simulation needs only the download.
 
 ### Hardware
 
@@ -94,32 +108,47 @@ The app is written in TypeScript and runs on Node.js. It has no runtime dependen
 
 <a id="setup"></a>
 
-## Setup
+## Set up for a show
 
-> Build the package once with `npm run package` in `app/ts`, then copy the unzipped `TrioMixAssistant` folder to the FOH laptop. Nothing else on the machine is touched.
+These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, type `TrioMixAssistant.exe` in a Windows terminal opened in the app's folder, or `./TrioMixAssistant` in a Mac Terminal.
 
-### Windows
-1. Install **Node.js 22.13+** from [nodejs.org](https://nodejs.org/).
-2. Double‑click **`list-devices.bat`** and note your audio device number.
-3. Open **`show.conf`** in Notepad and set `CONSOLE_IP` and `AUDIO_DEVICE` (or set `AUTO=yes` to auto‑detect). On shared or venue WiFi also set `PIN`.
-4. Double‑click **`start.bat`**. The dashboard opens in your browser.
+1. **Find your audio input.** Plug in the console's USB cable or your interface, run `TrioMixAssistant --list-devices`, and note the device number. It needs enough inputs at 48000 Hz.
+2. **Open the settings file.** The app creates `show.conf` on its first run and prints the folder at every start:
+   - Windows: `%LOCALAPPDATA%\TrioMixAssistant\show.conf`
+   - Mac: `~/Library/Application Support/TrioMixAssistant/show.conf`
+3. **Set** `MODE=hardware`, `CONSOLE_IP` and `AUDIO_DEVICE` (or `AUTO=yes` to auto-detect the input). For a tablet, set `LAN=yes` and a `PIN` of six or more characters.
+4. **Start the app** the same way as before. On a Mac, click **Allow** when macOS asks to let Terminal use the microphone and the network, or the app hears silence.
 
-### macOS
-1. Install **Node.js 22.13+** from [nodejs.org](https://nodejs.org/) (or `brew install node`).
-2. Open Terminal, `cd` into the folder, then `bash list-devices.command` and note your audio device number.
-3. `open show.conf`, set `CONSOLE_IP` and `AUDIO_DEVICE` (or `AUTO=yes`), and save. On shared or venue WiFi also set `PIN`.
-4. `bash start.command`.
-   - On the first run, macOS asks for **Microphone** and **Network** permission. **Allow both** (System Settings → Privacy & Security → Microphone), or capture stays silent.
+> **No console yet:** run `TrioMixAssistant --emulate` to rehearse the whole app against the built-in console emulator. Add `--audio-device <number>` to listen on a real mic.
+> **Tablet:** with `LAN=yes` and `HTTPS=yes`, the start window prints a **scan-to-open QR code**. See [Operating it → On a tablet](#operating-it).
+> **Show day:** the full guide is the [runbook](app/RUNBOOK.md).
 
-> **No Node.js install:** the single-file app runs on Windows and on Apple Silicon and Intel Macs. Download it from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest). See [Single-file app](app/README.md#single-file-app-no-nodejs-install); the Mac steps are under "On a Mac".
-> **No hardware:** double‑click **`rehearse.bat`** (Windows) / `bash rehearse.command` (macOS) to run the whole app against the built‑in emulator.
-> **Tablet:** keep `LAN=yes`/`HTTPS=yes` in `show.conf` (the defaults); the start window prints a **scan‑to‑open QR code**. See [Operating it → On a tablet](#operating-it) for the connect example.
+<a id="from-source"></a>
+
+<details>
+<summary><b>Run from source</b> (for developers; needs Node.js 22.13+)</summary>
+
+The app is written in TypeScript and has no runtime dependencies. Get the code (**Code → Download ZIP**, or `git clone`), then:
+
+```bash
+cd app/ts
+npm install
+npm run run
+```
+
+Open **http://127.0.0.1:8770/**.
+
+- **Live listening** goes through an optional native module, `naudiodon2`, which `npm install` compiles when a C++ compiler is present. Without it the app still runs in simulation and emulation, and for manual mixing and scene recall.
+- **Double-click folder:** `npm run package` writes `app/ts/dist/package/TrioMixAssistant.zip`, a folder with `start`, `rehearse` and `list-devices` scripts and its own `show.conf`. It needs Node.js on the computer and does not carry the audio module. `START-HERE.txt` inside it has the steps.
+- **Build the single-file app yourself:** `npm run exe`. Details are in the [app README](app/README.md#single-file-app-no-nodejs-install).
+
+</details>
 
 <a id="operating-it"></a>
 
 ## Operating it
 
-The commands below run from the **`app/ts`** folder (after `npm install`), as `npm run run -- <flags>`. The double‑click scripts above wrap these; the CLI gives full control.
+The downloaded app takes the flags below directly, for example `TrioMixAssistant.exe --emulate --lan --pin 123456`. From source, run them from the **`app/ts`** folder as `npm run run -- <flags>`, as the table shows.
 
 ### Run modes
 
