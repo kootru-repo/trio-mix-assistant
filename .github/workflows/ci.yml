@@ -43,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-2022, ubuntu-latest]
         node: ["22.13", "22"]
         include:
           - os: macos-latest
@@ -64,3 +64,15 @@ jobs:
         run: npm run check
       - name: Test against the recorded reference fixtures
         run: npm test
+      - name: Build the single-file app
+        if: runner.os == 'macOS'
+        run: |
+          npm run exe
+          tar -czf TrioMixAssistant-macos-arm64.tar.gz -C dist/exe .
+      - name: Keep the macOS app
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: TrioMixAssistant-macos-arm64
+          path: app/ts/TrioMixAssistant-macos-arm64.tar.gz
+          retention-days: 30

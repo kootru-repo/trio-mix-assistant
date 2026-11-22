@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 import { entryFor } from "../src/host/exe.ts";
 import { findLayout } from "../src/host/layout.ts";
@@ -210,19 +210,26 @@ const registerIf = (condition: boolean, name: string, body: () => Promise<void>)
   if (condition) test(name, { timeout: 300000 }, body);
 };
 
-registerIf(process.platform === "win32", "the built executable starts from an empty folder without Node.js on the path and serves the dashboard", () =>
+registerIf(process.platform === "win32" || process.platform === "darwin", "the built executable starts from an empty folder without Node.js on the path and serves the dashboard", () =>
   withDir(async (dir) => {
     const built = await buildExe(join(dir, "out"));
     assert.ok(built.files > 50);
     assert.ok(readFileSync(built.notice, "utf8").includes("Node.js"));
     const exeDir = join(dir, "Downloads");
     mkdirSync(exeDir);
-    const exe = join(exeDir, "TrioMixAssistant.exe");
+    const windows = process.platform === "win32";
+    const exeName = basename(built.exe);
+    const exe = join(exeDir, exeName);
     copyFileSync(built.exe, exe);
-    const local = join(dir, "LocalAppData");
+    if (!windows) chmodSync(exe, 0o755);
+    const profile = join(dir, "profile");
+    mkdirSync(profile);
+    const local = windows ? join(dir, "LocalAppData") : join(profile, "Library", "Application Support");
     const systemRoot = process.env["SystemRoot"] ?? "C:\\Windows";
     const port = await freePort();
-    const exeEnv = { SystemRoot: systemRoot, PATH: join(systemRoot, "System32"), LOCALAPPDATA: local, USERPROFILE: join(dir, "profile"), TEMP: dir, TMP: dir };
+    const exeEnv: Record<string, string> = windows
+      ? { SystemRoot: systemRoot, PATH: join(systemRoot, "System32"), LOCALAPPDATA: local, USERPROFILE: profile, TEMP: dir, TMP: dir }
+      : { PATH: "/usr/bin:/bin", HOME: profile, TMPDIR: dir };
     const child = spawn(exe, ["--port", String(port), "--session-db", "off"], { cwd: exeDir, env: exeEnv });
     let text = "";
     child.stdout.on("data", (b: Buffer) => (text += b.toString("utf8")));
@@ -239,7 +246,7 @@ registerIf(process.platform === "win32", "the built executable starts from an em
       const state = (await (await fetch(`http://127.0.0.1:${port}/state`)).json()) as { mode: string };
       assert.equal(state.mode, "simulation");
       assert.ok(existsSync(join(home, "show.conf")));
-      assert.deepEqual(readdirSync(exeDir), ["TrioMixAssistant.exe"]);
+      assert.deepEqual(readdirSync(exeDir), [exeName]);
       const runtime = join(home, "runtime", built.id, "node_modules");
       for (const part of AUDIO_PARTS) assert.ok(existsSync(join(runtime, part.name, "LICENSE")), part.name);
       assert.ok(existsSync(join(runtime, "naudiodon2", "PORTAUDIO-LICENSE.txt")));
@@ -273,7 +280,7 @@ registerIf(process.platform === "win32", "the built executable starts from an em
           await sleep(300);
         }
       });
-      assert.deepEqual(readdirSync(exeDir), ["TrioMixAssistant.exe"]);
+      assert.deepEqual(readdirSync(exeDir), [exeName]);
     } finally {
       await new Promise<void>((res) => {
         if (child.exitCode !== null) return res();
