@@ -34,10 +34,11 @@ export function bannerLines(input: BannerInput): string[] {
   const { args, scheme, ip } = input;
   const lines: string[] = [];
   const mode = args.emulate ? "EMULATED-HARDWARE" : args.hardware ? "HARDWARE" : "SIMULATION";
-  lines.push(`Trio Mix-Assistant [${mode}] -> ${scheme}://${args.host}:${args.port}/`);
+  const open = WILDCARD_HOSTS.includes(args.host);
+  lines.push(`Trio Mix-Assistant [${mode}] -> ${scheme}://${open ? "127.0.0.1" : args.host}:${args.port}/`);
   if (args.pin) {
     lines.push("  PIN auth: ON — the dashboard asks for the PIN before it opens.");
-    if (scheme !== "https") lines.push("  [!] PIN over plain http is sniffable on the LAN — add --https.");
+    if (scheme !== "https" && open) lines.push("  [!] PIN over plain http is sniffable on the LAN — add --https.");
   } else if (WILDCARD_HOSTS.includes(args.host)) {
     lines.push("  [!] No PIN: anyone on this network can open the dashboard and control the");
     lines.push("      console. On shared WiFi set one (--pin, or PIN= in show.conf).");

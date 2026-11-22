@@ -1,6 +1,6 @@
 # UX Design: Operating with Mixing Station (no X32‑Edit)
 
-> **Status:** design. Sections 1 to 3 and 6 describe the intended experience. The production launch-banner line, the firewall check and the `--model` flag (section 4) and the Signal job (section 5) are proposals and are not built. Section 7 lists status.
+> **Status:** design. Sections 1 to 3 and 6 describe the intended experience. The production launch-banner line, the firewall check, the `--model` flag, the runbook's mixer-app step and the Q-app story (section 4) and the Signal job (section 5) are proposals and are not built. Section 7 lists status.
 > **Scope:** the operator/performer experience across all three modes (simulation,
 > emulation, production) with **Mixing Station** as the manual mixer surface and the
 > **dashboard PWA** as the assistant surface. X32-Edit also works as a

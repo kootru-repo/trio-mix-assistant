@@ -213,7 +213,7 @@
       <div class="step"><div class="sn">1 · Emit</div><div class="st">Play ~10 s pink noise</div><div class="sd">From the laptop's audio output into the PA.</div></div>
       <div class="step"><div class="sn">2 · Capture</div><div class="st">Record at the meas mic</div><div class="sd">= the real room + PA spectrum in the air.</div></div>
       <div class="step"><div class="sn">3 · Baseline</div><div class="st">Compare octave bands</div><div class="sd">Each band against its neighbours: the room-response curve.</div></div>
-      <div class="step"><div class="sn">4 · Watch-list</div><div class="st">Rank resonant peaks</div><div class="sd">The exact feedback-prone frequencies.</div></div>
+      <div class="step"><div class="sn">4 · Watch-list</div><div class="st">Rank the peaks</div><div class="sd">The octave bands that stand out: where feedback is most likely.</div></div>
       <div class="step"><div class="sn">5 · Auto-apply</div><div class="st">Cut peaks + pre-dip</div><div class="sd">Flatter room, fewer rings before anyone sings.</div></div>
     </div>
     <div class="card" style="margin-top:12px;border-left:3px solid var(--cal)">
@@ -247,12 +247,12 @@
       </div>
       <div class="job adv">
         <div class="jtop"><span class="icon">🔀</span><h3>Phase / polarity check</h3><span class="tier a">Advisory</span></div>
-        <p>For two mics on one source, track how their signals correlate. If the pair stays out of polarity, flip the polarity on one of them; a timing (comb-filter) problem is only reported. Off until the template names a pair.</p>
+        <p>For two mics on one source, track how their signals correlate. If the pair stays out of polarity, flip the polarity on one of them; a timing (comb-filter) problem is only reported. Starts switched off, and needs a pair named in the template.</p>
         <div class="law"><span class="c"># correlation &lt; −0.35, sustained →</span><br>setPolarity(ch, inverted)</div>
       </div>
       <div class="job adv">
         <div class="jtop"><span class="icon">🎯</span><h3>Vocal unmask</h3><span class="tier a">Advisory</span></div>
-        <p>While the lead vocal is up, dip a broad band around 3 kHz on the chosen instruments so the words stay clear, and release it when the vocal stops. Off until the template names the instruments.</p>
+        <p>While the lead vocal is up, dip a broad band around 3 kHz on every instrument channel (all but the lead vocal, measurement mic and stage mic) so the words stay clear, and release it when the vocal stops. Starts switched off.</p>
         <div class="law"><span class="c"># vocal above its gate →</span><br>setEqBand(ch, band 4, 3 kHz, −4 dB, Q 1.2)</div>
       </div>
     </div>

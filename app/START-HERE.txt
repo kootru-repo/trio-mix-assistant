@@ -22,7 +22,7 @@ WHAT YOU NEED
 ------------------------------------------------------------
   MAC
 ------------------------------------------------------------
-  Open Terminal, drag this folder onto it (or 'cd' into it), then:
+  Open Terminal, type 'cd ' and drag this folder onto the window, press Return, then:
   1.  open show.conf             (set MODE=hardware and CONSOLE_IP, save;
                                   add PIN=, 6 or more characters, if LAN=yes)
   2.  bash start.command         (the dashboard opens in your browser)
@@ -53,7 +53,7 @@ WHAT YOU NEED
 ------------------------------------------------------------
   Set LAN=yes and a PIN of 6 or more characters in show.conf (the app will
   not start on the network without one). The start window then prints a URL
-  and a QR code. Each device enters the PIN once, and nobody else on the
+  and a QR code. Each device enters the PIN once per run of the app, and nobody else on the
   network can touch the console.
   Scan the QR code with the camera (on an iPhone or iPad, open it in Safari),
   accept the certificate warning once (HTTPS=yes), then "Add to Home

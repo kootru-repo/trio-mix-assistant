@@ -117,7 +117,7 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
       updates. Verify scene numbers in your `--template` match the console's scenes.
 
 ## 6. Latency / success criteria
-- [ ] Watch the footer `loop … ms · jit … ms`. Reflex actions (feedback/clip) should be
+- [ ] Watch the footer `loop …ms · jit …ms`. Reflex actions (feedback/clip) should be
       well under the audio block period (about 21 ms); investigate if `tick_ms` approaches the audio block
       period or jitter is large (CPU contention, or too small a buffer on the audio interface).
 

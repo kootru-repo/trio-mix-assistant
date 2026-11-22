@@ -20,7 +20,7 @@ Beyond the safety net it implements these show-side features:
   screens, an AUTO/ALERT/COACH/MANUAL headline, and a **4-level notification hierarchy**
   (silent → log → banner → full-screen acknowledged overlay) with an **8-bar
   opening gate**;
-- **template-driven channel maps** (the 8-ch trio *or* a 13-input rig from one JSON),
+- **template-driven channel maps** (the 8-ch trio *or* a 13-input rig, from one JSON file each),
   guest mode, and stereo links;
 - **venue learning**: post-show analysis writes a per-venue model (recurring
   feedback freqs + confidence) that pre-seeds the watch-list next time;
@@ -48,8 +48,9 @@ npm run run                  # simulation mode (no hardware)
 
 In simulation a closed-loop "stage" drives the assistant: a feedback ring grows
 until it's notched, a cajón transient overloads until the preamp is trimmed
-(then recovers), and the lead vocal's input drifts so the ride visibly
-compensates. Toggle the jobs and watch the behaviour change.
+(then recovers), and the lead vocal's input drifts so that, once you switch
+Vocal ride on, the ride visibly compensates. Toggle the jobs and watch the
+behaviour change.
 
 ### Single-file app (no Node.js install)
 
@@ -86,7 +87,7 @@ and open the dashboard, or pass the same flags as `npm run run --`
   listens for about eight seconds and reports on the audio module, input, signal,
   per-channel levels, console feed and phone or tablet access. It is read-only: the
   command-line form builds no engine and sends the console nothing but the meter
-  subscription. The logic is in `ts/src/core/diagnostics.ts`.
+  and update subscriptions. The logic is in `ts/src/core/diagnostics.ts`.
 - **It is unsigned,** so macOS blocks a downloaded build until you choose
   **Open Anyway** (see "On a Mac" below), and Windows shows a SmartScreen warning on first run.
 - **The Node.js runtime is frozen at build time.** Rebuild after a Node.js
@@ -120,7 +121,7 @@ need their own build.
    `TrioMixAssistant-macos-x64.tar.gz` (Intel).
 2. In Terminal:
    ```bash
-   mkdir ~/TrioMix && cd ~/TrioMix
+   mkdir -p ~/TrioMix && cd ~/TrioMix
    tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
    ```
    Use the `x64` name on an Intel Mac.

@@ -11,7 +11,7 @@ where it differs, there's a **macOS** and a **Windows** version side by side.
 >
 > Commands use the downloaded app and are typed in a terminal opened in the app's
 > folder. Running from source instead? In `app/ts`, use `npm start` for a start with no
-> flags (or with only `--diagnose`) and `npm run run --` when you give flags. In the Node.js
+> flags (or `npm start -- --diagnose` for the checks alone) and `npm run run --` when you give flags. In the Node.js
 > folder package, use `node js/host/launch.js` and `node js/host/main.js` the same way.
 
 ---
@@ -36,7 +36,7 @@ its own runtime and the audio module, so nothing else is installed.
 
 - **macOS:** pick `arm64` (Apple Silicon) or `x64` (Intel), then:
   ```bash
-  $ mkdir ~/TrioMix && cd ~/TrioMix
+  $ mkdir -p ~/TrioMix && cd ~/TrioMix
   $ tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
   ```
   If macOS refuses to open it: System Settings → Privacy & Security → **Open Anyway**.
@@ -160,7 +160,7 @@ PS> .\TrioMixAssistant.exe --hardware `
 
 Use a PIN of your own, six or more characters: the app refuses to serve the
 network without one. The same settings can be saved in `show.conf` (`MODE`,
-`CONSOLE_IP`, `AUDIO_DEVICE`, `LAN`, `HTTPS`, `PIN`); then start the app with no flags.
+`CONSOLE_IP`, `AUDIO_DEVICE`, `OUTPUT_DEVICE`, `LAN`, `HTTPS`, `PIN`); then start the app with no flags.
 
 Optional add‑ons (either OS):
 - `--ableset-port 39051`: AbleSet drives automatic scene recall.
@@ -200,7 +200,7 @@ interface (this catches a shifted device index). **Don't go live while the pill 
 
 ## 4. Soundcheck sequence (build trust gradually)
 
-1. **Calibrate the room:** PA at show level, room quiet, then *Run calibration*. Watch for
+1. **Calibrate the room:** PA at show level, room quiet, then *Run calibration*. The pink noise plays to `OUTPUT_DEVICE` (`--output-device`), or to the computer's default output if that is blank, so make sure that output feeds the PA. Watch for
    a "calibration heard only … dBFS at the mic" message (it means pink noise or the meas mic isn't reaching the
    analyzer; fix that before continuing).
 2. **Start with the safety net only:** *Feedback notch* + *Clip protection* (both are on at
@@ -297,7 +297,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--list-devices` | print input devices (with host API) and exit |
 | `--diagnose` | run the built-in checks (§1.1), print the report and exit; read-only |
 | `--trace-osc` | with `--emulate`, print every OSC address a mixer app asks the emulated desk for |
-| `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `autofoh_pilot.json`, a 13-input rig, in the `templates` folder beside `show.conf`; give the full path); else the built‑in 8‑ch trio |
+| `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `autofoh_pilot.json`, a 13-input rig plus a measurement mic and a stage mic, so a 15-input device, in the `templates` folder beside `show.conf`; give the full path); else the built‑in 8‑ch trio |
 | `--ableset-port <p>` | listen for AbleSet song/section OSC → auto scene recall |
 | `--ableset-from <ip>` | accept AbleSet messages only from this address (default: the first computer that sends them) |
 | `--no-show-clock` | disable the simulated show clock (simulation and `--emulate`) |

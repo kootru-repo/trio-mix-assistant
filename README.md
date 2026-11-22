@@ -52,14 +52,14 @@ Flip **COACH** and the app stops touching the console. Every move it would make 
 
 ## Run it in a minute
 
-Nothing to install. The app carries everything it needs and starts in **simulation**, with no console, mic or audio interface. A closed-loop "stage" drives the assistant so you can watch feedback get notched, a clip get trimmed, and the vocal ride compensate, live.
+Nothing to install. The app carries everything it needs and starts in **simulation**, with no console, mic or audio interface. A closed-loop "stage" drives the assistant so you can watch feedback get notched, and a clip get trimmed, live. Turn on **Vocal ride** to watch it compensate too.
 
 ### Mac
 
 1. Download the build for your Mac: **[Apple Silicon (M1 or later)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-arm64.tar.gz)** or **[Intel](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-x64.tar.gz)**. Apple menu → **About This Mac** shows which you have.
 2. Open **Terminal** and run (use the `x64` file name on an Intel Mac):
    ```bash
-   mkdir ~/TrioMix && cd ~/TrioMix
+   mkdir -p ~/TrioMix && cd ~/TrioMix
    tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
    ./TrioMixAssistant
    ```
@@ -93,7 +93,7 @@ The app runs on the laptop; a phone or tablet on the same WiFi opens its dashboa
 | **Console control over the network** | Tested against the built-in emulator. Check it against your own console first: [bring-up checklist](app/HARDWARE_BRINGUP.md). |
 | **Mixer apps against the emulator** | Mixing Station (on Android) and X32-Edit connected to the built-in emulator and synced; fader levels sent by the app showed the same dB in X32-Edit. M32-Edit has not been tried. |
 
-Rehearse with your own gear before relying on it at a show. The apps are unsigned, and on Windows there is no ASIO support (pick the **WASAPI** entry for your device).
+Rehearse with your own gear before relying on it at a show. The apps are not signed by a registered developer (so macOS and Windows warn on first run), and on Windows there is no ASIO support (pick the **WASAPI** entry for your device).
 
 ## Requirements
 
@@ -107,7 +107,7 @@ The app has three modes, and each needs different things. Simulation needs only 
 | **Console** | n/a | Emulated | **Midas M32C** or X32‑family, on the LAN |
 | **Audio interface** | n/a | Optional (USB mic to test calibration/feedback) | Console USB/card feed or an interface (e.g. Focusrite Scarlett) |
 | **Measurement mic** | n/a | Optional | **Yes**: a mic at FOH for room + feedback listening |
-| **Network** | n/a | n/a | Wired Ethernet between laptop and console (recommended; a dedicated WiFi access point can be used). WiFi for a phone or tablet |
+| **Network** | n/a | n/a (WiFi only if you add a phone or tablet) | Wired Ethernet between laptop and console (recommended; a dedicated WiFi access point can be used). WiFi for a phone or tablet |
 | **Phone or tablet** | n/a | Optional | Optional: iPhone, iPad or Android for a wireless dashboard |
 | **AbleSet** | n/a | n/a | Optional: automatic scene recall from the setlist |
 
@@ -148,7 +148,7 @@ The report can be copied. If something fails on your gear, or you got a Mac or a
 <details>
 <summary><b>Run from source</b> (for developers; needs Node.js 22.13+)</summary>
 
-The app is written in TypeScript and has no runtime dependencies. Get the code (**Code → Download ZIP**, or `git clone`), then:
+The app is written in TypeScript and has no runtime dependencies. Get the code (**Code → Download ZIP**, or `git clone`), open a terminal in its folder, then:
 
 ```bash
 cd app/ts
@@ -159,7 +159,7 @@ npm run run
 Open **http://127.0.0.1:8770/**.
 
 - **Live listening** goes through an optional native module, `naudiodon2`, which `npm install` compiles when a C++ compiler is present. Without it the app still runs in simulation and emulation, and for manual mixing and scene recall.
-- **Double-click folder:** `npm run package` writes `app/ts/dist/package/TrioMixAssistant.zip`, a folder with `start`, `rehearse` and `list-devices` scripts and its own `show.conf`. It needs Node.js on the computer and does not carry the audio module. `START-HERE.txt` inside it has the steps.
+- **Double-click folder:** `npm run package` writes `app/ts/dist/package/TrioMixAssistant.zip`, a zipped folder with `start`, `rehearse` and `list-devices` scripts and its own `show.conf`. It needs Node.js on the computer and does not carry the audio module. `START-HERE.txt` inside it has the steps.
 - **Build the single-file app yourself:** `npm run exe`. Details are in the [app README](app/README.md#single-file-app-no-nodejs-install).
 
 </details>
@@ -187,7 +187,7 @@ Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets +
 - **AUTOMATIC JOBS**: toggle Feedback notch, Clip protection, Vocal ride, Balance hold, Phase / polarity and Vocal unmask. Feedback notch and Clip protection are on at start.
 - **MIXING SURFACE**: drag faders, tap **M** to mute; a human move makes auto‑ride yield on that channel.
 - **Pink‑noise calibration** (Settings → *Run calibration*) measures the room, parks gentle cuts on the worst peaks, and builds a feedback watch‑list. The result shows as an octave‑band chart with ▲ watch / ▼ cut chips.
-- **Scenes**: recall console scenes; with a show template they recall automatically per song (on a real console this also needs AbleSet, `--ableset-port`).
+- **Scenes**: recall console scenes; each song in the setlist recalls its scene automatically (on a real console this also needs AbleSet, `--ableset-port`).
 - **COACH**: flips the assistant from *acting* to *advising*. It stops touching the console and lists every move it would make (feedback notch, clip trim, vocal ride, calibration, even scene recall) as a plain manual instruction in a **Coach — manual moves** panel + the log, for you to dial in by hand. Only your own manual moves act.
 - **TAKEOVER**: mutes the main and holds all jobs so a human always wins.
 - **Deep links**: `…:8770/#eq`, `#fx`, `#settings` open straight to a tab (handy on a tablet).
@@ -239,7 +239,7 @@ The emulator answers Mixing Station's full discovery + sync + metering protocol,
 2. Phone/tablet on the same WiFi → Mixing Station → **Behringer X32** → the emulated desk appears as **MixAssist** in the search list (or enter the laptop's IP manually) → **Connect**, access **Full**.
 3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list. The assistant's moves mirror live; your fader moves win instantly. From source you can push test moves: `npm run osc-demo -- --animate` in `app/ts`.
 
-**Split screen on one Android device** during an emulator session: the assistant's dashboard (top) and Mixing Station (bottom, the setlist's channels with live meters):
+**Split screen on one Android device** during an emulator session: the assistant's dashboard (top) and Mixing Station (bottom, the trio's channels with live meters):
 
 <img src="docs/screenshots/mixingstation-split.jpg" width="360" alt="Trio Mix-Assistant dashboard and Mixing Station split-screen on one Android device during an emulator session">
 

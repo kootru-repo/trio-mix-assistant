@@ -128,7 +128,7 @@ export async function autodetectSource(io: Pick<Io, "factory" | "clock" | "out" 
     return null;
   }
   if (!cands.length) {
-    io.out("  [!] --auto: no input devices found (install the audio module?) — manual only.");
+    io.out("  [!] --auto: no input devices found (install the audio module?) — the assistant will not listen to a real input.");
     return null;
   }
   const open = async (cand: RankedInput): Promise<RemoteCapture | null> => {
