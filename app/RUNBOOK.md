@@ -296,6 +296,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--channel-map "1:0,…"` | explicit console-channel:device-column map (console 1-based, column 0-based); default N→N−1 |
 | `--list-devices` | print input devices (with host API) and exit |
 | `--diagnose` | run the built-in checks (§1.1), print the report and exit; read-only |
+| `--rehearse` | on its own (no other flags): start from `show.conf` with the emulated console in place of the real one |
 | `--trace-osc` | with `--emulate`, print every OSC address a mixer app asks the emulated desk for |
 | `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `autofoh_pilot.json`, a 13-input rig plus a measurement mic and a stage mic, so a 15-input device, in the `templates` folder beside `show.conf`; give the full path); else the built‑in 8‑ch trio |
 | `--ableset-port <p>` | listen for AbleSet song/section OSC → auto scene recall |

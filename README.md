@@ -128,7 +128,7 @@ These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, typ
 
 ### Check your setup
 
-The app can check itself. It listens for about eight seconds (a terminal check with nothing real to listen to skips the wait), **changes nothing on the console and plays no sound**, then lists what passed, what failed and how to fix it.
+The app can check itself. It listens for about eight seconds (a terminal check in simulation with no input chosen skips the wait), **changes nothing on the console and plays no sound**, then lists what passed, what failed and how to fix it.
 
 - **In the dashboard:** Settings → **Run checks**. Use this while the app is running.
 - **In a terminal:** `TrioMixAssistant --diagnose` checks the setup in `show.conf` without starting the show. To check just one input, with no console: `TrioMixAssistant --diagnose --audio-device <number>`.
@@ -186,7 +186,7 @@ Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets +
 ### On the dashboard
 - **AUTOMATIC JOBS**: toggle Feedback notch, Clip protection, Vocal ride, Balance hold, Phase / polarity and Vocal unmask. Feedback notch and Clip protection are on at start.
 - **MIXING SURFACE**: drag faders, tap **M** to mute; a human move makes auto‑ride yield on that channel.
-- **Pink‑noise calibration** (Settings → *Run calibration*) measures the room, parks gentle cuts on the peaks that stand out, and builds a feedback watch‑list. The result shows as an octave‑band chart with ▲ watch / ▼ cut chips.
+- **Pink‑noise calibration** (*Run calibration* on the Mix tab or in Settings) measures the room, parks gentle cuts on the peaks that stand out, and builds a feedback watch‑list. The result shows on the Mix tab as an octave‑band chart with ▲ watch / ▼ cut chips.
 - **Scenes**: recall console scenes; each song in the setlist recalls its scene automatically (on a real console this also needs AbleSet, `--ableset-port`).
 - **COACH**: flips the assistant from *acting* to *advising*. It stops touching the console and lists every move it would make (feedback notch, clip trim, vocal ride, calibration, even scene recall) as a plain manual instruction in a **COACH — MANUAL MOVES** panel + the log, for you to dial in by hand. Only your own manual moves act.
 - **TAKEOVER**: mutes the main and holds all jobs so a human always wins.

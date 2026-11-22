@@ -307,7 +307,8 @@ function attachVenue(engine: Engine, args: Args, io: Io): void {
   const model = store.load(args.venue);
   if (store.lastProblem) io.out(`  [!] Venue '${args.venue}': ${store.lastProblem}`);
   if (model === null) {
-    io.out(`  Venue '${args.venue}': no model yet — will learn after this show.`);
+    const learns = engine.sessionLog !== null;
+    io.out(`  Venue '${args.venue}': no model yet — ${learns ? "will learn after this show" : "it is not learned while the session log is off"}.`);
     return;
   }
   engine.applyVenueModel(model);
