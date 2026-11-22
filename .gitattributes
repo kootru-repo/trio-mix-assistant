@@ -1,3 +1,6 @@
 # Compiled from app/web/src (TypeScript); keep out of GitHub's language stats
 # and collapse in diffs. Edit the .ts source, then run `npm run build`.
 app/static/*.js linguist-generated=true
+
+# Design notes and the feedback board are documentation, not application code.
+docs/** linguist-documentation
