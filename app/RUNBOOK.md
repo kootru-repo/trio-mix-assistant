@@ -170,7 +170,7 @@ Optional add‑ons (either OS):
 - Drop `--audio-device` to run **manual mixing + scene recall only** (assistant idle).
 - Without `--lan` (laptop only), `--https` and `--pin` can be dropped: plain http is fine on the laptop itself.
 
-On launch it prints the dashboard URL (and a scan‑to‑open QR when `--lan`).
+On launch it prints the dashboard URL (and a scan‑to‑open QR when `--lan`). The app finds the laptop's address through the network's gateway; on a network without one it prints no QR, so open `https://<laptop-ip>:8770/` by hand.
 
 ### 3.1 Verify in the first 30 seconds (on the dashboard)
 | Check | Good value |
@@ -296,13 +296,13 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--channel-map "1:0,…"` | explicit console-channel:device-column map (console 1-based, column 0-based); default N→N−1 |
 | `--list-devices` | print input devices (with host API) and exit |
 | `--diagnose` | run the built-in checks (§1.1), print the report and exit; read-only |
-| `--rehearse` | on its own or with `--diagnose`: start from `show.conf` in emulate mode whatever `MODE` says (the emulated console, with its built-in audio feed unless `AUTO=yes`; the hardware-only keys such as `AUDIO_DEVICE` are not used) |
+| `--rehearse` | on its own or with `--diagnose`: use `show.conf` in emulate mode whatever `MODE` says (the emulated console, with its built-in audio feed unless `AUTO=yes`; the hardware-only keys such as `AUDIO_DEVICE` are not used) |
 | `--trace-osc` | with `--emulate`, print every OSC address a mixer app asks the emulated desk for |
 | `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `autofoh_pilot.json`, a 13-input rig plus a measurement mic and a stage mic, so a 15-input device, in the `templates` folder beside `show.conf`; give the full path); else the built‑in 8‑ch trio |
 | `--ableset-port <p>` | listen for AbleSet song/section OSC → auto scene recall |
 | `--ableset-from <ip>` | accept AbleSet messages only from this address (default: the first computer that sends them) |
 | `--no-show-clock` | disable the simulated show clock (simulation and `--emulate`) |
-| `--venue "<name>"` | tag the session log **and load/learn this venue's model** (recurring feedback freqs pre‑seed the watch‑list; the model updates after each show) |
+| `--venue "<name>"` | tag the session log **and load/learn this venue's model** (recurring feedback freqs pre‑seed the watch‑list; the model updates after each run with that venue name, simulation and rehearse runs included) |
 | `--session-db <path｜off>` | session‑log location, or disable |
 | `--advisor` | enable the Claude advisory layer (needs `ANTHROPIC_API_KEY`) |
 | `--advisor-interval <s>` | seconds between advisor checks (default 30) |

@@ -556,8 +556,8 @@ async function runChecked(args: Args, io: Io): Promise<number> {
           "      Another --emulate session is probably running. Stop it and retry.",
         );
       }
-      const reachable = WILDCARD_HOSTS.includes(args.host) ? ip : null;
-      for (const l of emulatorLines(reachable, emu.listenPort, args.traceOsc)) io.out(l);
+      const lan = WILDCARD_HOSTS.includes(args.host);
+      for (const l of emulatorLines(lan ? ip : null, emu.listenPort, args.traceOsc, lan)) io.out(l);
     }
     const plan = await prepareTls(args, ip, io);
 

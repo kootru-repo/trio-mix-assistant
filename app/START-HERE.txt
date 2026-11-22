@@ -53,7 +53,8 @@ WHAT YOU NEED
 ------------------------------------------------------------
   Set LAN=yes and a PIN of 6 or more characters in show.conf (the app will
   not start on the network without one). The start window then prints a URL
-  and a QR code. Each device enters the PIN once per run of the app, and nobody else on the
+  and a QR code (if it prints none, type https://<this computer's IP>:8770/
+  on the phone). Each device enters the PIN once per run of the app, and nobody else on the
   network can touch the console.
   Scan the QR code with the camera (on an iPhone or iPad, open it in Safari),
   accept the certificate warning once (HTTPS=yes; it returns on a new

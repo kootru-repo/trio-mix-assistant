@@ -62,6 +62,9 @@ export function bannerLines(input: BannerInput): string[] {
       lines.push("  Scan with the phone or tablet camera:");
       lines.push(...input.qr);
     }
+  } else if (WILDCARD_HOSTS.includes(args.host)) {
+    lines.push("  No network address was found for this computer. On a phone or tablet, open");
+    lines.push(`  ${scheme}://<this computer's IP address>:${args.port}/`);
   } else if (scheme === "http") {
     lines.push("  For a phone or tablet, restart with  --lan --https --pin <6+ characters>");
     lines.push("  (or set LAN=yes and PIN= in show.conf).");
@@ -70,12 +73,18 @@ export function bannerLines(input: BannerInput): string[] {
   return lines;
 }
 
-export function emulatorLines(ip: string | null, listenPort: number, trace: boolean): string[] {
+export function emulatorLines(ip: string | null, listenPort: number, trace: boolean, lan: boolean = false): string[] {
   const lines = [
     "  Mixer app: connect Mixing Station (console type Behringer X32, access",
     `             Full) to  ${ip ?? "127.0.0.1"}:${listenPort}  — appears as "${C.X32_NAME}" in search.`,
     `             X32-Edit also works; identity = ${C.X32_MODEL}/${C.X32_FW}` + (trace ? "  [--trace-osc ON]" : ""),
   ];
-  if (ip === null) lines.push("             This computer only: add --lan (with a PIN) to reach it from a phone or tablet.");
+  if (ip === null) {
+    lines.push(
+      lan
+        ? "             No network address was found: from a phone or tablet, use this computer's IP address."
+        : "             This computer only: add --lan (with a PIN) to reach it from a phone or tablet.",
+    );
+  }
   return lines;
 }
