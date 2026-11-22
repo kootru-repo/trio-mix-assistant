@@ -98,7 +98,8 @@ export function buildArgv(
   const lan = yes(get(cfg, "LAN", "yes"), "LAN");
   if (lan) argv.push("--lan");
   const trust = yes(get(cfg, "TRUST", "no"), "TRUST");
-  const https = trust || yes(get(cfg, "HTTPS", "yes"), "HTTPS");
+  const httpsWanted = yes(get(cfg, "HTTPS", "yes"), "HTTPS");
+  const https = trust || (lan && httpsWanted);
   if (trust) argv.push("--trust");
   else if (https) argv.push("--https");
   const pin = get(cfg, "PIN", "").trim();

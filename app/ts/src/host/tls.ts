@@ -31,8 +31,8 @@ export const CA_DAYS = 825;
 export const MIN_KEY_BITS = 2048;
 
 const DAY_MS = 86_400_000;
-const SERVER_CN = "AutoFOH Mix-Assistant";
-const CA_CN = "AutoFOH Mix-Assistant Local CA";
+const SERVER_CN = "Trio Mix-Assistant";
+const CA_CN = "Trio Mix-Assistant Local CA";
 
 export class TLSUnavailable extends Error {
   constructor(message: string) {

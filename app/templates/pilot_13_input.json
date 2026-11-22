@@ -1,5 +1,5 @@
 {
-  "name": "AutoFOH Pilot (13-input)",
+  "name": "Pilot (13-input)",
   "channels": {
     "map": {
       "1": "lead_vox",

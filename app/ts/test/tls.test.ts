@@ -120,7 +120,7 @@ function opensslAvailable(): boolean {
   return r.status === 0;
 }
 
-test("cert is browser acceptable", withDir("autofoh_cert_", (d) => {
+test("cert is browser acceptable", withDir("trio_cert_", (d) => {
   const [cert] = ensureCert(d, ["127.0.0.1"]);
   const c = load(cert);
   assert.ok(lifetimeDays(c) <= 398);
@@ -128,7 +128,7 @@ test("cert is browser acceptable", withDir("autofoh_cert_", (d) => {
   assert.equal(c.ca, false);
 }));
 
-test("overlong cached cert is regenerated", withDir("autofoh_cert_", (d) => {
+test("overlong cached cert is regenerated", withDir("trio_cert_", (d) => {
   const [cert, key] = ensureCert(d, ["127.0.0.1"]);
   writeOverlong(cert, key);
   assert.ok(lifetimeDays(load(cert)) > 398);
@@ -136,7 +136,7 @@ test("overlong cached cert is regenerated", withDir("autofoh_cert_", (d) => {
   assert.ok(lifetimeDays(load(cert)) <= 398);
 }));
 
-test("trusted CA mode shapes", withDir("autofoh_ca_", (d) => {
+test("trusted CA mode shapes", withDir("trio_ca_", (d) => {
   const [cert, key, ca] = ensureTrustedCert(d, ["127.0.0.1", "192.168.1.50"]);
   for (const p of [cert, key, ca]) assert.ok(existsSync(p));
   const caC = load(ca);
@@ -151,7 +151,7 @@ test("trusted CA mode shapes", withDir("autofoh_ca_", (d) => {
   assert.equal(caC.serialNumber, load(ca2).serialNumber);
 }));
 
-test("CA signed cert verifies like an installed root over a real socket", withDir("autofoh_ca_", async (d) => {
+test("CA signed cert verifies like an installed root over a real socket", withDir("trio_ca_", async (d) => {
   const [cert, key, ca] = ensureTrustedCert(d, ["127.0.0.1"]);
   const r = await handshake(cert, key, ca);
   assert.equal(r.got, "ok");
@@ -159,15 +159,15 @@ test("CA signed cert verifies like an installed root over a real socket", withDi
   assert.ok(r.protocol === "TLSv1.2" || r.protocol === "TLSv1.3");
 }));
 
-test("self-signed cert completes a handshake when trusted as its own root", withDir("autofoh_cert_", async (d) => {
+test("self-signed cert completes a handshake when trusted as its own root", withDir("trio_cert_", async (d) => {
   const [cert, key] = ensureCert(d, ["localhost", "127.0.0.1"]);
   const r = await handshake(cert, key, cert);
   assert.equal(r.reply, "ack");
 }));
 
-test("an untrusted client rejects the generated certificate", withDir("autofoh_ca_", async (d) => {
+test("an untrusted client rejects the generated certificate", withDir("trio_ca_", async (d) => {
   const [cert, key] = ensureTrustedCert(d, ["127.0.0.1"]);
-  const other = mkdtempSync(join(tmpdir(), "autofoh_other_"));
+  const other = mkdtempSync(join(tmpdir(), "trio_other_"));
   try {
     const [, , otherCa] = ensureTrustedCert(other, ["127.0.0.1"]);
     await assert.rejects(handshake(cert, key, otherCa), /unable to verify|self.signed|issuer/i);
@@ -176,7 +176,7 @@ test("an untrusted client rejects the generated certificate", withDir("autofoh_c
   }
 }));
 
-test("a client checking a name the certificate lacks is rejected", withDir("autofoh_ca_", async (d) => {
+test("a client checking a name the certificate lacks is rejected", withDir("trio_ca_", async (d) => {
   const [cert, key, ca] = ensureTrustedCert(d, ["127.0.0.1"]);
   const server = tls.createServer({ cert: readFileSync(cert), key: readFileSync(key) }, (s) => s.end());
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -199,7 +199,7 @@ test("a client checking a name the certificate lacks is rejected", withDir("auto
   }
 }));
 
-test("generate with LAN ip in SAN, and reuse when covered", withDir("autofoh_cert_", (d) => {
+test("generate with LAN ip in SAN, and reuse when covered", withDir("trio_cert_", (d) => {
   const [cert, key] = ensureCert(d, ["localhost", "127.0.0.1", "192.168.1.50"]);
   assert.ok(existsSync(cert) && existsSync(key));
   const before = readFileSync(cert, "utf8");
@@ -212,7 +212,7 @@ test("generate with LAN ip in SAN, and reuse when covered", withDir("autofoh_cer
   assert.ok(san.includes("DNS:localhost"));
 }));
 
-test("a new LAN ip not covered by the cached cert forces regeneration", withDir("autofoh_cert_", (d) => {
+test("a new LAN ip not covered by the cached cert forces regeneration", withDir("trio_cert_", (d) => {
   const [cert] = ensureCert(d, ["127.0.0.1"]);
   const before = readFileSync(cert, "utf8");
   ensureCert(d, ["127.0.0.1", "10.0.0.7"]);
@@ -220,7 +220,7 @@ test("a new LAN ip not covered by the cached cert forces regeneration", withDir(
   assert.ok(sanEntries(load(cert)).includes("IP Address:10.0.0.7"));
 }));
 
-test("trusted mode reissues the leaf for a new host and keeps the CA", withDir("autofoh_ca_", (d) => {
+test("trusted mode reissues the leaf for a new host and keeps the CA", withDir("trio_ca_", (d) => {
   const [cert, , ca] = ensureTrustedCert(d, ["127.0.0.1"]);
   const caBefore = readFileSync(ca, "utf8");
   const leafBefore = readFileSync(cert, "utf8");
@@ -230,7 +230,7 @@ test("trusted mode reissues the leaf for a new host and keeps the CA", withDir("
   assert.ok(issuedBy(cert, ca));
 }));
 
-test("a self-signed cert is not accepted as issued by the CA, and is replaced in trusted mode", withDir("autofoh_ca_", (d) => {
+test("a self-signed cert is not accepted as issued by the CA, and is replaced in trusted mode", withDir("trio_ca_", (d) => {
   const [cert, key, ca] = ensureTrustedCert(d, ["127.0.0.1"]);
   writeOverlong(cert, key, 100);
   assert.equal(issuedBy(cert, ca), false);
@@ -238,7 +238,7 @@ test("a self-signed cert is not accepted as issued by the CA, and is replaced in
   assert.ok(issuedBy(cert, ca));
 }));
 
-test("missing or corrupt CA key rebuilds the root", withDir("autofoh_ca_", (d) => {
+test("missing or corrupt CA key rebuilds the root", withDir("trio_ca_", (d) => {
   const [, , ca] = ensureTrustedCert(d, ["127.0.0.1"]);
   const serial = load(ca).serialNumber;
   writeFileSync(join(d, "ca-key.pem"), "garbage");
@@ -247,7 +247,7 @@ test("missing or corrupt CA key rebuilds the root", withDir("autofoh_ca_", (d) =
   assert.ok(certIsCa(ca, join(d, "ca-key.pem")));
 }));
 
-test("a non-CA file is not a root; garbage is not current", withDir("autofoh_cert_", (d) => {
+test("a non-CA file is not a root; garbage is not current", withDir("trio_cert_", (d) => {
   const [cert] = ensureCert(d, ["127.0.0.1"]);
   assert.equal(certIsCa(cert), false);
   writeFileSync(join(d, "junk.pem"), "nope");
@@ -255,7 +255,7 @@ test("a non-CA file is not a root; garbage is not current", withDir("autofoh_cer
   assert.equal(certIsCurrent(join(d, "absent.pem")), false);
 }));
 
-test("a cert expiring within 30 days is regenerated", withDir("autofoh_cert_", (d) => {
+test("a cert expiring within 30 days is regenerated", withDir("trio_cert_", (d) => {
   const [cert, key] = ensureCert(d, ["127.0.0.1"]);
   writeOverlong(cert, key, 10);
   assert.equal(certIsCurrent(cert), false);
@@ -278,14 +278,14 @@ function writeForeignCa(dir: string, key: { publicKey: import("node:crypto").Key
   writeFileSync(join(dir, "ca.pem"), toPem(der, "CERTIFICATE"));
 }
 
-test("an undersized CA key is refused with TLSUnavailable", withDir("autofoh_ca_", (d) => {
+test("an undersized CA key is refused with TLSUnavailable", withDir("trio_ca_", (d) => {
   const small = generateKeyPairSync("rsa", { modulusLength: 1024 });
   writeFileSync(join(d, "ca-key.pem"), small.privateKey.export({ type: "pkcs1", format: "pem" }));
   writeForeignCa(d, small);
   assert.throws(() => ensureTrustedCert(d, ["127.0.0.1"]), (e: unknown) => e instanceof TLSUnavailable && /1024/.test(e.message));
 }));
 
-test("a non-RSA CA key is refused with TLSUnavailable", withDir("autofoh_ca_", (d) => {
+test("a non-RSA CA key is refused with TLSUnavailable", withDir("trio_ca_", (d) => {
   const ec = generateKeyPairSync("ec", { namedCurve: "P-256" });
   writeFileSync(join(d, "ca-key.pem"), ec.privateKey.export({ type: "pkcs8", format: "pem" }));
   const rsa = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -293,7 +293,7 @@ test("a non-RSA CA key is refused with TLSUnavailable", withDir("autofoh_ca_", (
   assert.ok(!certIsCa(join(d, "ca.pem"), join(d, "ca-key.pem")));
 }));
 
-test("file layout and key permissions", withDir("autofoh_ca_", (d) => {
+test("file layout and key permissions", withDir("trio_ca_", (d) => {
   const [cert, key, ca] = ensureTrustedCert(join(d, "nested", ".certs"), ["127.0.0.1"]);
   assert.ok(cert.endsWith("cert.pem") && key.endsWith("key.pem") && ca.endsWith("ca.pem"));
   assert.ok(existsSync(join(d, "nested", ".certs", "ca-key.pem")));
@@ -305,14 +305,14 @@ test("file layout and key permissions", withDir("autofoh_ca_", (d) => {
   }
 }));
 
-test("certificates parse back with the expected fields", withDir("autofoh_ca_", (d) => {
+test("certificates parse back with the expected fields", withDir("trio_ca_", (d) => {
   const hosts = ["localhost", "127.0.0.1", "192.168.1.50", "::1", "venue.local"];
   const [cert, key, ca] = ensureTrustedCert(d, hosts);
   const leaf = load(cert);
   const caC = load(ca);
-  assert.equal(leaf.subject, "CN=AutoFOH Mix-Assistant");
-  assert.equal(leaf.issuer, "CN=AutoFOH Mix-Assistant Local CA");
-  assert.equal(caC.subject, "CN=AutoFOH Mix-Assistant Local CA");
+  assert.equal(leaf.subject, "CN=Trio Mix-Assistant");
+  assert.equal(leaf.issuer, "CN=Trio Mix-Assistant Local CA");
+  assert.equal(caC.subject, "CN=Trio Mix-Assistant Local CA");
   assert.equal(caC.issuer, caC.subject);
   assert.equal(caC.ca, true);
   assert.equal(leaf.ca, false);
@@ -377,7 +377,7 @@ const registerIf = (condition: boolean, name: string, body: () => void): void =>
   if (condition) test(name, body);
 };
 
-registerIf(opensslAvailable(), "openssl verifies the chain and reads the extensions", withDir("autofoh_ssl_", (d) => {
+registerIf(opensslAvailable(), "openssl verifies the chain and reads the extensions", withDir("trio_ssl_", (d) => {
   const [cert, , ca] = ensureTrustedCert(d, ["localhost", "127.0.0.1", "192.168.1.50"]);
   const v = spawnSync("openssl", ["verify", "-CAfile", ca, cert], { encoding: "utf8" });
   assert.equal(v.status, 0, v.stdout + v.stderr);
@@ -386,7 +386,7 @@ registerIf(opensslAvailable(), "openssl verifies the chain and reads the extensi
   assert.equal(text.status, 0, text.stderr);
   const out = text.stdout.replace(/\r/g, "");
   assert.match(out, /Signature Algorithm: sha256WithRSAEncryption/);
-  assert.match(out, /Issuer: CN\s*=\s*AutoFOH Mix-Assistant Local CA/);
+  assert.match(out, /Issuer: CN\s*=\s*Trio Mix-Assistant Local CA/);
   assert.match(out, /Public-Key: \(2048 bit\)/);
   assert.match(out, /X509v3 Basic Constraints: critical\s+CA:FALSE/);
   assert.match(out, /X509v3 Key Usage: critical\s+Digital Signature, Key Encipherment/);
@@ -403,14 +403,14 @@ registerIf(opensslAvailable(), "openssl verifies the chain and reads the extensi
   assert.match(sv.stdout, /OK/);
 }));
 
-test("the root CA is short lived and name constrained, and an old unconstrained CA is replaced", withDir("autofoh_ca_", (d) => {
+test("the root CA is short lived and name constrained, and an old unconstrained CA is replaced", withDir("trio_ca_", (d) => {
   const [cert, , ca] = ensureTrustedCert(d, ["127.0.0.1"]);
   const c = load(ca);
   assert.ok(lifetimeDays(c) <= CA_DAYS + 2);
   assert.ok(hasCriticalNameConstraints(c.raw));
   assert.ok(new Date(load(cert).validTo).getTime() <= new Date(c.validTo).getTime());
   const key = createPrivateKey(readFileSync(join(d, "ca-key.pem")));
-  const name = commonName("AutoFOH Mix-Assistant Local CA");
+  const name = commonName("Trio Mix-Assistant Local CA");
   const t = Math.floor(Date.now() / 1000) * 1000;
   const old = buildCertificate({
     subject: name,
@@ -438,14 +438,14 @@ test("the CA permits only local names and private ranges", () => {
   }
 });
 
-test("hosts outside the CA constraints are left out of the trusted leaf", withDir("autofoh_ca_", (d) => {
+test("hosts outside the CA constraints are left out of the trusted leaf", withDir("trio_ca_", (d) => {
   const [cert] = ensureTrustedCert(d, ["localhost", "127.0.0.1", "192.168.1.50", "100.64.1.2", "example.com"]);
   const san = sanEntries(load(cert));
   assert.deepEqual(san.sort(), ["DNS:localhost", "IP Address:127.0.0.1", "IP Address:192.168.1.50"].sort());
   assert.equal(certIsCurrent(cert, ["localhost", "127.0.0.1", "192.168.1.50"]), true);
 }));
 
-test("localhost and LAN addresses verify against the constrained CA over real handshakes", withDir("autofoh_ca_", async (d) => {
+test("localhost and LAN addresses verify against the constrained CA over real handshakes", withDir("trio_ca_", async (d) => {
   const [cert, key, ca] = ensureTrustedCert(d, ["localhost", "127.0.0.1", "192.168.1.50", "10.4.5.6"]);
   const server = tls.createServer({ cert: readFileSync(cert), key: readFileSync(key) }, (s) => s.end());
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -466,7 +466,7 @@ test("localhost and LAN addresses verify against the constrained CA over real ha
   }
 }));
 
-test("a leaf naming a host outside the constraints is rejected by the TLS stack", withDir("autofoh_ca_", async (d) => {
+test("a leaf naming a host outside the constraints is rejected by the TLS stack", withDir("trio_ca_", async (d) => {
   const [, , ca] = ensureTrustedCert(d, ["127.0.0.1"]);
   const caCert = load(ca);
   const caKey = createPrivateKey(readFileSync(join(d, "ca-key.pem")));
@@ -510,7 +510,7 @@ test("a leaf naming a host outside the constraints is rejected by the TLS stack"
   }
 }));
 
-registerIf(opensslAvailable(), "openssl accepts the constrained chain and shows the constraint", withDir("autofoh_ssl_", (d) => {
+registerIf(opensslAvailable(), "openssl accepts the constrained chain and shows the constraint", withDir("trio_ssl_", (d) => {
   const [cert, , ca] = ensureTrustedCert(d, ["localhost", "127.0.0.1", "192.168.1.50"]);
   const v = spawnSync("openssl", ["verify", "-CAfile", ca, cert], { encoding: "utf8" });
   assert.equal(v.status, 0, v.stdout + v.stderr);
@@ -521,7 +521,7 @@ registerIf(opensslAvailable(), "openssl accepts the constrained chain and shows 
   assert.match(text, /IP:172\.16\.0\.0\/255\.240\.0\.0/);
 }));
 
-registerIf(process.platform === "win32", "key files are restricted to the current user on Windows", withDir("autofoh_acl_", (d) => {
+registerIf(process.platform === "win32", "key files are restricted to the current user on Windows", withDir("trio_acl_", (d) => {
   const [, key] = ensureTrustedCert(d, ["127.0.0.1"]);
   const user = (process.env["USERNAME"] ?? "").toLowerCase();
   for (const file of [key, join(d, "ca-key.pem")]) {

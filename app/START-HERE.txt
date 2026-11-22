@@ -38,8 +38,8 @@ WHAT YOU NEED
   Leave AUDIO_DEVICE empty on both: this folder cannot listen to audio
   (see LIVE AUDIO INPUT below), so it runs manual mixing and scene recall.
   The list-devices scripts only work once the audio module is added.
-  The browser warns once about the self-signed certificate (HTTPS=yes):
-  choose to proceed, or set HTTPS=no if only this laptop uses the dashboard.
+  With LAN=no the dashboard is plain http on this laptop only; HTTPS=yes
+  takes effect once LAN=yes.
 
 ------------------------------------------------------------
   SOMETHING NOT WORKING?

@@ -42,6 +42,14 @@ test("the defaults serve the LAN over HTTPS", () => {
   assert.ok(p.argv.includes("--https"));
 });
 
+test("a dashboard kept on this computer is served over plain http, with no certificate", () => {
+  const local = plan({ MODE: "sim", LAN: "no", HTTPS: "yes" });
+  assert.ok(!local.argv.includes("--https"));
+  assert.ok(!local.argv.includes("--lan"));
+  assert.ok(plan({ MODE: "sim", LAN: "no", TRUST: "yes" }).argv.includes("--trust"));
+  assert.ok(plan({ MODE: "sim", LAN: "yes", PIN: "123456", HTTPS: "yes" }).argv.includes("--https"));
+});
+
 test("hardware settings map to flags", () => {
   const p = plan({ MODE: "hardware", CONSOLE_IP: "10.0.0.9", AUDIO_DEVICE: "3", AUTO: "yes", PIN: "123456" });
   assert.equal(p.mode, "hardware");

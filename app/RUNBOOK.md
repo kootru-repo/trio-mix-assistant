@@ -298,7 +298,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--diagnose` | run the built-in checks (§1.1), print the report and exit; read-only |
 | `--rehearse` | on its own or with `--diagnose`: use `show.conf` in emulate mode whatever `MODE` says (the emulated console, with its built-in audio feed unless `AUTO=yes`; the hardware-only keys such as `AUDIO_DEVICE` are not used) |
 | `--trace-osc` | with `--emulate`, print every OSC address a mixer app asks the emulated desk for |
-| `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `autofoh_pilot.json`, a 13-input rig plus a measurement mic and a stage mic, so a 15-input device, in the `templates` folder beside `show.conf`; give the full path); else the built‑in 8‑ch trio |
+| `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `pilot_13_input.json`, a 13-input rig plus a measurement mic and a stage mic, so a 15-input device, in the `templates` folder beside `show.conf`; give the full path); else the built‑in 8‑ch trio |
 | `--ableset-port <p>` | listen for AbleSet song/section OSC → auto scene recall |
 | `--ableset-from <ip>` | accept AbleSet messages only from this address (default: the first computer that sends them) |
 | `--no-show-clock` | disable the simulated show clock (simulation and `--emulate`) |
@@ -313,10 +313,9 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--trust` | serve a cert signed by a local root CA (implies `--https`). Install the printed root once per device → a fully‑trusted, **warning‑free** https connection |
 | `--host <ip>` / `--port <n>` | bind address / port (default 8770) |
 
-Default (no flags) = the setup in `show.conf`: **simulation** on `https://127.0.0.1:8770/` as
-shipped (`HTTPS=yes`; accept the certificate warning once, or set `HTTPS=no`). Started with any
-flag other than `--diagnose`, `--list-devices` or `--rehearse` (your `show.conf` in emulate mode), the app ignores `show.conf`; simulation is
-then on `http://127.0.0.1:8770/`.
+Default (no flags) = the setup in `show.conf`: **simulation** on `http://127.0.0.1:8770/` as
+shipped (`LAN=no`; `HTTPS=yes` takes effect once `LAN=yes`). Started with any
+flag other than `--diagnose`, `--list-devices` or `--rehearse` (your `show.conf` in emulate mode), the app ignores `show.conf`.
 
 ---
 

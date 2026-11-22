@@ -64,14 +64,14 @@ Nothing to install. The app carries everything it needs and starts in **simulati
    ./TrioMixAssistant
    ```
    If macOS refuses to open it, go to System Settings → Privacy & Security, click **Open Anyway**, and run the last line again.
-3. The dashboard opens in your browser (the address is also printed). The browser warns once about the app's self-signed certificate: choose to proceed. Toggle the jobs and watch the behaviour change. Press Ctrl+C in Terminal to stop.
+3. The dashboard opens in your browser (the address is also printed). Toggle the jobs and watch the behaviour change. Press Ctrl+C in Terminal to stop.
 4. **Test your microphone (optional, 10 seconds).** Run `./TrioMixAssistant --list-devices` and note your microphone's number, then run `./TrioMixAssistant --diagnose --audio-device <number>`. Click **Allow** if macOS asks to let Terminal use the microphone. It listens for eight seconds, plays no sound, and prints what passed. Nobody has confirmed listening on a Mac yet, so please paste the report (from the `=====` line down) into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues), pass or fail.
 
 ### Windows
 
 1. Download **[TrioMixAssistant-windows-x64.zip](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-windows-x64.zip)** and unzip it.
 2. Double-click **`TrioMixAssistant.exe`**. Windows warns that the app is unsigned: choose **More info**, then **Run anyway**.
-3. The dashboard opens in your browser. The browser warns once about the app's self-signed certificate: choose **Advanced**, then proceed. Toggle the jobs and watch the behaviour change.
+3. The dashboard opens in your browser. Toggle the jobs and watch the behaviour change.
 
 ### iPhone, iPad or Android
 
@@ -170,7 +170,7 @@ Open **http://127.0.0.1:8770/**.
 
 The commands below are for the downloaded app on a Mac. On Windows, type `.\TrioMixAssistant.exe` in place of `./TrioMixAssistant`.
 
-Started with no flags, the app uses `show.conf` (simulation until you change it). Started with flags, it ignores `show.conf`, so put everything on the command line; `--diagnose` and `--rehearse` (your `show.conf` in emulate mode), on their own or together, are the exceptions and still read `show.conf`; with any other flag added, `show.conf` is ignored. From source, in the **`app/ts`** folder, `npm start` is the no-flag form (`npm start -- --diagnose`, `npm start -- --rehearse`) and `npm run run --` takes any other flags.
+Started with no flags, the app uses `show.conf` (simulation until you change it). Started with flags, it ignores `show.conf`, so put everything on the command line; `--diagnose` and `--rehearse` (your `show.conf` in emulate mode), on their own or together, are the exceptions and still read `show.conf`. Add any other flag to `--diagnose` and `show.conf` is ignored; `--rehearse` cannot be combined with other flags (use `--emulate` with flags instead). From source, in the **`app/ts`** folder, `npm start` is the no-flag form (`npm start -- --diagnose`, `npm start -- --rehearse`) and `npm run run --` takes any other flags.
 
 ### Run modes
 
