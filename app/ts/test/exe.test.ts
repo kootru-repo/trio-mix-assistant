@@ -130,8 +130,12 @@ test("first run copies the default settings and never overwrites the user's own"
     assert.equal(readFileSync(join(home, "show.conf"), "utf8"), "MODE=sim\n");
     assert.ok(existsSync(join(home, "templates", "set.json")));
     writeFileSync(join(home, "show.conf"), "MODE=hardware\n");
+    writeFileSync(join(home, "templates", "set.json"), '{"mine":1}');
+    writeFileSync(join(root, "templates", "added.json"), "{}");
     boot.seedHome(home, root);
     assert.equal(readFileSync(join(home, "show.conf"), "utf8"), "MODE=hardware\n");
+    assert.equal(readFileSync(join(home, "templates", "set.json"), "utf8"), '{"mine":1}');
+    assert.ok(existsSync(join(home, "templates", "added.json")));
   }));
 
 test("experimental-feature warnings are silenced and every other warning still gets through", () => {

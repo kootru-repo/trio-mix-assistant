@@ -98,7 +98,7 @@ function seedHome(home: string, root: string): void {
   for (const name of SEED_DIRS) {
     const from = nodePath.join(root, name);
     const to = nodePath.join(home, name);
-    if (nodeFs.existsSync(from) && !nodeFs.existsSync(to)) nodeFs.cpSync(from, to, { recursive: true });
+    if (nodeFs.existsSync(from)) nodeFs.cpSync(from, to, { recursive: true, force: false, errorOnExist: false });
   }
 }
 
