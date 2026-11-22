@@ -70,6 +70,9 @@ move it on the console and confirm the value the app reports matches.
 ## 2. `/meters` ingestion + fader reconciliation
 - [ ] Start the app in hardware mode; in the sniffer confirm the console is sending
       `/meters/1` blobs to UDP 10024 after the app's `/batchsubscribe` + `/xremote`.
+      The app sends those requests from UDP 10024 too, because the console replies to
+      the port a request came from. If the sniffer shows them leaving from another
+      port, another program was holding 10024 when the app started.
 - [ ] Confirm `decodeMeterBlob` (in `oscwire.ts`) produces sane values (0..1). If the count
       or float layout is off for your firmware, adjust `decodeMeterBlob`.
 - [ ] Move a fader **on the console**; confirm the app log shows

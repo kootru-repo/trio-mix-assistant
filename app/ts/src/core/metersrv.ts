@@ -1,5 +1,6 @@
 import { C } from "./config.ts";
 import { faderToDb } from "./console.ts";
+import type { DatagramSink } from "./console.ts";
 import { argFloat } from "./oscargs.ts";
 import { parseInteger } from "./util.ts";
 import { decodeMeterBlob, decodePacket } from "./oscwire.ts";
@@ -81,6 +82,18 @@ export class MeterReceiver {
     }
   }
 
+  send(data: Uint8Array, to: Peer): boolean {
+    const ep = this.endpoint;
+    if (ep === null) return false;
+    try {
+      ep.send(data, to);
+    } catch (e) {
+      this.lastError = e;
+      return false;
+    }
+    return true;
+  }
+
   start(): Promise<void> {
     const gen = ++this.generation;
     const run = this.pending.then(() => this.bindFor(gen));
@@ -113,5 +126,29 @@ export class MeterReceiver {
         this.lastError = e;
       }
     }
+  }
+}
+
+export class SharedPortSink implements DatagramSink {
+  private readonly rx: MeterReceiver;
+  private readonly target: Peer;
+  private readonly fallback: DatagramSink;
+
+  constructor(rx: MeterReceiver, target: Peer, fallback: DatagramSink) {
+    this.rx = rx;
+    this.target = target;
+    this.fallback = fallback;
+  }
+
+  get failures(): number {
+    return this.fallback.failures ?? 0;
+  }
+
+  send(data: Uint8Array): void {
+    if (!this.rx.send(data, this.target)) this.fallback.send(data);
+  }
+
+  close(): void {
+    this.fallback.close();
   }
 }

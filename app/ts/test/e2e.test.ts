@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import dgram from "node:dgram";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { C } from "../src/core/config.ts";
+import { decodePacket, encodeMessage, encodeMeterBlob, oscBlob } from "../src/core/oscwire.ts";
 import { withEmulatorPorts } from "./emulatorports.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -174,3 +177,41 @@ test("a template with a malformed channel spec is reported as a show template er
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("the app hears a console that replies only to the port the request came from, as a real one does", () =>
+  withEmulatorPorts(async () => {
+    const ports = new Set<number>();
+    const asked = new Set<string>();
+    const desk = dgram.createSocket("udp4");
+    desk.on("message", (data, from) => {
+      ports.add(from.port);
+      for (const m of decodePacket(new Uint8Array(data))) {
+        asked.add(m.address);
+        if (m.address !== "/batchsubscribe") continue;
+        for (let i = 0; i < 5; i++) desk.send(encodeMessage("/meters/1", [oscBlob(encodeMeterBlob([0.1, 0.2, 0.3, 0.4]))]), from.port, from.address);
+      }
+    });
+    await new Promise<void>((resolve, reject) => {
+      desk.once("error", reject);
+      desk.bind(C.CONSOLE_PORT, "127.0.0.1", () => resolve());
+    });
+    const port = await freePort();
+    let app: Running | null = null;
+    try {
+      app = await launch(["--hardware", "--console-ip", "127.0.0.1", "--port", String(port), "--session-db", "off"]);
+      const base = `http://127.0.0.1:${port}`;
+      let snap: any = null;
+      for (let i = 0; i < 40; i++) {
+        snap = JSON.parse((await get(base, "/state")).body);
+        if (snap.console.connected) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      assert.ok(snap.console.connected, "the console's replies must reach the app");
+      assert.equal(snap.console.meters, 4);
+      assert.ok(asked.has("/batchsubscribe") && asked.has("/xremote"));
+      assert.deepEqual([...ports], [C.LOCAL_PORT]);
+    } finally {
+      if (app !== null) await app.stop();
+      await new Promise<void>((resolve) => desk.close(() => resolve()));
+    }
+  }));

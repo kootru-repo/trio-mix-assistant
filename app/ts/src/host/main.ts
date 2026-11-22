@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { C, applyChannelMap, autoChannelMap } from "../core/config.ts";
 import type { Clock } from "../core/clock.ts";
-import { ConsoleBase, OscConsole } from "../core/console.ts";
+import { OscConsole } from "../core/console.ts";
 import type { AudioInputFactory, RankedInput } from "../core/devicecapture.ts";
 import { autodetectInputs, listAudioDevices, parseChannelMap, InvalidArgumentError } from "../core/devicecapture.ts";
 import { RemoteCapture } from "../core/capturelink.ts";
@@ -13,7 +13,7 @@ import { buildReport, checkLines, footerLines, headerLines } from "../core/diagn
 import type { AudioFacts, ConsoleFacts, DiagFacts } from "../core/diagnostics.ts";
 import { EmulatedDesk } from "../core/emulator.ts";
 import { Engine } from "../core/engine/index.ts";
-import { MeterReceiver } from "../core/metersrv.ts";
+import { MeterReceiver, SharedPortSink } from "../core/metersrv.ts";
 import { fixed } from "../core/numfmt.ts";
 import { qrAscii, qrEncode } from "../core/qr.ts";
 import { AbleSetReceiver, SimShowClock } from "../core/showclock.ts";
@@ -196,13 +196,21 @@ const engineTick = (): number => C.BLOCK / C.SAMPLE_RATE;
 
 const WILDCARD_HOSTS = ["0.0.0.0", "::"];
 
-function wireMeters(engine: Engine, io: Io, ip: string, allowFrom: string | null): void {
-  engine.meterRx = new MeterReceiver(io.udp, {
-    onFader: (ch, db) => engine.reconcileFader(ch, db),
-    onMeters: (vals) => engine.setConsoleMeters(vals),
-    ip,
-    allowFrom,
-  });
+interface ConsoleLink {
+  con: OscConsole;
+  rx: MeterReceiver;
+}
+
+function consoleLink(io: Io, consoleIp: string, listenIp: string, allowFrom: string | null): ConsoleLink {
+  const rx = new MeterReceiver(io.udp, { ip: listenIp, allowFrom });
+  const sink = new SharedPortSink(rx, { host: consoleIp, port: C.CONSOLE_PORT }, new UdpSink(consoleIp, C.CONSOLE_PORT));
+  return { con: new OscConsole(sink, { clock: io.clock, ip: consoleIp }), rx };
+}
+
+function wireMeters(engine: Engine, rx: MeterReceiver): void {
+  rx.onFader = (ch, db) => engine.reconcileFader(ch, db);
+  rx.onMeters = (vals) => engine.setConsoleMeters(vals);
+  engine.meterRx = rx;
 }
 
 function buildEmulated(
@@ -219,7 +227,7 @@ function buildEmulated(
     onTrace: args.traceOsc ? (l) => io.out(l) : null,
   });
   for (const s of template.songs) if (s.scene !== null) emu.sceneNames.set(s.scene, s.name);
-  const con = new OscConsole(new UdpSink("127.0.0.1", C.CONSOLE_PORT), { clock: io.clock, ip: "127.0.0.1" });
+  const { con, rx } = consoleLink(io, "127.0.0.1", "127.0.0.1", "127.0.0.1");
   let source: RemoteCapture;
   if (auto !== null) {
     source = auto;
@@ -230,7 +238,7 @@ function buildEmulated(
     source = new RemoteCapture({ connect: () => io.connect("timed"), clock: io.clock, stamp: threadStamp });
   }
   const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
-  wireMeters(engine, io, "127.0.0.1", "127.0.0.1");
+  wireMeters(engine, rx);
   if (!args.noShowClock) engine.showClock = new SimShowClock(template, io.clock, (s) => engine.onSongChange(s));
   return { engine, emu };
 }
@@ -251,11 +259,11 @@ function buildHardware(
   io: Io,
 ): Engine {
   const ip = args.consoleIp || C.CONSOLE_IP;
-  const con: ConsoleBase = new OscConsole(new UdpSink(ip, C.CONSOLE_PORT), { clock: io.clock, ip });
+  const { con, rx } = consoleLink(io, ip, "0.0.0.0", isIP(ip) !== 0 ? ip : null);
   let source: RemoteCapture | null = auto;
   if (source === null && args.audioDevice !== null) source = deviceSource(args, chanMap, io);
   const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
-  wireMeters(engine, io, "0.0.0.0", isIP(ip) !== 0 ? ip : null);
+  wireMeters(engine, rx);
   if (args.ablesetPort !== null) {
     engine.showClock = new AbleSetReceiver(io.udp, (s) => engine.onSongChange(s), "0.0.0.0", args.ablesetPort, args.ablesetFrom);
     io.out(
@@ -455,8 +463,8 @@ async function runDiagnose(args: Args, io: Io): Promise<number> {
         }
       }
       if (emuError === null) {
-        const con = new OscConsole(new UdpSink(ip, C.CONSOLE_PORT), { clock: io.clock, ip });
-        consoleProbe = new ConsoleProbe(io.udp, con, io.clock, args.emulate ? "127.0.0.1" : "0.0.0.0", isIP(ip) !== 0 ? ip : null);
+        const link = consoleLink(io, ip, args.emulate ? "127.0.0.1" : "0.0.0.0", isIP(ip) !== 0 ? ip : null);
+        consoleProbe = new ConsoleProbe(link.con, link.rx, io.clock);
         await consoleProbe.start();
       } else {
         consoleFacts = { emulated: true, address: ip, listening: false, listenError: emuError, windowS: 0, packets: 0, meters: 0 };

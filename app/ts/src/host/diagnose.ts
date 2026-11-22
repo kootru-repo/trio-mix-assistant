@@ -6,8 +6,7 @@ import type { Clock } from "../core/clock.ts";
 import { C } from "../core/config.ts";
 import type { ConsoleBase } from "../core/console.ts";
 import type { AudioInputFactory } from "../core/devicecapture.ts";
-import { MeterReceiver } from "../core/metersrv.ts";
-import type { UdpFactory } from "../core/transport.ts";
+import type { MeterReceiver } from "../core/metersrv.ts";
 import type { Args } from "./args.ts";
 
 export const BUILD_ENV = "TRIO_MIX_BUILD";
@@ -119,18 +118,14 @@ export class ConsoleProbe {
   private listenError: string | null = null;
   private t0 = 0;
 
-  constructor(udp: UdpFactory, con: ConsoleBase, clock: Clock, bindIp: string, allowFrom: string | null) {
+  constructor(con: ConsoleBase, rx: MeterReceiver, clock: Clock) {
     this.con = con;
     this.clock = clock;
-    this.rx = new MeterReceiver(udp, {
-      onFader: () => undefined,
-      onMeters: (vals) => {
-        this.packets += 1;
-        this.meters = vals.length;
-      },
-      ip: bindIp,
-      allowFrom,
-    });
+    this.rx = rx;
+    rx.onMeters = (vals) => {
+      this.packets += 1;
+      this.meters = vals.length;
+    };
   }
 
   async start(): Promise<void> {

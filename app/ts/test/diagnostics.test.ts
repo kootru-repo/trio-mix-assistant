@@ -18,7 +18,8 @@ import type { AudioFacts, Check, DiagFacts, DiagHost, DiagReport } from "../src/
 import { emptyFeatures } from "../src/core/dsp.ts";
 import { Engine } from "../src/core/engine/index.ts";
 import { MemNetwork } from "../src/core/memtransport.ts";
-import { decodePacket } from "../src/core/oscwire.ts";
+import { MeterReceiver, SharedPortSink } from "../src/core/metersrv.ts";
+import { decodePacket, encodeMessage, encodeMeterBlob, oscBlob } from "../src/core/oscwire.ts";
 import { parseCliArgs } from "../src/host/args.ts";
 import { NativeAudioInputFactory } from "../src/host/audiodevice.ts";
 import { captureThread } from "../src/host/capturethread.ts";
@@ -346,26 +347,48 @@ class RecordingSink implements DatagramSink {
   }
 }
 
-test("the console probe sends nothing but the meter subscription", async () => {
-  const clock = new ManualClock(100, 1_700_000_000);
-  const sink = new RecordingSink();
-  const net = new MemNetwork();
-  const probe = new ConsoleProbe(net, new OscConsole(sink, { clock, ip: "192.168.1.50" }), clock, "0.0.0.0", "192.168.1.50");
-  await probe.start();
-  clock.advance(8);
-  const f = probe.facts(false, "192.168.1.50");
-  probe.stop();
-  assert.deepEqual(sink.sent, ["/batchsubscribe", "/xremote"]);
-  assert.ok(sink.closed);
-  assert.deepEqual([f.listening, f.packets, f.windowS], [true, 0, 8]);
+const meterPacket = (): Uint8Array => encodeMessage("/meters/1", [oscBlob(encodeMeterBlob([0.1, 0.2, 0.3]))]);
 
+test("the console probe sends only the meter subscription, from the port it listens on, and hears the replies sent back there", async () => {
+  const clock = new ManualClock(100, 1_700_000_000);
+  const net = new MemNetwork();
+  const desk = await net.bind(C.CONSOLE_PORT, "0.0.0.0");
+  const seen: { address: string; port: number }[] = [];
+  desk.onMessage((data, from) => {
+    for (const m of decodePacket(data)) seen.push({ address: m.address, port: from.port });
+    desk.send(meterPacket(), from);
+  });
+  const rx = new MeterReceiver(net, { ip: "0.0.0.0" });
+  const fallback = new RecordingSink();
+  const con = new OscConsole(new SharedPortSink(rx, { host: "127.0.0.1", port: C.CONSOLE_PORT }, fallback), { clock, ip: "127.0.0.1" });
+  const probe = new ConsoleProbe(con, rx, clock);
+  await probe.start();
+  for (let i = 0; i < 4; i++) await net.settle();
+  clock.advance(8);
+  const f = probe.facts(false, "127.0.0.1");
+  probe.stop();
+  assert.deepEqual(seen, [
+    { address: "/batchsubscribe", port: C.LOCAL_PORT },
+    { address: "/xremote", port: C.LOCAL_PORT },
+  ]);
+  assert.deepEqual(fallback.sent, []);
+  assert.ok(fallback.closed);
+  assert.deepEqual([f.listening, f.packets, f.meters, f.windowS], [true, 2, 3, 8]);
+});
+
+test("a probe that cannot listen sends nothing, and the console link falls back to a plain socket until it is listening", async () => {
+  const clock = new ManualClock(100, 1_700_000_000);
   const blocked = new MemNetwork();
   await blocked.bind(C.LOCAL_PORT, "0.0.0.0");
-  const second = new RecordingSink();
-  const busy = new ConsoleProbe(blocked, new OscConsole(second, { clock, ip: "192.168.1.50" }), clock, "0.0.0.0", null);
+  const rx = new MeterReceiver(blocked, { ip: "0.0.0.0" });
+  const fallback = new RecordingSink();
+  const con = new OscConsole(new SharedPortSink(rx, { host: "127.0.0.1", port: C.CONSOLE_PORT }, fallback), { clock, ip: "127.0.0.1" });
+  const busy = new ConsoleProbe(con, rx, clock);
   await busy.start();
-  assert.equal(busy.facts(false, "192.168.1.50").listening, false);
-  assert.deepEqual(second.sent, []);
+  assert.equal(busy.facts(false, "127.0.0.1").listening, false);
+  assert.deepEqual(fallback.sent, []);
+  con.subscribeMeters();
+  assert.deepEqual(fallback.sent, ["/batchsubscribe", "/xremote"]);
   busy.stop();
 });
 
@@ -406,29 +429,40 @@ test("--diagnose against the built-in emulator hears the console feed", () =>
     assert.ok(!text.includes("246810"), text);
   }));
 
-test("--diagnose against a console only subscribes to meters, and reports a console that does not answer", () =>
+async function againstFakeConsole(answers: boolean): Promise<{ text: string; heard: { address: string; port: number }[] }> {
+  const heard: { address: string; port: number }[] = [];
+  const desk = dgram.createSocket("udp4");
+  desk.on("message", (data, from) => {
+    for (const m of decodePacket(new Uint8Array(data))) heard.push({ address: m.address, port: from.port });
+    if (answers) for (let i = 0; i < 5; i++) desk.send(meterPacket(), from.port, from.address);
+  });
+  await new Promise<void>((resolve, reject) => {
+    desk.once("error", reject);
+    desk.bind(C.CONSOLE_PORT, "127.0.0.1", () => resolve());
+  });
+  const lines: string[] = [];
+  try {
+    await run(["--diagnose", "--hardware", "--console-ip", "127.0.0.1"], testIo(lines, 1.0));
+  } finally {
+    await new Promise<void>((resolve) => desk.close(() => resolve()));
+  }
+  return { text: lines.join("\n"), heard };
+}
+
+test("--diagnose hears a console that replies to the sending port, as a real one does, and sends it nothing but the subscription", () =>
   withEmulatorPorts(async () => {
-    const heard: string[] = [];
-    const desk = dgram.createSocket("udp4");
-    desk.on("message", (data) => {
-      for (const m of decodePacket(new Uint8Array(data))) heard.push(m.address);
-    });
-    await new Promise<void>((resolve, reject) => {
-      desk.once("error", reject);
-      desk.bind(C.CONSOLE_PORT, "127.0.0.1", () => resolve());
-    });
-    const lines: string[] = [];
-    let code: number;
-    try {
-      code = await run(["--diagnose", "--hardware", "--console-ip", "127.0.0.1"], testIo(lines, 1.0));
-    } finally {
-      await new Promise<void>((resolve) => desk.close(() => resolve()));
-    }
-    const text = lines.join("\n");
-    assert.equal(code, 1, text);
-    assert.ok(text.includes("[FAIL] Console answers: no reply from 127.0.0.1"), text);
+    const { text, heard } = await againstFakeConsole(true);
+    assert.ok(/\[PASS\] Console answers: \d+ meter packets from 127\.0\.0\.1 \(3 meters each\)/.test(text), text);
     assert.ok(text.includes("[SKIP] Chosen input opens: no audio input is selected"), text);
-    assert.deepEqual([...new Set(heard)].sort(), ["/batchsubscribe", "/xremote"]);
+    assert.deepEqual([...new Set(heard.map((h) => h.address))].sort(), ["/batchsubscribe", "/xremote"]);
+    assert.deepEqual([...new Set(heard.map((h) => h.port))], [C.LOCAL_PORT]);
+  }));
+
+test("--diagnose reports a console that does not answer", () =>
+  withEmulatorPorts(async () => {
+    const { text, heard } = await againstFakeConsole(false);
+    assert.ok(text.includes("[FAIL] Console answers: no reply from 127.0.0.1"), text);
+    assert.ok(heard.length > 0);
   }));
 
 test("the launcher runs the checks for the show.conf setup instead of starting the show", async () => {
