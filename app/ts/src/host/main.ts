@@ -599,7 +599,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     for (const l of bannerLines({
       args,
       scheme,
-      ip,
+      ip: wildcard ? ip : null,
       altIps: allLanIps(ip).filter((a) => !args.trust || hostPermittedByCa(a)),
       caPath: join(io.layout.appDir, ".certs", "ca.pem"),
       qr,

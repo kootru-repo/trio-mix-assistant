@@ -26,8 +26,7 @@ network. Reports are especially welcome for anything that lets someone:
   network you fully trust.
 - Use `--https` with a PIN. Without it the PIN travels unencrypted on the
   network.
-- The HTTPS certificate is self-signed, so browsers show a warning the first
-  time.
+- The HTTPS certificate is self-signed, so browsers show a warning.
 - The session log (`sessions.db`) is stored unencrypted on the computer that
   runs the app.
 - Five wrong PIN guesses lock an address out for 30 seconds, and each further
