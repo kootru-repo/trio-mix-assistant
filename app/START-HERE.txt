@@ -7,6 +7,13 @@ WHAT THIS IS
   nudges the desk within hard limits. The console is always the source of
   truth and a human can take over instantly.
 
+EASIER WAY
+  There is a single-file app that needs no Node.js and can listen to live
+  audio. Download it for Windows or Mac:
+    https://github.com/kootru-repo/trio-mix-assistant/releases/latest
+  This folder is the Node.js version. It does the same job, without live
+  listening.
+
 WHAT YOU NEED
   - This folder (copy it to the FOH laptop's own disk; the session log does not work on a shared drive).
   - Node.js 22.13 or newer:  https://nodejs.org/
@@ -52,8 +59,9 @@ WHAT YOU NEED
 ------------------------------------------------------------
   Listening to the console's USB audio needs an optional native module
   (naudiodon2) that is not in this folder. The single-file app carries it,
-  on Windows and on a Mac (steps: "On a Mac" in README.md).
-  It is not yet verified on a console's multichannel USB feed.
+  on Windows and on a Mac (see EASIER WAY above).
+  Listening on a Mac and on a console's multichannel USB feed has not
+  been tried yet.
   Without it the app still runs rehearsal, simulation and manual mixing.
 
 ------------------------------------------------------------

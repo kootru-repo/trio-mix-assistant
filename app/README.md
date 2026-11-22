@@ -30,7 +30,10 @@ See the repo **[README](../README.md)** (overview, screenshots, setup), the
 **[design infographic](../docs/mix-assistant-design.html)**, **`HARDWARE_SETUP.md`**
 (optimal listening rig + system requirements: what to buy & how to wire it),
 **`RUNBOOK.md`** (show-day guide, Windows & macOS) and **`HARDWARE_BRINGUP.md`**
-(one-time OSC-validation checklist).
+(one-time OSC-validation checklist). This file is the developer reference. To
+just run the app, download it from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest); what has and has
+not been tried on real hardware is in one table,
+[What has been tested](../README.md#tested).
 
 ![Dashboard](../docs/screenshots/dashboard-full.png)
 
@@ -71,9 +74,8 @@ and open the dashboard, or pass the same flags as `npm run run --`
   them beside the executable instead, put a `show.conf` next to it.
 - **Live listening is inside.** The build packs the native audio binding
   (from `naudiodon2`, with PortAudio) and stops with an error if it is missing or does
-  not load, so `npm install` on the build computer needs a C++ compiler. It has
-  captured from one- and two-channel Windows inputs; a console's multichannel
-  USB feed has not been tried yet. The module offers MME, DirectSound, WASAPI
+  not load, so `npm install` on the build computer needs a C++ compiler. The
+  module offers MME, DirectSound, WASAPI
   and WDM-KS devices, not ASIO. Run `TrioMixAssistant.exe --list-devices` with
   the console plugged in and look for an entry with enough inputs at 48000 Hz.
   Pick the **WASAPI** entry. In testing a WDM-KS entry stalled every few
@@ -82,9 +84,7 @@ and open the dashboard, or pass the same flags as `npm run run --`
 - **The Node.js runtime is frozen at build time.** Rebuild after a Node.js
   security release.
 - **Ship `NODE-LICENSE.txt` with it.** The build is for the platform and
-  processor it runs on. The Windows build has captured from real inputs. The
-  macOS builds are started and checked on every push, on computers with no audio
-  hardware, so capture on a Mac has not been tried yet.
+  processor it runs on. See [What has been tested](../README.md#tested) for each platform.
 
 #### On a Mac
 
@@ -140,7 +140,7 @@ npm run run -- --hardware --console-ip 192.168.1.50 --list-devices   # find your
 npm run run -- --hardware --console-ip 192.168.1.50 --audio-device 2 --lan --pin 123456
 ```
 
-Live audio input uses the optional native module `naudiodon2`, which `npm install` compiles when a C++ compiler is present. It has captured from one- and two-channel Windows inputs, and not yet from a console's multichannel USB feed.
+Live audio input uses the optional native module `naudiodon2`, which `npm install` compiles when a C++ compiler is present. See [What has been tested](../README.md#tested).
 
 The **listening half** is wired: `--audio-device` opens a multichannel native audio
 (WASAPI, WDM-KS, DirectSound or MME; Core Audio on a Mac) stream carrying the console's USB/card feed + the FOH measurement

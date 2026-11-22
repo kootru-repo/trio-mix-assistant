@@ -1,13 +1,17 @@
 # Runbook: Acoustic Trio Mix‑Assistant (Windows & macOS)
 
 A practical, show‑day operating guide for the FOH laptop. The app is the same on
-both OSes (Node.js, no extra packages); only the shell syntax
+both OSes (one downloaded file, nothing to install); only the shell syntax
 and a few OS permissions differ. Where a step is identical, it's written once;
 where it differs, there's a **Windows** and a **macOS** version side by side.
 
 > Conventions: lines starting `PS>` are **Windows PowerShell**; lines starting
 > `$` are **macOS Terminal** (zsh/bash). PowerShell continues lines with a
 > backtick `` ` ``; macOS continues with a backslash `\`.
+>
+> Commands use the downloaded app and are typed in a terminal opened in the app's
+> folder. Running from source instead? Replace `.\TrioMixAssistant.exe` or `./TrioMixAssistant` with
+> `npm run run --` in the `app/ts` folder.
 
 ---
 
@@ -26,16 +30,38 @@ where it differs, there's a **Windows** and a **macOS** version side by side.
 
 ## 1. Install (one time per laptop)
 
-You need Node.js 22.13+ (https://nodejs.org/; macOS: `brew install node`).
+Download the app for the laptop from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest). It carries
+its own runtime and the audio module, so nothing else is installed.
 
+- **Windows:** unzip `TrioMixAssistant-windows-x64.zip` into a folder on the laptop's
+  own disk. The first start shows a SmartScreen warning: **More info → Run anyway**.
+- **macOS:** pick `arm64` (Apple Silicon) or `x64` (Intel), then:
+  ```bash
+  $ mkdir ~/TrioMix && cd ~/TrioMix
+  $ tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
+  ```
+  If macOS refuses to open it: System Settings → Privacy & Security → **Open Anyway**.
+
+Check it starts:
+```powershell
+PS> .\TrioMixAssistant.exe --list-devices
 ```
-$ node --version        # 22.13 or higher
+```bash
+$ ./TrioMixAssistant --list-devices
 ```
 
-> Live audio input (the console's USB feed and the measurement mic) needs the optional native
-> audio module `naudiodon2`. The single-file app carries it; the zip package does not. It is
-> verified on one- and two-channel Windows inputs, not yet on a console's multichannel USB feed.
-> Simulation, rehearsal and manual mixing need nothing extra.
+Settings and logs live in `%LOCALAPPDATA%\TrioMixAssistant` (Windows) or
+`~/Library/Application Support/TrioMixAssistant` (macOS); the folder is printed at
+every start.
+
+> **Before you rely on it:** listening on a Mac and capture from a console's
+> multichannel USB feed have not been tried yet. See
+> [What has been tested](../README.md#tested).
+>
+> **From source** (developers): Node.js 22.13+ and `npm install` in `app/ts`. Live
+> listening then needs the native module `naudiodon2`, which `npm install` compiles
+> when a C++ compiler is present. The zip package made by `npm run package` does not
+> carry it.
 
 ---
 
@@ -49,10 +75,10 @@ Do this with the **PA off or at low volume**, hand on the console.
 
 ### 2.2 Find the audio interface
 ```powershell
-PS> npm run run -- --hardware --console-ip 192.168.1.50 --list-devices
+PS> .\TrioMixAssistant.exe --hardware --console-ip 192.168.1.50 --list-devices
 ```
 ```bash
-$ npm run run -- --hardware --console-ip 192.168.1.50 --list-devices
+$ ./TrioMixAssistant --hardware --console-ip 192.168.1.50 --list-devices
 ```
 Note the **index** of the input device carrying the console's USB/card return **and**
 your measurement mic.
@@ -79,7 +105,7 @@ confirm fader/gain/EQ scalings, the `/meters` decode, scene recall, and the chan
 map. Speak into the lead mic; the **lead** meter (not another) must move. This is the
 one step the emulator can't do for you. Done once per firmware.
 
-> Want to rehearse the whole flow *before* the gear arrives? `npm run run -- --emulate`
+> Want to rehearse the whole flow *before* the gear arrives? `TrioMixAssistant --emulate`
 > runs the identical stack against a built‑in desk emulator (see §8).
 
 ---
@@ -88,20 +114,20 @@ one step the emulator can't do for you. Done once per firmware.
 
 ### Windows
 ```powershell
-PS> npm run run -- --hardware `
+PS> .\TrioMixAssistant.exe --hardware `
       --console-ip 192.168.1.50 `
       --audio-device 2 `
-      --template ../myset.json `
+      --template myset.json `
       --venue "The Cellar" `
       --lan --https
 ```
 
 ### macOS
 ```bash
-$ npm run run -- --hardware \
+$ ./TrioMixAssistant --hardware \
       --console-ip 192.168.1.50 \
       --audio-device 2 \
-      --template ../myset.json \
+      --template myset.json \
       --venue "The Cellar" \
       --lan --https
 ```
@@ -208,10 +234,10 @@ Launched with `--lan` (and ideally `--https`):
 
 Practice the exact launch + dashboard with zero risk:
 ```powershell
-PS> npm run run -- --emulate --lan --pin 123456 --https
+PS> .\TrioMixAssistant.exe --emulate --lan --pin 123456 --https
 ```
 ```bash
-$ npm run run -- --emulate --lan --pin 123456 --https
+$ ./TrioMixAssistant --emulate --lan --pin 123456 --https
 ```
 This runs the **full real stack** (OSC over localhost) against a built‑in
 protocol‑faithful desk emulator + a timed audio feed: meters stream, feedback gets
@@ -272,7 +298,7 @@ The dashboard now names most of these in an **ALERT banner**; this table gives t
 | **Fader jumps / wrong EQ band on the real desk** | OSC scaling mismatch for your firmware → `HARDWARE_BRINGUP.md` §1; fix the constant in `ts/src/core/console.ts`. |
 | **Wrong meter moves when you play an input** | Channel‑map mismatch. The startup log shows `listening on '<device>'`; verify the patch order (§2.2) and the channel map. |
 | **`node` not found** | Install Node.js 22.13+ from nodejs.org, then open a new terminal. |
-| **"live audio input needs the optional native module"** | Use the single-file app (it carries the module), install `naudiodon2` next to the app, or run without `--audio-device`. |
+| **"live audio input needs the optional native module"** | Only when running from source or the zip package: use the downloaded app (it carries the module), run `npm install` with a C++ compiler present, or run without `--audio-device`. |
 | **Audio device index changed between shows** | Indexes shift when devices are added/removed. The startup log prints the resolved name; prefer the device **name** in `show.conf` over the index. |
 
 ---

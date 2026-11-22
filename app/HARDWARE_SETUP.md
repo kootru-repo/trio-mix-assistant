@@ -9,7 +9,7 @@ other phases:
 - **`RUNBOOK.md`**: the show-day operating guide (launch commands, dashboard, tablet).
 
 > **TL;DR: the optimal rig**
-> **Console X-USB interface as the single 48 kHz capture device (WASAPI/ASIO) + an
+> **Console X-USB interface as the single 48 kHz capture device (WASAPI on Windows, Core Audio on a Mac) + an
 > analog measurement mic on a spare desk channel + wired Ethernet for OSC control.**
 > No outboard audio interface, no second USB mic, no sample-rate conversion.
 
@@ -25,7 +25,7 @@ recommendation below follows from them:
 | **One input device carries *all* channels** (console returns **and** the meas mic) | `DeviceCapture` opens a single stream, `channels = max(channel_map)+1` | Use the console's own multichannel USB. A *separate* USB meas mic needs an OS aggregate device. |
 | **48 kHz, float32** | `SAMPLE_RATE = 48000`; a 44.1 kHz-locked device is rejected with a clear message (no auto-resample) | Set the interface to 48 kHz; run the whole rig at 48 k. |
 | **Device column = console channel − 1** (default map) | the channel map, else `{ch: ch-1}` | Use the console's default X-USB routing (card sends = inputs 1–N in order), or override with `--channel-map`. |
-| **Low-latency host API preferred** | ranker rewards ASIO (+4) > WASAPI / Core Audio / ALSA / JACK (+3), penalizes built-in mic arrays | Windows → **WASAPI** (or ASIO if your PortAudio build has it); macOS → **Core Audio**. |
+| **Low-latency host API preferred** | ranker rewards ASIO (+4) > WASAPI / Core Audio / ALSA / JACK (+3), penalizes built-in mic arrays | Windows → **WASAPI** (the bundled audio module has no ASIO); macOS → **Core Audio**. |
 
 ---
 
@@ -118,8 +118,7 @@ round-trip and hardware for no benefit over the desk's own USB, so prefer X-USB.
 ## 5. System requirements (summary)
 
 - **OS:** Windows 10/11 or macOS 12+.
-- **Node.js:** 22.13+.
-- **Packages:** none. Live audio input needs the optional native module `naudiodon2` (carried inside the single-file app; verified on one- and two-channel Windows inputs, not yet on the console's multichannel USB feed; no ASIO).
+- **Software:** the single-file app from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest); nothing to install. From source: Node.js 22.13+ and the native audio module `naudiodon2`.
 - **Audio:** one input device exposing all channels at **48 kHz** (console X-USB).
 - **Control:** IP reachability to the console on **UDP 10023/10024** (wired).
 
@@ -130,10 +129,10 @@ round-trip and hardware for no benefit over the desk's own USB, so prefer X-USB.
 The software fully supports the setup above and is hardened against the field failure
 modes (unplug, silence, xrun, busy device, wrong channel count, quiet mic). **But the
 happy path of real multichannel console-USB capture has not yet been run against an
-actual M32C**. All multichannel testing to date is synthetic/emulated or a single USB
-mic. Two things need a bench pass with the real desk to call "validated":
+actual M32C**, and listening on a Mac has not been tried at all. All multichannel
+testing to date is synthetic/emulated or a one- or two-channel Windows input. Two things need a bench pass with the real desk to call "validated":
 
-1. that the X-USB interface exposes N input channels under WASAPI/ASIO, and
+1. that the X-USB interface exposes N input channels under WASAPI (or Core Audio), and
 2. that **USB column order == console channel order** (else set `--channel-map`).
 
 That bench pass is exactly **`HARDWARE_BRINGUP.md` §3** (audio capture). The OSC

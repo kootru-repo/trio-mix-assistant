@@ -33,7 +33,7 @@ real bytes and the test suite becomes a true regression gate.
 ---
 
 ## 0. Prep
-- [ ] Node.js 22.13+ installed, and the optional native audio module `naudiodon2` if you want live audio input — or the single-file app, which carries both (audio is verified on one- and two-channel Windows inputs, not yet on the console's multichannel USB feed)
+- [ ] The single-file app downloaded from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest) (it carries the runtime and the audio module). From source instead: Node.js 22.13+ and the native audio module `naudiodon2`. Capture from the console's multichannel USB feed has not been tried yet; §3 below is that test.
 - [ ] Console and laptop on the same wired/Wi-Fi LAN; note the console IP.
 - [ ] A sniffer ready: Wireshark (UDP 10023/10024) or the X32 OSC monitor / `OSC` debug.
 
