@@ -1230,7 +1230,7 @@ test("https serves the dashboard to a modern client and refuses RSA key exchange
     assert.equal(JSON.parse(body).channels.length, 8);
     const negotiate = (opts: tls.ConnectionOptions): Promise<string> =>
       new Promise((resolve) => {
-        const c = tls.connect({ host: "127.0.0.1", port: r.port, rejectUnauthorized: false, ...opts }, () => {
+        const c = tls.connect({ host: "127.0.0.1", port: r.port, ca: cert, ...opts }, () => {
           const name = c.getCipher().name;
           c.destroy();
           resolve(name);
