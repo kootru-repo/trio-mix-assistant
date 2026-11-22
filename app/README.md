@@ -317,7 +317,7 @@ npm test
 ```
 
 The tests cover OSC scaling round-trips + guardrail clamps, DSP/detection,
-the six decision loops (incl. that a steady sung note is *not* notched and a
+the six decision loops (incl. that a steady tone is *not* notched and a
 rising ring *is*), calibration, the HTTP/SSE/WebSocket endpoints, the
 **hardware** path (capture buffering/mapping/meas with an injected stream, meter
 blob decode, console-fader reconciliation, dead-stream silence + recovery,

@@ -71,7 +71,7 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
 
 ## 2. `/meters` ingestion + fader reconciliation
 - [ ] Start the app in hardware mode; in the sniffer confirm the console is sending
-      `/meters/1` blobs to UDP 10024 after the app's `/batchsubscribe` + `/xremote`.
+      `/meters` (or `/meters/1`) blobs to UDP 10024 after the app's `/batchsubscribe` + `/xremote`.
       The app sends those requests from UDP 10024 too, because the console replies to
       the port a request came from. If the sniffer shows them leaving from another
       port, another program was holding 10024 when the app started.

@@ -155,7 +155,7 @@ Done:
 
 - **Emulator fidelity with Mixing Station.** Mixing Station discovers the emulated
   desk as *MixAssist*, syncs it, reads the scene list and shows live meters
-  (checked 2026-07-03; see `app/HARDWARE_BRINGUP.md`). `--trace-osc` prints every
+  (checked 2026-07-03; see `app/HARDWARE_BRINGUP.md`). `--trace-osc` prints each new
   address a mixer app asks for.
 - **Docs.** The README is written around Mixing Station, with X32-Edit and
   M32-Edit as other editors.

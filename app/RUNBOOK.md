@@ -262,7 +262,7 @@ Launched with `--lan` (and ideally `--https`):
 
 - Every decision is in **`sessions.db`** (SQLite), tagged with `--venue`. Over multiple
   shows at the same room this builds venue history (the basis for venue learning).
-- `--session-db off` disables logging; `--session-db path/to/file.db` (Windows: `path\to\file.db`) redirects it.
+- `--session-db off` disables logging (and venue learning, which needs the log); `--session-db path/to/file.db` (Windows: `path\to\file.db`) redirects it.
 
 ---
 
@@ -314,7 +314,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 
 Default (no flags) = the setup in `show.conf`: **simulation** on `https://127.0.0.1:8770/` as
 shipped (`HTTPS=yes`; accept the certificate warning once, or set `HTTPS=no`). Started with any
-flag other than `--diagnose` or `--list-devices`, the app ignores `show.conf`; simulation is
+flag other than `--diagnose`, `--rehearse` or `--list-devices`, the app ignores `show.conf`; simulation is
 then on `http://127.0.0.1:8770/`.
 
 ---

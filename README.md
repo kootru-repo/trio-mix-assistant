@@ -186,7 +186,7 @@ Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets +
 ### On the dashboard
 - **AUTOMATIC JOBS**: toggle Feedback notch, Clip protection, Vocal ride, Balance hold, Phase / polarity and Vocal unmask. Feedback notch and Clip protection are on at start.
 - **MIXING SURFACE**: drag faders, tap **M** to mute; a human move makes auto‑ride yield on that channel.
-- **Pink‑noise calibration** (Settings → *Run calibration*) measures the room, parks gentle cuts on the worst peaks, and builds a feedback watch‑list. The result shows as an octave‑band chart with ▲ watch / ▼ cut chips.
+- **Pink‑noise calibration** (Settings → *Run calibration*) measures the room, parks gentle cuts on the peaks that stand out, and builds a feedback watch‑list. The result shows as an octave‑band chart with ▲ watch / ▼ cut chips.
 - **Scenes**: recall console scenes; each song in the setlist recalls its scene automatically (on a real console this also needs AbleSet, `--ableset-port`).
 - **COACH**: flips the assistant from *acting* to *advising*. It stops touching the console and lists every move it would make (feedback notch, clip trim, vocal ride, calibration, even scene recall) as a plain manual instruction in a **COACH — MANUAL MOVES** panel + the log, for you to dial in by hand. Only your own manual moves act.
 - **TAKEOVER**: mutes the main and holds all jobs so a human always wins.
@@ -263,7 +263,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 | **Vocal ride** | advisory | Hold the lead vocal's *output* at a target as the singer's input drifts (deadband + step‑limit + smooth ramp). |
 | **Balance hold** | advisory | Snapshot the bass/keys balance and hold it from wandering. |
 | **Phase / polarity** | advisory | Cross‑correlate paired mics (mic + DI, two mics on one source): out of polarity → **auto‑flip** the channel Φ (or advise it in coach mode); flag comb‑filtering time offsets. Opt‑in via *phase pairs*. |
-| **Vocal unmask** | advisory | Sidechained to the lead vocal: when it's present, **dynamically duck** each instrument's ~3 kHz band a few dB so the vocal cuts through, then release when it pauses (fast attack / slow release). Coach mode advises a static dip instead. |
+| **Vocal unmask** | advisory | Sidechained to the lead vocal: when it's present, **dynamically duck** the ~3 kHz band on the other channels (all but the lead vocal, measurement mic and stage mic) a few dB so the vocal cuts through, then release when it pauses (fast attack / slow release). Coach mode advises a static dip instead. |
 | **Pink‑noise calibration** | pre‑show | Measure the room, cut up to four octave bands that stand out (a fifth or sixth gets a small dip), seed the watch-list. |
 
 **Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends every automatic move, covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
