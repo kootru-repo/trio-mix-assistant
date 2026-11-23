@@ -7,7 +7,7 @@ import { ConsoleBase, dbToFader, faderToDb, freqToEqParam, qToParam } from "./co
 import type { ChannelFeatures, PhaseRelation, Samples } from "./dsp.ts";
 import { Engine } from "./engine/index.ts";
 import { chFromFaderAddr } from "./metersrv.ts";
-import { fixed, roundTo } from "./numfmt.ts";
+import { fixed } from "./numfmt.ts";
 import { argFloat, argText } from "./oscargs.ts";
 import { encodeMessage, oscInt } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
@@ -844,7 +844,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       must(now > start, "a channel that dropped was not raised");
       await desk.expect("/ch/05/mix/fader", dbToFader(now));
       j.setEnabled("balance", false);
-      return `channel 5 fader ${fixed(start, 1)} → ${fixed(now, 1)} dB`;
+      return `channel 5 fader raised to ${fixed(now, 1)} dB`;
     });
     await S("job_phase", "Phase job: an out-of-polarity pair is flipped", ["job:phase"], async () => {
       j.setEnabled("phase", true);
@@ -865,7 +865,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       must(held !== null && held < 0.5 - 1 / 30, `the dip did not reach the console (${held === null ? "no answer" : fixed(held, 3)})`);
       j.setEnabled("unmask", false);
       await desk.expect(addr, 0.5);
-      return `dipped ${fixed(roundTo(applied ?? 0, 1), 1)} dB at ${fixed(C.UNMASK_FREQ, 0)} Hz, then released`;
+      return "channel 2 EQ band dipped by more than 1 dB while the lead vocal was up, then returned to flat";
     });
 
     const src = new VetSource();
