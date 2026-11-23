@@ -20,6 +20,7 @@ export function chFromFaderAddr(addr: string): number | null {
 export interface MeterReceiverOptions {
   onFader?: ((ch: number, db: number) => void) | null;
   onMeters?: ((values: number[]) => void) | null;
+  onMessage?: ((address: string, args: readonly OscArg[]) => void) | null;
   ip?: string;
   port?: number;
   allowFrom?: string | null;
@@ -28,6 +29,7 @@ export interface MeterReceiverOptions {
 export class MeterReceiver {
   onFader: ((ch: number, db: number) => void) | null;
   onMeters: ((values: number[]) => void) | null;
+  onMessage: ((address: string, args: readonly OscArg[]) => void) | null;
   ip: string;
   port: number;
   running = false;
@@ -43,6 +45,7 @@ export class MeterReceiver {
     this.udp = udp;
     this.onFader = opts.onFader ?? null;
     this.onMeters = opts.onMeters ?? null;
+    this.onMessage = opts.onMessage ?? null;
     this.ip = opts.ip ?? "0.0.0.0";
     this.port = opts.port ?? C.LOCAL_PORT;
     const from = opts.allowFrom ?? null;
@@ -74,6 +77,7 @@ export class MeterReceiver {
     }
     for (const m of decodePacket(data)) {
       try {
+        if (this.onMessage !== null && this.running) this.onMessage(m.address, m.args);
         if (m.address.startsWith("/meters")) this.handleMeters(m.args);
         else if (chFromFaderAddr(m.address) !== null) this.handleFader(m.address, m.args);
       } catch (e) {

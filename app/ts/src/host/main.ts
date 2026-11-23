@@ -38,6 +38,7 @@ import { allLanIps, ensureCert, ensureTrustedCert, hostPermittedByCa, tlsHosts }
 import { NodeUdpFactory } from "./udp.ts";
 import { UdpSink } from "./udpsink.ts";
 import { VenueStore } from "./venuestore.ts";
+import { runVet } from "./vet.ts";
 
 const AUTO_CANDIDATES = 6;
 const AUTO_DIGITAL_SILENCE_DB = -150;
@@ -522,6 +523,17 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     return 0;
   }
   if (args.diagnose) return runDiagnose(args, io);
+  if (args.vet) {
+    const chanMap = loadChannelMap(args, io);
+    const openSource =
+      args.audioDevice === null
+        ? null
+        : (): RemoteCapture => {
+            if (chanMap === null) fitMapToInput(args, io);
+            return deviceSource(args, chanMap, io);
+          };
+    return (await runVet(args, io, { openSource, lanIp })).code;
+  }
 
   const template = loadShowTemplate(args, io);
   const chanMap = loadChannelMap(args, io);

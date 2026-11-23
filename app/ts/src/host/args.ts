@@ -23,6 +23,12 @@ export interface Args {
   traceOsc: boolean;
   listDevices: boolean;
   diagnose: boolean;
+  vet: boolean;
+  vetChannel: number | null;
+  vetMain: boolean;
+  vetGain: boolean;
+  vetSound: boolean;
+  vetPhone: boolean;
   https: boolean;
   pin: string | null;
   trust: boolean;
@@ -43,6 +49,7 @@ export const USAGE = `usage: TrioMixAssistant [-h] [--host HOST] [--lan] [--port
            [--output-device OUTPUT_DEVICE] [--input-gain INPUT_GAIN]
            [--channel-map CHANNEL_MAP] [--auto] [--trace-osc] [--list-devices]
            [--diagnose]
+           [--vet] [--vet-channel N] [--vet-main] [--vet-gain] [--vet-sound] [--vet-phone]
            [--https] [--pin PIN] [--trust] [--insecure-open] [--template TEMPLATE]
            [--ableset-port ABLESET_PORT] [--ableset-from ADDRESS] [--no-show-clock]
            [--venue VENUE]
@@ -83,6 +90,21 @@ options:
   --diagnose            check that this setup works (audio module, input, signal,
                         console, tablet access), print a report and exit. Read-only:
                         it never changes the console and plays no sound
+  --vet                 full test: run every control, job and dashboard address against
+                        the built-in emulator, print a report, write a log file and exit.
+                        Settings come from the command line, not show.conf. A real
+                        console is contacted only with --hardware, and changed only
+                        with the options below
+  --vet-channel N       (--vet --hardware) test control on console channel N: each
+                        value is changed, read back and put back. Keep the PA off
+  --vet-main            (--vet --hardware) also test the main bus and the first FX
+                        return the same way. Keep the PA off
+  --vet-gain            (--vet --hardware --vet-channel N) also test that channel's
+                        preamp gain
+  --vet-sound           (--vet) play pink noise and check that the measurement input
+                        hears it; needs --audio-device
+  --vet-phone           (--vet) serve the dashboard and wait for a phone to sign in;
+                        needs --lan and --pin
   --https               serve over TLS (self-signed) so iPad/Android get Wake Lock + a real
                         PWA install
   --pin PIN             require this access PIN (at least 6 characters) to open the
@@ -128,6 +150,12 @@ const OPTIONS = {
   "trace-osc": { type: "boolean" },
   "list-devices": { type: "boolean" },
   diagnose: { type: "boolean" },
+  vet: { type: "boolean" },
+  "vet-channel": { type: "string" },
+  "vet-main": { type: "boolean" },
+  "vet-gain": { type: "boolean" },
+  "vet-sound": { type: "boolean" },
+  "vet-phone": { type: "boolean" },
   https: { type: "boolean" },
   pin: { type: "string" },
   trust: { type: "boolean" },
@@ -181,6 +209,12 @@ export function parseCliArgs(argv: readonly string[]): Args {
     traceOsc: Boolean(values["trace-osc"]),
     listDevices: Boolean(values["list-devices"]),
     diagnose: Boolean(values["diagnose"]),
+    vet: Boolean(values["vet"]),
+    vetChannel: intOption("vet-channel", values["vet-channel"], null, 1, 32),
+    vetMain: Boolean(values["vet-main"]),
+    vetGain: Boolean(values["vet-gain"]),
+    vetSound: Boolean(values["vet-sound"]),
+    vetPhone: Boolean(values["vet-phone"]),
     https: Boolean(values["https"]),
     pin: values["pin"] ?? null,
     trust: Boolean(values["trust"]),
@@ -198,6 +232,14 @@ export function parseCliArgs(argv: readonly string[]): Args {
   if (args.ablesetFrom !== null && isIP(args.ablesetFrom) === 0) {
     throw new UsageError(`argument --ableset-from: '${args.ablesetFrom}' is not an IP address`);
   }
+  const vetExtras = args.vetChannel !== null || args.vetMain || args.vetGain || args.vetSound || args.vetPhone;
+  if (vetExtras && !args.vet) throw new UsageError("the --vet-... options need --vet");
+  if (args.vet && (args.diagnose || args.listDevices)) throw new UsageError("--vet cannot be combined with --diagnose or --list-devices");
+  if (args.vet && args.emulate) throw new UsageError("--vet always tests the built-in emulator; leave out --emulate");
+  if ((args.vetChannel !== null || args.vetMain) && !args.hardware) {
+    throw new UsageError("--vet-channel and --vet-main change a real console, so they need --hardware (and --console-ip)");
+  }
+  if (args.vetGain && args.vetChannel === null) throw new UsageError("--vet-gain needs --vet-channel N");
   if (args.lan) args.host = "0.0.0.0";
   if (args.trust) args.https = true;
   return args;

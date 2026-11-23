@@ -88,6 +88,12 @@ and open the dashboard, or pass the same flags as `npm run run --`
   per-channel levels, console feed and phone or tablet access. It is read-only: the
   command-line form builds no engine and sends the console nothing but the meter
   and update subscriptions. The logic is in `ts/src/core/diagnostics.ts`.
+- **It can test itself.** `--vet` (newer than release 0.2.2) sends every console
+  command and dashboard control to the built-in emulator, triggers each job, reads
+  the result back and writes a log. With
+  `--hardware --vet-channel <N>` it does the console commands on one channel of a
+  real console and puts each value back. The logic is in `ts/src/core/vet.ts`
+  and `ts/src/host/vet.ts`.
 - **It is unsigned,** so macOS blocks a downloaded build until you choose
   **Open Anyway** (see "On a Mac" below), and Windows shows a SmartScreen warning on first run.
 - **The Node.js runtime is frozen at build time.** Rebuild after a Node.js
@@ -240,8 +246,8 @@ networks (the laptop must be on a *Private*, not *Public*, network).
 "Add to Home Screen" launches it full-screen (landscape, no browser chrome).
 **`--https`** generates a self-signed cert (LAN IP baked into the SAN) so the
 tablet gets a *secure context*, which is required for **Screen Wake Lock** (screen
-stays on during a show) and a real PWA install. Accept the cert warning once on the
-tablet. Over plain `http`, Wake Lock no-ops, so instead set the tablet's
+stays on during a show) and a real PWA install. Accept the cert warning on the
+tablet (it returns when the laptop's network address changes). Over plain `http`, Wake Lock no-ops, so instead set the tablet's
 auto-lock to *Never* (on iPhone and iPad, Guided Access also works). Touch targets,
 safe-area insets, and double-tap zoom are all handled; the mixing surface runs
 over `wss://` automatically under https.

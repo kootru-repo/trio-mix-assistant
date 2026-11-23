@@ -137,6 +137,19 @@ It checks that the audio module loads, the chosen input opens at 48000 Hz, audio
 
 The report can be copied. If something fails on your gear, or you got a Mac or a console's USB feed working, please paste the report into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues): those are the setups nobody has confirmed yet. It never contains the PIN, and the path of your home folder is removed. From a terminal, copy from the `===== Trio Mix-Assistant checks =====` line down: the first line the app prints shows your settings folder.
 
+### Test everything
+
+`TrioMixAssistant --vet` is the full test. It is newer than release 0.2.2, so until the next release it runs only from source (`npm run run -- --vet` in `app/ts`). Its settings come from the command line, not from `show.conf`; it only checks that `show.conf` is valid. With no other flags it tests this computer and the built-in emulator: it plays no sound and contacts no console. It sends each console command and dashboard control to the emulated console, triggers each job, and reads the result back, prints PASS, FAIL or SKIP for each step, and writes a log of every value sent and received (`vet-<date>-<time>.log`) to your settings folder. It exits with 1 if a step failed. A pass on the emulator does not prove a real console.
+
+To test real gear, add options. Keep the PA off for the ones that change the console.
+
+- `--hardware --console-ip <address>`: asks the console to identify itself and send meters. Nothing on it is changed.
+- `--vet-channel <number>` (with the two above): on that one channel, changes the fader, mute, polarity, EQ and one FX send, reads each value back and puts it back. `--vet-gain` adds that channel's preamp gain. `--vet-main` adds the main mute, the main fader, one main-bus EQ band and one FX return.
+- `--vet-sound --audio-device <number>`: plays pink noise for 10 seconds and checks that the measurement input hears it. Nothing is applied to the console.
+- `--vet-phone --lan --pin <PIN>`: serves the dashboard and waits up to two minutes for a phone or tablet to sign in.
+
+A value the console does not answer a read for is not written. A step that cannot run safely is skipped and says why (for example, the channel is already muted). A scene is never recalled on a real console, because a recall cannot be undone. A value that reads back correctly shows that the console stored what the app sent; it does not show what the console displays, so the [bring-up checklist](app/HARDWARE_BRINGUP.md) still applies. The report ends with the things to check by hand.
+
 > **No console yet:** run `TrioMixAssistant --emulate` to rehearse the whole app against the built-in console emulator. Add `--auto` to listen on a real mic.
 >
 > **iPhone, iPad or Android:** with `LAN=yes` and a `PIN`, the start window prints a **scan-to-open QR code**. See [On a phone or tablet](#phone).

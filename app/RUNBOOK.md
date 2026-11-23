@@ -73,7 +73,30 @@ there has a **Copy report** button.
 
 The checks cover the audio module, the input, the audio flow, the microphone
 permission, each channel's level, the console's meter feed and phone or tablet access. They do
-not test that fader and EQ commands land correctly; that is §2.4.
+not test that fader and EQ commands land correctly; that is §1.2 and §2.4.
+
+### 1.2 Test everything (`--vet`)
+
+`--vet` is the full test. It is newer than release 0.2.2, so until the next release it
+runs only from source (`npm run run -- --vet` in `app/ts`). Its settings come from the
+command line, not from `show.conf`; it only checks that `show.conf` is valid. On its own it tests this computer and the built-in emulator, plays no sound and contacts
+no console:
+```bash
+$ ./TrioMixAssistant --vet
+```
+```powershell
+PS> .TrioMixAssistant.exe --vet
+```
+Each step is PASS, FAIL or SKIP. The command exits with 1 if a step failed and writes
+`vet-<date>-<time>.log`, with every value sent and received, to the settings folder.
+A pass on the emulator does not prove a real console. To test the real one, with the PA off:
+```bash
+$ ./TrioMixAssistant --vet --hardware --console-ip 192.168.1.50 --vet-channel 16
+```
+On channel 16 this changes the fader, mute, polarity, EQ and one FX send, reads each value
+back and puts it back. Without `--vet-channel` or `--vet-main` the console is only asked to identify itself
+and send meters. `--vet-gain`, `--vet-main`, `--vet-sound` and `--vet-phone` are in §9.
+A scene is never recalled on a real console.
 
 Settings and logs live in `~/Library/Application Support/TrioMixAssistant` (macOS) or
 `%LOCALAPPDATA%\TrioMixAssistant` (Windows); the downloaded app prints the folder at
@@ -296,6 +319,12 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--channel-map "1:0,…"` | explicit console-channel:device-column map (console 1-based, column 0-based); default N→N−1 |
 | `--list-devices` | print input devices (with host API) and exit |
 | `--diagnose` | run the built-in checks (§1.1), print the report and exit; read-only |
+| `--vet` | run the full test (§1.2) against the built-in emulator, print the report, write a log and exit |
+| `--vet-channel <N>` | with `--vet --hardware`: change, read back and put back the fader, mute, polarity, EQ and one FX send of console channel N. PA off |
+| `--vet-gain` | with `--vet-channel`: also that channel's preamp gain |
+| `--vet-main` | with `--vet --hardware`: also the main mute, main fader, one main-bus EQ band and one FX return. PA off |
+| `--vet-sound` | with `--vet --audio-device`: play pink noise for 10 seconds and check the measurement input hears it |
+| `--vet-phone` | with `--vet --lan --pin`: wait up to two minutes for a phone or tablet to sign in |
 | `--rehearse` | on its own or with `--diagnose`: use `show.conf` in emulate mode whatever `MODE` says (the emulated console, with its built-in audio feed unless `AUTO=yes`; the hardware-only keys such as `AUDIO_DEVICE` are not used) |
 | `--trace-osc` | with `--emulate`, print every OSC address a mixer app asks the emulated desk for |
 | `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `pilot_13_input.json`, a 13-input rig plus a measurement mic and a stage mic, so a 15-input device, in the `templates` folder beside `show.conf`; give the full path); else the built‑in 8‑ch trio |

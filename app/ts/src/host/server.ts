@@ -65,6 +65,7 @@ export interface ServerOptions {
   maxStreamsPerAddress?: number;
   limitLoopback?: boolean;
   commandBudget?: CommandBudget;
+  onLogin?: ((address: string) => void) | null;
 }
 
 export interface DashboardServer {
@@ -407,6 +408,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
           return;
         }
         limiter.success(addr);
+        if (opts.onLogin) opts.onLogin(addr);
         let cookie = `mixauth=${token}; HttpOnly; SameSite=Strict; Path=/`;
         if ((req.socket as TLSSocket).encrypted === true) cookie += "; Secure";
         sendJson(res, { ok: true }, 200, { "Set-Cookie": cookie });

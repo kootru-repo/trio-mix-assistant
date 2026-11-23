@@ -51,7 +51,7 @@ export const channelLabels = (): Map<number, string> => new Map([...C.CHANNELS].
 
 const POLL_S = 0.05;
 
-async function within<T>(work: Promise<T>, clock: Clock, seconds: number, what: string): Promise<T> {
+export async function within<T>(work: Promise<T>, clock: Clock, seconds: number, what: string): Promise<T> {
   let settled = false;
   const watched = work.finally(() => {
     settled = true;

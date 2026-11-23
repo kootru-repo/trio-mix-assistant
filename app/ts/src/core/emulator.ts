@@ -286,7 +286,10 @@ export class EmulatedDesk {
     this.recvCount++;
     if (args.length > 0) {
       const n = argInt(args[0]);
-      if (n !== null) this.scene = n;
+      if (n !== null) {
+        this.scene = n;
+        this.setParam("/-show/prepos/current", [oscInt(n)]);
+      }
     }
   }
 
