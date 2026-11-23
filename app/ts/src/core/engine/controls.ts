@@ -6,6 +6,7 @@ import { asBool, EngineBase, numOf } from "./base.ts";
 
 export class EngineControls extends EngineBase {
   setEnabled(job: string, on: boolean): void {
+    if (this.vetBusy("job switch")) return;
     if (!Object.hasOwn(this.assistant.enabled, job)) return;
     if (this.status === "takeover") {
       if (this.enabledBackup !== null) this.enabledBackup[job] = Boolean(on);
@@ -21,11 +22,13 @@ export class EngineControls extends EngineBase {
   }
 
   setCoachMode(on: boolean): void {
+    if (this.vetBusy("coach switch")) return;
     this.assistant.setCoachMode(Boolean(on));
     this.rebuildTelemetry();
   }
 
   setLeadTarget(db: unknown): void {
+    if (this.vetBusy("lead target")) return;
     let v: number;
     try {
       v = numOf(db);
@@ -39,6 +42,7 @@ export class EngineControls extends EngineBase {
   }
 
   setFader(ch: number, db: unknown): void {
+    if (this.vetBusy("fader move")) return;
     if (!C.CHANNELS.has(ch)) return;
     let v: number;
     try {
@@ -73,6 +77,7 @@ export class EngineControls extends EngineBase {
   }
 
   setEq(ch: number, band: number, hz: unknown = null, gain: unknown = null, q: unknown = null, on: unknown = null): void {
+    if (this.vetBusy("EQ change")) return;
     const bands = this.eq.get(ch);
     if (!bands) return;
     const b = bands.get(Math.trunc(band));
@@ -103,6 +108,7 @@ export class EngineControls extends EngineBase {
   }
 
   resetChannelEq(ch: number): void {
+    if (this.vetBusy("EQ reset")) return;
     const bands = this.eq.get(ch);
     if (!bands) return;
     for (const [bnum, band] of bands) {
@@ -120,6 +126,7 @@ export class EngineControls extends EngineBase {
   }
 
   setSend(ch: number, fx: number, db: unknown): void {
+    if (this.vetBusy("send change")) return;
     const sends = this.sends.get(ch);
     if (!sends || !C.FX_BUSES.has(Math.trunc(fx))) return;
     let v: number;
@@ -135,6 +142,7 @@ export class EngineControls extends EngineBase {
   }
 
   setFxWet(fx: number, db: unknown): void {
+    if (this.vetBusy("FX return change")) return;
     const k = Math.trunc(fx);
     if (!C.FX_BUSES.has(k)) return;
     let v: number;
@@ -150,6 +158,7 @@ export class EngineControls extends EngineBase {
   }
 
   setMute(ch: number, on: boolean): void {
+    if (this.vetBusy("mute")) return;
     if (!C.CHANNELS.has(ch)) return;
     this.con.setChannelMute(ch, Boolean(on));
     this.muted.set(ch, Boolean(on));
@@ -159,6 +168,7 @@ export class EngineControls extends EngineBase {
   }
 
   setMaster(db: unknown): void {
+    if (this.vetBusy("master fader move")) return;
     let v: number;
     try {
       v = numOf(db);
@@ -171,11 +181,13 @@ export class EngineControls extends EngineBase {
   }
 
   captureBalanceNow(): void {
+    if (this.vetBusy("balance capture")) return;
     this.assistant.captureBalance(this.outputLevels());
     this.rebuildTelemetry();
   }
 
   reconcileFader(ch: number, db: number): void {
+    if (this.vetStatus === "running") return;
     if (!C.CHANNELS.has(ch) || !Number.isFinite(db)) return;
     const now = this.clock.monotonic();
     this.lastRxT = now;
@@ -191,11 +203,13 @@ export class EngineControls extends EngineBase {
   }
 
   resetNotches(): void {
+    if (this.vetBusy("notch reset")) return;
     this.assistant.resetNotches();
     this.rebuildTelemetry();
   }
 
   panic(on: boolean): void {
+    if (on && this.vetStatus === "running") this.vetAbort = true;
     if (on && this.status !== "takeover") {
       this.con.cancelRamps();
       this.con.setMainMute(true);

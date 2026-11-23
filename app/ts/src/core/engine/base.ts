@@ -14,7 +14,7 @@ import type { AdvisorPort, MeterReceiverPort, SessionLogPort, VetHostPort, VetSu
 import { roundHalfEven, roundTo } from "../numfmt.ts";
 import { SeededRng } from "../rng.ts";
 import type { Rng } from "../rng.ts";
-import type { ShowClockPort } from "../showclock.ts";
+import type { ShowClockPort, ShowState } from "../showclock.ts";
 import { defaultTemplate } from "../template.ts";
 import type { ShowTemplate } from "../template.ts";
 import { NEG_INF, perChannel } from "../util.ts";
@@ -112,6 +112,16 @@ export class EngineBase {
   vetHost: VetHostPort | null = null;
   protected vetStatus: "idle" | "running" | "done" = "idle";
   protected vetOutcome: VetSummary | null = null;
+  protected vetAbort = false;
+  protected vetTask: Promise<void> | null = null;
+  protected telemetryFrozen = false;
+  protected pendingSong: ShowState | null = null;
+
+  protected vetBusy(what: string): boolean {
+    if (this.vetStatus !== "running") return false;
+    this.assistant.emit("system", `${what} ignored while the full test runs`);
+    return true;
+  }
   protected diagStatus: "idle" | "running" | "done" = "idle";
   protected diagReport: DiagReport | null = null;
   protected diagWindow: LevelWindow | null = null;
@@ -367,6 +377,7 @@ export class EngineBase {
   }
 
   protected rebuildTelemetry(): void {
+    if (this.telemetryFrozen) return;
     const now = this.clock.monotonic();
     const lead = C.LEAD_VOCAL_CH;
     const inEma = this.assistant.inEma.get(lead) ?? null;

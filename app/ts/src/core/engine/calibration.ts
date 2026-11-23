@@ -10,6 +10,7 @@ export class EngineCalibration extends EngineShow {
   calibrationTask: Promise<void> | null = null;
 
   runCalibration(): void {
+    if (this.vetBusy("calibration")) return;
     if (this.calibStatus === "running" || this.status === "takeover") return;
     this.calibStatus = "running";
     this.status = "calibrating";

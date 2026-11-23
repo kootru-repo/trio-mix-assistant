@@ -37,7 +37,7 @@ import {
   vetConsole,
   vetSequence,
 } from "../core/vet.ts";
-import type { VetHostPort, VetRequest, VetSummary } from "../core/ports.ts";
+import type { VetControl, VetHostPort, VetRequest, VetSummary } from "../core/ports.ts";
 import type { SoundSource, StepSpec, VetProof, VetRow } from "../core/vet.ts";
 import { parseCliArgs } from "./args.ts";
 import type { Args } from "./args.ts";
@@ -69,6 +69,7 @@ export interface LiveConsole {
 
 export interface VetHooks {
   live?: LiveConsole | null;
+  control?: VetControl | null;
   openSource: (() => VetAudio) | null;
   lanIp: () => Promise<string | null>;
   phoneSeconds?: number;
@@ -563,6 +564,7 @@ function liveLink(ctx: Ctx, live: LiveConsole): Link {
   const target: Peer = { host: live.ip, port: live.port };
   const desk = new Desk({ transmit: (data) => live.rx.send(data, target), clock: ctx.clock, log: ctx.log, proof: "real console", stopped: ctx.stopped });
   live.rx.onMessage = (addr, args) => desk.receive(addr, args);
+  if (ctx.hooks.control) desk.holdMain = ctx.hooks.control.takeover;
   return { desk, rx: live.rx };
 }
 
@@ -689,7 +691,7 @@ async function phone(ctx: Ctx): Promise<void> {
 export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<string | null>): VetHostPort {
   return {
     console: live !== null,
-    async run(req: VetRequest): Promise<VetSummary> {
+    async run(req: VetRequest, control: VetControl): Promise<VetSummary> {
       const flags = ["--vet"];
       if (live !== null) {
         flags.push("--hardware", `--console-ip=${live.ip}`);
@@ -700,11 +702,11 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
         if (req.main) flags.push("--vet-main");
       }
       const lines: string[] = [];
-      const out = await runVet(parseCliArgs(flags), { ...io, out: (l) => lines.push(l) }, { openSource: null, lanIp, live });
+      const out = await runVet(parseCliArgs(flags), { ...io, out: (l) => lines.push(l) }, { openSource: null, lanIp, live, control });
       const count = (st: string): number => out.rows.filter((r) => r.status === st).length;
       return {
         text: lines.join("\n"),
-        summary: `${count("pass")} passed, ${count("fail")} failed, ${count("skip")} skipped`,
+        summary: `${count("pass")} passed${live !== null ? ` (${out.rows.filter((r) => r.status === "pass" && r.proof === "real console").length} on the real console)` : ""}, ${count("fail")} failed, ${count("skip")} skipped`,
         failed: count("fail"),
       };
     },
@@ -748,7 +750,8 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
   });
   const holdInterrupt = (): void => undefined;
   process.on("SIGINT", holdInterrupt);
-  const ctx: Ctx = { args, io, hooks, rows: [], log, clock: io.clock, stopped: () => stop };
+  const control = hooks.control ?? null;
+  const ctx: Ctx = { args, io, hooks, rows: [], log, clock: io.clock, stopped: () => stop || (control !== null && control.stopped()) };
   for (const l of head) io.out(l);
   io.out("  Testing this computer and the built-in emulator. No sound is played and no real console is touched in this part.");
   try {
@@ -770,7 +773,7 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
   const report = [
     ...tableLines(ctx.rows),
     ...summaryLines(ctx.rows),
-    ...pending.filter(([on]) => on).map(([, text]) => `  ${text}`),
+    ...(control !== null ? [] : pending.filter(([on]) => on).map(([, text]) => `  ${text}`)),
     ...operatorLines(),
   ];
   for (const l of report) io.out(l);

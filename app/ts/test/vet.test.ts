@@ -208,6 +208,8 @@ test("the sound check needs the noise to be heard above the room", async () => {
   await assert.rejects(async () => soundVerdict(await measureSound(src(0.09, 0.1), new Float32Array(8), 1)), /rose only/);
 });
 
+const idle = { stopped: () => false, takeover: () => false };
+
 function vetIo(lines: string[], appDir: string): Io {
   return {
     out: (l) => lines.push(l),
@@ -401,14 +403,16 @@ test("the dashboard test reaches a real console through the app's own socket and
       io.factory = await io.audio();
       const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null));
       assert.ok(host.console);
-      const out = await host.run({ channel: 3, gain: true, main: true });
+      const out = await host.run({ channel: 3, gain: true, main: true }, idle);
       const text = out.text;
-      assert.match(out.summary, /^\d+ passed, 0 failed, \d+ skipped$/, text);
+      assert.match(out.summary, /^\d+ passed \(\d+ on the real console\), \d+ failed, \d+ skipped$/, text);
+      const realPart = text.slice(text.indexOf("  Real console\n"));
+      assert.ok(!realPart.includes("[FAIL]"), realPart);
       assert.ok(text.includes("Real console"), text);
       assert.ok(text.includes("[PASS] Channel 3 fader: set  (proved on: real console)"), text);
       assert.ok(text.includes("[PASS] Main fader  (proved on: real console)"), text);
       assert.ok(rx.running && rx.onMessage === null);
-      const plain = await host.run({ channel: null, gain: false, main: false });
+      const plain = await host.run({ channel: null, gain: false, main: false }, idle);
       assert.ok(plain.text.includes("read-only"), plain.text);
     } finally {
       rx.stop();
@@ -416,3 +420,92 @@ test("the dashboard test reaches a real console through the app's own socket and
       rmSync(home, { recursive: true, force: true });
     }
   }));
+
+test("while the full test runs other controls are ignored, a song change waits, and TAKEOVER aborts it", async () => {
+  const clock = new ManualClock(100, 1_700_000_000);
+  const e = new Engine({ clock, sim: true });
+  let release: () => void = () => undefined;
+  const seen: { c: { stopped: () => boolean; takeover: () => boolean } | null } = { c: null };
+  e.vetHost = {
+    console: true,
+    run: (_req, control) => {
+      seen.c = control;
+      return new Promise((resolve) => {
+        release = () => resolve({ text: "t", summary: "s", failed: 0 });
+      });
+    },
+  };
+  const leadBefore = e.assistant.leadTarget;
+  const jobsBefore = { ...e.assistant.enabled };
+  e.command({ type: "vet", channel: 2, gain: false, main: true });
+  e.command({ type: "lead_target", db: -3 });
+  e.command({ type: "toggle", job: "clip", on: false });
+  e.command({ type: "fader", ch: 1, db: -5 });
+  e.command({ type: "scene", index: 4 });
+  e.command({ type: "calibrate" });
+  assert.equal(e.assistant.leadTarget, leadBefore);
+  assert.ok(Object.values(e.assistant.enabled).every((on) => !on));
+  assert.ok(e.events.filter((ev) => ev.msg.includes("ignored while the full test runs")).length >= 5);
+  const state = { songName: "Bloom", nextSong: "", section: "", bpm: null, playing: true, songIndex: 0 };
+  e.onSongChange(state);
+  assert.equal(e.show.current, "");
+  const ctl = seen.c!;
+  assert.ok(!ctl.stopped() && !ctl.takeover());
+  e.command({ type: "panic", on: true });
+  assert.ok(ctl.stopped() && ctl.takeover());
+  release();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal((e.snapshot()["vet"] as { status: string }).status, "done");
+  assert.equal(e.show.current, "Bloom");
+  e.command({ type: "panic", on: false });
+  assert.deepEqual(e.assistant.enabled, jobsBefore);
+});
+
+class NeverWakes extends ManualClock {
+  override sleep(): Promise<void> {
+    return new Promise(() => undefined);
+  }
+}
+
+test("a stopping engine waits for the full test to put values back before it closes the console link", async () => {
+  const clock = new NeverWakes(100, 1_700_000_000);
+  const e = new Engine({ clock, sim: true });
+  const order: string[] = [];
+  let finish: () => void = () => undefined;
+  e.vetHost = {
+    console: false,
+    run: (_req, control) => {
+      assert.ok(!control.stopped());
+      return new Promise((resolve) => {
+        finish = () => {
+          order.push(control.stopped() ? "told to stop" : "not told");
+          order.push("restored");
+          resolve({ text: "", summary: "s", failed: 0 });
+        };
+      });
+    },
+  };
+  e.command({ type: "vet", channel: null, gain: false, main: false });
+  const stopping = e.stop().then(() => order.push("engine stopped"));
+  await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual(order, []);
+  finish();
+  await stopping;
+  assert.deepEqual(order, ["told to stop", "restored", "engine stopped"]);
+});
+
+test("a takeover keeps the main bus muted when the test would put it back", async () => {
+  const r = await rig("real console");
+  const rows: VetRow[] = [];
+  r.desk.holdMain = () => true;
+  try {
+    await vetConsole(rows, r.desk, "Console", { channel: null, main: true, gain: false });
+  } finally {
+    r.close();
+  }
+  const row = rows.find((x) => x.id === "con_main_mute")!;
+  assert.equal(row.status, "pass", row.detail);
+  assert.match(row.detail, /left muted because TAKEOVER is holding it/);
+  assert.ok(r.log.lines.some((l) => l.includes("restore of /main/st/mix/on skipped: takeover")));
+  assert.equal(r.emu.params.get("/main/st/mix/on")?.[0]?.v, 0);
+});

@@ -12,6 +12,10 @@ const validScene = (n: number): boolean => Number.isInteger(n) && n >= 0 && n <=
 
 export class EngineShow extends EngineControls {
   onSongChange(state: ShowState): void {
+    if (this.vetStatus === "running") {
+      this.pendingSong = state;
+      return;
+    }
     this.show = {
       current: state.songName,
       next: state.nextSong,
@@ -76,6 +80,7 @@ export class EngineShow extends EngineControls {
   }
 
   recallSceneManual(index: unknown): void {
+    if (this.vetBusy("scene recall")) return;
     let idx: number;
     try {
       idx = intOf(index);

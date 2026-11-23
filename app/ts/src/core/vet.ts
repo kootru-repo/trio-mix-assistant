@@ -134,6 +134,7 @@ export class Desk {
   readonly log: VetLog;
   meterPackets = 0;
   onFader: ((ch: number, db: number) => void) | null = null;
+  holdMain: () => boolean = () => false;
   private readonly transmit: (data: Uint8Array) => boolean;
   private readonly timeoutS: number;
   private readonly stoppedFn: () => boolean;
@@ -249,6 +250,7 @@ async function writeCheck(rows: VetRow[], desk: Desk, area: string, wc: WriteCas
       before.set(addr, v);
     }
     const problems: string[] = [];
+    let held = false;
     let result: Map<string, number> | string | null = null;
     try {
       result = wc.act(before);
@@ -265,6 +267,11 @@ async function writeCheck(rows: VetRow[], desk: Desk, area: string, wc: WriteCas
       if (typeof result !== "string") {
         await desk.con.flushRamps();
         for (const [addr, was] of before) {
+          if (addr === `/${C.MAIN_BUS}/mix/on` && desk.holdMain()) {
+            desk.log.note(`restore of ${addr} skipped: takeover is holding the main muted`);
+            held = true;
+            continue;
+          }
           const now = await desk.putBack(addr, original.get(addr)!, was);
           if (now === null || !near(now, was)) {
             problems.push(`${addr} was NOT put back: it was ${fixed(was, 3)} and is now ${now === null ? "unknown" : fixed(now, 3)}`);
@@ -275,6 +282,7 @@ async function writeCheck(rows: VetRow[], desk: Desk, area: string, wc: WriteCas
     if (typeof result === "string") throw new VetSkip(result);
     if (problems.length) throw new VetFailure(problems.join("; "));
     const n = result === null ? 0 : result.size;
+    if (held) return `set ${n} value${n === 1 ? "" : "s"} and read ${n === 1 ? "it" : "each"} back; the main bus was left muted because TAKEOVER is holding it`;
     return `set ${n} value${n === 1 ? "" : "s"}, read ${n === 1 ? "it" : "each"} back, then put back what was there`;
   });
 }
@@ -502,9 +510,9 @@ export interface ConsoleVetOptions {
 }
 
 const GROUP_OFF: Record<WriteCase["group"], string> = {
-  channel: "not asked for: add --vet-channel <number> to test this on one channel you name",
-  gain: "not asked for: add --vet-gain (with --vet-channel) to test the preamp gain of that channel",
-  main: "not asked for: add --vet-main to test the main bus and the FX return (PA off)",
+  channel: "not asked for: name a channel to test this on it",
+  gain: "not asked for: also choose preamp gain, with a channel, to test it",
+  main: "not asked for: also choose the main bus and FX return to test them (PA off)",
   scene: "a scene recall cannot be undone, so it is never sent to a real console here; recall a scene from the dashboard by hand",
 };
 

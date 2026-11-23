@@ -25,9 +25,14 @@ export interface VetSummary {
   failed: number;
 }
 
+export interface VetControl {
+  stopped(): boolean;
+  takeover(): boolean;
+}
+
 export interface VetHostPort {
   readonly console: boolean;
-  run(request: VetRequest): Promise<VetSummary>;
+  run(request: VetRequest, control: VetControl): Promise<VetSummary>;
 }
 
 export interface MeterReceiverPort {

@@ -291,7 +291,7 @@ $("#vetrun").onclick = () => {
   if(real){
     if(channel === null && !main){ alert("Enter the console channel number to test (1 to 32), or tick the main bus."); return; }
     if(gain && channel === null){ alert("Preamp gain needs a channel number."); return; }
-    const what = (channel !== null ? "channel "+channel : "") + (channel !== null && main ? " and " : "") + (main ? "the main bus and FX return" : "");
+    const what = (channel !== null ? "channel "+channel+(gain ? " (including its preamp gain)" : "") : "") + (channel !== null && main ? " and " : "") + (main ? "the main bus and FX return" : "");
     if(!confirm("Turn the PA OFF first.\n\nThis changes values on "+what+", reads each back and puts it back. Continue?")) return;
   }
   action({type:"vet", channel, gain, main});

@@ -105,6 +105,9 @@ export class Engine extends EngineCalibration {
     this.stopped = true;
     this.running = false;
     this.loopGen++;
+    this.vetAbort = true;
+    const vetTask = this.vetTask;
+    if (vetTask !== null) await Promise.race([vetTask.catch(() => undefined), this.clock.sleep(10)]);
     if (this.advisor !== null) this.advisor.stop();
     if (this.showClock !== null) this.showClock.stop();
     if (this.meterRx !== null) this.meterRx.stop();
@@ -257,21 +260,35 @@ export class Engine extends EngineCalibration {
     if ((req.channel !== null || req.main) && !host.console) return refuse("there is no real console connected to test");
     const held = { ...this.assistant.enabled };
     for (const k of Object.keys(this.assistant.enabled)) this.assistant.enabled[k] = false;
+    this.vetOutcome = null;
+    this.vetAbort = false;
     this.vetStatus = "running";
-    this.assistant.emit("system", "full test running: the automatic jobs are paused until it finishes");
+    this.assistant.emit("system", "full test running: the automatic jobs are paused and other controls are ignored until it finishes (TAKEOVER still works)");
     this.rebuildTelemetry();
-    try {
-      this.vetOutcome = await host.run(req);
-      this.assistant.emit("system", `full test finished: ${this.vetOutcome.summary}`);
-    } catch (exc) {
-      this.noteError(exc);
-      this.assistant.emit("system", "the full test stopped on an unexpected error");
-    } finally {
-      if (this.currentStatus() === "takeover") this.enabledBackup = { ...held };
-      else Object.assign(this.assistant.enabled, held);
-      this.vetStatus = this.vetOutcome !== null ? "done" : "idle";
-      this.rebuildTelemetry();
-    }
+    this.telemetryFrozen = true;
+    const control = { stopped: () => this.vetAbort || this.stopped, takeover: () => this.currentStatus() === "takeover" };
+    const task = (async (): Promise<void> => {
+      try {
+        const outcome = await host.run(req, control);
+        this.vetOutcome = outcome;
+        this.assistant.emit("system", `full test finished: ${outcome.summary}`);
+      } catch (exc) {
+        this.noteError(exc);
+        this.assistant.emit("system", "the full test stopped on an unexpected error");
+      } finally {
+        if (this.currentStatus() === "takeover") this.enabledBackup = { ...held };
+        else Object.assign(this.assistant.enabled, held);
+        this.vetStatus = this.vetOutcome !== null ? "done" : "idle";
+        this.telemetryFrozen = false;
+        const song = this.pendingSong;
+        this.pendingSong = null;
+        if (song !== null && !this.stopped) this.onSongChange(song);
+        this.rebuildTelemetry();
+      }
+    })();
+    this.vetTask = task;
+    await task;
+    this.vetTask = null;
   }
 
   static readonly AUDIO_RESTART_S = 3.0;
