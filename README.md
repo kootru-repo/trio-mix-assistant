@@ -281,7 +281,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 
 **Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends every automatic move, covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
-Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); the assistant's fader rides, notches, preamp trims and polarity flips are logged and can be undone by hand. Automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
+Fader rides and preamp trims pass hard **guardrails** (fader/gain range, max step, smooth ramp); the assistant's fader rides, notches, preamp trims and polarity flips are logged and can be undone by hand. Automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 
 ## Project layout
 

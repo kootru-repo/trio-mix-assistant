@@ -185,7 +185,7 @@ PS> .\TrioMixAssistant.exe --hardware `
 ```
 
 Use a PIN of your own, six or more characters: the app refuses to serve the
-network without one. The same settings can be saved in `show.conf` (`MODE`,
+network without one unless you give `--insecure-open` (`ALLOW_OPEN=yes` in `show.conf`), which is not recommended. The same settings can be saved in `show.conf` (`MODE`,
 `CONSOLE_IP`, `AUDIO_DEVICE`, `OUTPUT_DEVICE`, `TEMPLATE`, `VENUE`, `LAN`, `HTTPS`, `PIN`); then start the app with no flags.
 
 Optional add‑ons (either OS):
@@ -286,7 +286,7 @@ Launched with `--lan` (and ideally `--https`):
 
 ## 7. After the show
 
-- Every decision is in **`sessions.db`** (SQLite), tagged with `--venue`. Over multiple
+- The assistant's fader rides, notches, preamp trims, polarity flips, scene and song events are in **`sessions.db`** (SQLite), tagged with `--venue`. Over multiple
   shows at the same room this builds venue history (the basis for venue learning).
 - `--session-db off` disables logging (and venue learning, which needs the log); `--session-db path/to/file.db` (Windows: `path\to\file.db`) redirects it.
 
