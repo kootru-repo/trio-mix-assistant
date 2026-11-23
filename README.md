@@ -22,7 +22,7 @@ Small acoustic acts often play with no one at front‑of‑house. This app watch
 
 - **Deterministic real‑time core.** Feedback/clip/level decisions are plain DSP and clamped controllers with no machine learning, so behaviour is predictable and repeatable. (An optional Claude "slow layer" can post plain‑language advice. It is **advisory only** and never touches the mix.)
 - **Console stays in charge.** Move a fader on the desk or a tablet and the app yields. One **TAKEOVER** button hands everything back to a human.
-- **Coach mode: you mix, it guides.** One toggle flips the app from *acting* to *advising*. It suspends every automatic move and instead tells you the exact manual change to make (channel, band, dB, Hz, even which scene to recall). The deterministic math is the same; it is surfaced as instructions instead of applied. Use it for hands‑on engineering, for teaching, or to preview what the app would do.
+- **Coach mode: you mix, it guides.** One toggle flips the app from *acting* to *advising*. It suspends automatic moves (switching it on first flattens any vocal-unmask dip already applied) and instead tells you the exact manual change to make (channel, band, dB, Hz, even which scene to recall). The deterministic math is the same; it is surfaced as instructions instead of applied. Use it for hands‑on engineering, for teaching, or to preview what the app would do.
 - **Runs with zero hardware.** A built‑in simulator and a protocol‑faithful console emulator let you learn, demo, and rehearse the whole rig on a laptop. You can even mix on the real Mixing Station app against it (see below).
 - **One dashboard, any screen.** A single installable web app (PWA) is built to work the same on a Mac or Windows laptop, an iPhone or iPad, or an Android device over WiFi.
 
@@ -44,7 +44,7 @@ Small acoustic acts often play with no one at front‑of‑house. This app watch
 
 ### Coach mode: advise, don't act
 
-Flip **COACH** and the app stops touching the console. Every move it would make (feedback notch, clip trim, vocal ride, room calibration, even scene recall) is listed as a plain manual instruction in a **COACH — MANUAL MOVES** panel and the decision log, for you to dial in by hand. The deterministic math is the same; only your own moves act. Tap the image for the full‑page view.
+Flip **COACH** and the app stops making new changes on the console. Every move it would make (feedback notch, clip trim, vocal ride, room calibration, even scene recall) is listed as a plain manual instruction in a **COACH — MANUAL MOVES** panel and the decision log, for you to dial in by hand. The deterministic math is the same; only your own moves act. Tap the image for the full‑page view.
 
 [![Coach mode: the assistant advises every manual move instead of applying it](docs/screenshots/coach.png)](docs/screenshots/coach-full.png)
 
@@ -201,7 +201,7 @@ Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets +
 - **MIXING SURFACE**: drag faders, tap **M** to mute; a human move makes auto‑ride yield on that channel.
 - **Pink‑noise calibration** (*Run calibration* on the Mix tab or in Settings) measures the room, parks gentle cuts on the peaks that stand out, and builds a feedback watch‑list. The result shows on the Mix tab as an octave‑band chart with ▲ watch / ▼ cut chips.
 - **Scenes**: recall console scenes; each song in the setlist recalls its scene automatically (on a real console this also needs AbleSet, `--ableset-port`).
-- **COACH**: flips the assistant from *acting* to *advising*. It stops touching the console and lists every move it would make (feedback notch, clip trim, vocal ride, calibration, even scene recall) as a plain manual instruction in a **COACH — MANUAL MOVES** panel + the log, for you to dial in by hand. Only your own manual moves act.
+- **COACH**: flips the assistant from *acting* to *advising*. It stops making new changes on the console and lists every move it would make (feedback notch, clip trim, vocal ride, calibration, even scene recall) as a plain manual instruction in a **COACH — MANUAL MOVES** panel + the log, for you to dial in by hand. Only your own manual moves act.
 - **TAKEOVER**: mutes the main and holds all jobs so a human always wins.
 - **Deep links**: `…:8770/#eq`, `#fx`, `#settings` open straight to a tab (handy on a tablet).
 
@@ -279,7 +279,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 | **Vocal unmask** | advisory | Sidechained to the lead vocal: when it's present, **dynamically duck** the ~3 kHz band on the other channels (all but the lead vocal, measurement mic and stage mic) a few dB so the vocal cuts through, then release when it pauses (fast attack / slow release). Coach mode advises a static dip instead. |
 | **Pink‑noise calibration** | pre‑show | Measure the room, cut up to four octave bands that stand out (a fifth or sixth gets a small dip), seed the watch-list. |
 
-**Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends every automatic move, covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
+**Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends automatic moves (switching it on first flattens any vocal-unmask dip already applied), covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
 Fader rides and preamp trims pass hard **guardrails** (fader/gain range, max step, smooth ramp); the assistant's fader rides, notches, preamp trims and polarity flips are logged and can be undone by hand. Automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 

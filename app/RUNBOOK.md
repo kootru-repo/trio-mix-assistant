@@ -265,14 +265,14 @@ Launched with `--lan` (and ideally `--https`):
 - **Operator overrides win:** a console/iPad fader move is adopted automatically; the
   app stops riding that channel briefly. EQ/FX/fader edits stay live even under takeover.
 - **COACH** (header button): flips the assistant from *acting* to *advising*. It detects
-  the same feedback/clip/level problems but, instead of touching the console, lists the
+  the same feedback/clip/level problems but, instead of making new changes on the console, lists the
   exact manual move (channel, band, dB, Hz) in a **Coach — manual moves** panel and the
   decision log (e.g. *"Feedback 2500 Hz in the room → cut the MAIN BUS at 2500 Hz by -9 dB
   (Q 8)"*). **Calibration is coach-aware too:** with coach on, *Run calibration* still
   measures the room but *advises* the main-bus EQ (*"set MAIN-BUS PEQ: band 1 250 Hz
   -6.0 dB…"*) as a standing recommendation instead of applying it. The numbers are
-  the same deterministic math the automatic jobs would use. Coach suspends every
-  automatic console write, covering mix corrections (feedback, clip, vocal ride, balance,
+  the same deterministic math the automatic jobs would use. Coach suspends new
+  automatic console writes, covering mix corrections (feedback, clip, vocal ride, balance,
   calibration) **and** setlist automation (scene recall, guest mutes), and advises each
   instead. **Only your own manual moves (faders, mutes, a scene you tap) actually act.**
   The status pill reads **COACH**. Use it to mix by hand with the app as a guide, or to
@@ -377,5 +377,5 @@ The dashboard names most of these in an alert; this table gives the fix.
 
 ---
 
-*The console is the source of truth; the app only listens & nudges within hard
-guardrails; a human can always take over.*
+*The console is the source of truth; the app listens and corrects; a human can
+always take over.*

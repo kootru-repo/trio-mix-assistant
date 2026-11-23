@@ -7,8 +7,8 @@ firmware, so verify every constant with a sniffer before trusting it
 live. Work through this once on the bench, then once at a real soundcheck.
 
 Nothing here is destructive to a show: do it with the PA off or at low volume, and
-keep a hand on the console. The app only ever *nudges* within guardrails, and a human
-takeover always wins.
+keep a hand on the console. Its fader rides and preamp trims stay inside guardrails, and a human
+takeover mutes the main and holds every job.
 
 ---
 
@@ -151,7 +151,7 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
 - **Channel EQ shares 4 bands.** The X32/M32 input has 4 PEQ bands; the performer EQ
   view and the automatic feedback notcher use the *same* 4 bands. In simulation the EQ view shows
   active notches as dashed markers + a note; with a console it does not. An operator edit and an auto-notch
-  can land on the same band. The operator (or TAKEOVER) wins. The FX/aux send
+  can land on the same band; the most recent write wins, so a notch can overwrite your edit. TAKEOVER stops further notches. The FX/aux send
   OSC addresses are unverified against a real desk, like the rest.
 - **TAKEOVER holds the *automatic* system, not your hands.** Takeover mutes the main
   and freezes all automatic jobs + scene recall + calibration; the manual surface

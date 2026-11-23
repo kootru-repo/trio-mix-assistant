@@ -449,7 +449,7 @@
   </div>
   <span class="spacer"></span>
   <span class="uptime mono" id="uptime">0s</span>
-  <button class="coach-btn" id="coach" title="Coach mode: advise manual moves instead of auto-correcting — the console is never touched"><span id="coachlbl">COACH</span></button>
+  <button class="coach-btn" id="coach" title="Coach mode: advise manual moves instead of auto-correcting — no new automatic changes are made on the console"><span id="coachlbl">COACH</span></button>
   <button class="takeover-btn" id="takeover" title="Mute main &amp; hold all automatic moves"><svg class="ic"><use href="#ic-takeover"/></svg><span id="tklbl">TAKEOVER</span></button>
 </header>
 
@@ -492,16 +492,16 @@
   <div class="jobs" id="jobs"></div>
 
   <div class="coachpanel" id="coachpanel" hidden>
-    <div class="sechead"><h2>Coach — manual moves</h2><span class="hint">advisory only · the console is <b>not</b> being touched · make these on the desk</span></div>
+    <div class="sechead"><h2>Coach — manual moves</h2><span class="hint">advisory only · no new automatic changes on the console · make these on the desk</span></div>
     <div class="coachrecs" id="coachrecs"></div>
   </div>
 
-  <div class="sechead"><h2>Mixing surface</h2><span class="hint">drag faders · tap M to mute · a human move always wins</span></div>
+  <div class="sechead"><h2>Mixing surface</h2><span class="hint">drag faders · tap M to mute · a fader move pauses auto rides</span></div>
   <div class="mixer" id="mixer"></div>
 
   <div class="grid">
     <div>
-      <div class="sechead"><h2>Channels</h2><span class="hint">8 ch · meter = level · LED = feedback</span></div>
+      <div class="sechead"><h2>Channels</h2><span class="hint">meter = level · LED = feedback</span></div>
       <div class="chans" id="chans"></div>
 
       <div class="logwrap">
@@ -599,7 +599,7 @@
 </div>
 
 <footer>
-  <span>Console is the source of truth · the app only listens &amp; nudges within hard guardrails · a human can always take over.</span>
+  <span>Console is the source of truth · the app listens and corrects · a human can always take over.</span>
   <span class="mono" id="footaudio" title="audio input health"></span>
   <span class="mono" id="footperf" title="loop compute · jitter (ms)"></span>
   <span class="mono" id="footmode">simulation</span>

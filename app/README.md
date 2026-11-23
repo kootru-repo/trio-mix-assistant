@@ -264,7 +264,7 @@ over `wss://` automatically under https.
 | **Vocal unmask** | advisory | Dynamic EQ sidechained to the lead vocal: when it's up, duck each instrument's `UNMASK_FREQ` (~3 kHz) band toward `UNMASK_DEPTH_DB` (fast attack), release when it pauses (slow). Coach mode advises a static dip. Targets = `UNMASK_CHANNELS` (default: all but vocal/meas/stage). |
 | **Pink-noise calibration** | pre-show | Measure the room, cut up to four octave bands that stand out (a fifth or sixth gets a −3 dB dip), build the baseline + watch-list. |
 | **Manual mixing surface** | performer | Draggable per-channel fader strips + master + one-tap mute, over WebSocket. A human move makes the auto-ride **yield** on that channel for a few seconds (shared-control). |
-| **Coach mode** | advisory | A header toggle that suspends every automatic console write, covering mix corrections *and* setlist automation (scene recall, guest mutes), and instead lists the exact manual move (channel, band, dB, Hz, scene) in a panel + the log. Only your own manual moves act. The numbers are the same deterministic math as auto mode. For mixing by hand with guidance, or previewing what the app would do. |
+| **Coach mode** | advisory | A header toggle that suspends new automatic console writes (switching it on first flattens any vocal-unmask dip already applied), covering mix corrections *and* setlist automation (scene recall, guest mutes), and instead lists the exact manual move (channel, band, dB, Hz, scene) in a panel + the log. Only your own manual moves act. The numbers are the same deterministic math as auto mode. For mixing by hand with guidance, or previewing what the app would do. |
 
 Fader rides and preamp trims pass through **guardrails** (hard fader/gain range, max step,
 smooth ramp); fader rides, notches, preamp trims and polarity flips are **logged and can be undone by hand**; and a **TAKEOVER**
@@ -356,8 +356,8 @@ body-size limits.
   stall DoS. Malformed control messages are ignored, never fatal.
 - **Shared-resource coordination**: calibration resets the whole main-bus EQ
   before applying, and a band allocator keeps live feedback notches off the bands
-  calibration claimed (so they never clobber each other and `reset` only clears
-  feedback bands); calibration refuses to run during a takeover and pauses the
+  calibration claimed (so they never clobber each other and `reset` flattens the main-bus bands
+  feedback used and switches a channel's EQ off); calibration refuses to run during a takeover and pauses the
   assistant during its sweep; the OSC socket and queued ramps close cleanly.
 - **Clean rejection**: an over-cap request body (up to 256 KiB; larger ones are refused unread) is *drained* before the 400 so
   closing can't RST and lose the response.

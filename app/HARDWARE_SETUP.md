@@ -144,5 +144,5 @@ audio path here.
 
 ---
 
-*The console is the source of truth; the app only listens & nudges within hard
-guardrails; a human can always take over.*
+*The console is the source of truth; the app listens and corrects; a human can
+always take over.*
