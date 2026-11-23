@@ -146,7 +146,7 @@
   <header>
     <div class="eyebrow">Live-Sound Safety-Net · Midas M32C / X32 family</div>
     <h1>Acoustic Trio <span class="accent">Mix-Assistant</span></h1>
-    <p class="sub">A deliberately small system that <b>listens</b> to the room and <b>nudges</b> the console, reliably and reversibly handling the handful of things an absent sound engineer gets wrong. The console does all the real audio; the app only observes and corrects within hard limits.</p>
+    <p class="sub">A deliberately small system that <b>listens</b> to the room and <b>nudges</b> the console, reliably handling the handful of things an absent sound engineer gets wrong. The console does all the real audio; the app only observes and corrects within hard limits.</p>
     <div class="badges">
       <span class="badge">TypeScript program</span>
       <span class="badge no">✕ No LLM or machine learning in the control path</span>
@@ -190,7 +190,7 @@
       <div class="arrow">▸</div>
       <div class="node n-act"><div class="nlab">Clamp</div><div class="nt">Guardrails</div><div class="nd">Fader moves bounded in size &amp; speed</div></div>
       <div class="arrow">▸</div>
-      <div class="node n-out"><div class="nlab">Actuate</div><div class="nt">OSC out → Console</div><div class="nd">Smooth ramps, logged &amp; reversible</div><div class="nd code" style="margin-top:6px;color:var(--console)">OscConsole</div></div>
+      <div class="node n-out"><div class="nlab">Actuate</div><div class="nt">OSC out → Console</div><div class="nd">Smooth fader ramps; rides, notches, trims, flips logged</div><div class="nd code" style="margin-top:6px;color:var(--console)">OscConsole</div></div>
     </div>
     <div class="loopnote">
       <span style="font-size:18px;line-height:1">↺</span>
@@ -260,7 +260,7 @@
 
   <!-- 4. Guardrails -->
   <section>
-    <div class="h"><span class="num">4</span><h2>Guardrails: the layer every move passes through</h2><span class="tag">limits on the assistant's fader moves and notches</span></div>
+    <div class="h"><span class="num">4</span><h2>Guardrails: the limits on the assistant's fader moves and notches</h2><span class="tag">the assistant may not move outside these</span></div>
     <div class="guard">
       <h3>Bounded · smoothed · logged · reversible by hand</h3>
       <span style="color:var(--mut);font-size:13.5px">The policies only <i>propose</i>; this layer <i>disposes</i>. No fader ride can exceed a hard fader range, oversize a single step, or move audibly fast (the clip trim is a fixed 2 dB preamp step), and every fader ride, notch, preamp trim and polarity flip is timestamped and logged.</span>

@@ -211,7 +211,7 @@ npm run run -- --advisor --venue "The Cellar"
   reads recent events and posts a short note ("guitar is masking the vocal, ease
   off"). It runs entirely off the real-time path and is **advisory only**. With no
   `ANTHROPIC_API_KEY` it's simply disabled, and everything else still works.
-- **Session log**: every decision is written to SQLite (`sessions.db`, off the
+- **Session log**: the assistant's decisions are written to SQLite (`sessions.db`, off the
   real-time path) tagged with `--venue`, for post-show analysis and venue learning.
   `--session-db off` disables it.
 
