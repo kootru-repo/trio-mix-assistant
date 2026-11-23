@@ -263,11 +263,21 @@ export class Engine extends EngineCalibration {
     for (const k of Object.keys(this.assistant.enabled)) this.assistant.enabled[k] = false;
     this.vetOutcome = null;
     this.vetAbort = false;
+    this.vetDone = 0;
+    this.vetTitle = "Starting";
     this.vetStatus = "running";
     this.assistant.emit("system", "full test running: the automatic jobs are paused and other controls are ignored until it finishes (TAKEOVER still works)");
     this.rebuildTelemetry();
     this.telemetryFrozen = true;
-    const control = { stopped: () => this.vetAbort || this.stopped, takeover: () => this.currentStatus() === "takeover" };
+    const control = {
+      stopped: () => this.vetAbort || this.stopped,
+      takeover: () => this.currentStatus() === "takeover",
+      progress: (done: number, title: string): void => {
+        this.vetDone = done;
+        this.vetTitle = title;
+        this.rebuildTelemetry();
+      },
+    };
     const task = (async (): Promise<void> => {
       try {
         const outcome = await host.run(req, control);
@@ -280,6 +290,7 @@ export class Engine extends EngineCalibration {
         if (this.currentStatus() === "takeover") this.enabledBackup = { ...held };
         else Object.assign(this.assistant.enabled, held);
         this.vetStatus = this.vetOutcome !== null ? "done" : "idle";
+        this.vetTitle = "";
         this.telemetryFrozen = false;
         const song = this.pendingSong;
         this.pendingSong = null;

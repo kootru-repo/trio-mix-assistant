@@ -751,6 +751,7 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
   const holdInterrupt = (): void => undefined;
   process.on("SIGINT", holdInterrupt);
   const control = hooks.control ?? null;
+  if (control !== null && control.progress !== undefined) log.onProgress = (done, title) => control.progress?.(done, title);
   const ctx: Ctx = { args, io, hooks, rows: [], log, clock: io.clock, stopped: () => stop || (control !== null && control.stopped()) };
   for (const l of head) io.out(l);
   io.out("  Testing this computer and the built-in emulator. No sound is played and no real console is touched in this part.");

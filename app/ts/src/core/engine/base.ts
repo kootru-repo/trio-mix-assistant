@@ -10,6 +10,7 @@ import { ConsoleBase, OscConsole, SimConsole } from "../console.ts";
 import { BlockAnalyser } from "../blockanalysis.ts";
 import type { DiagHost, DiagReport, LevelWindow } from "../diagnostics.ts";
 import type { ChannelFeatures } from "../dsp.ts";
+import { VET_EXPECTED_STEPS, VET_EXPECTED_STEPS_WITH_CONSOLE } from "../ports.ts";
 import type { AdvisorPort, MeterReceiverPort, SessionLogPort, VetHostPort, VetSummary } from "../ports.ts";
 import { roundHalfEven, roundTo } from "../numfmt.ts";
 import { SeededRng } from "../rng.ts";
@@ -113,6 +114,8 @@ export class EngineBase {
   protected vetStatus: "idle" | "running" | "done" = "idle";
   protected vetOutcome: VetSummary | null = null;
   protected vetAbort = false;
+  protected vetDone = 0;
+  protected vetTitle = "";
   protected vetTask: Promise<void> | null = null;
   protected telemetryFrozen = false;
   protected pendingSong: ShowState | null = null;
@@ -379,6 +382,9 @@ export class EngineBase {
   protected vetTelemetry(): Record<string, unknown> {
     return {
       status: this.vetStatus,
+      done: this.vetDone,
+      expected: Math.max(this.vetHost !== null && this.vetHost.console ? VET_EXPECTED_STEPS_WITH_CONSOLE : VET_EXPECTED_STEPS, this.vetDone + 1),
+      title: this.vetTitle,
       available: this.vetHost !== null,
       console: this.vetHost !== null && this.vetHost.console,
       summary: this.vetOutcome !== null ? this.vetOutcome.summary : "",

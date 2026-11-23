@@ -26,6 +26,7 @@ import { inAppVet, runVet } from "../src/host/vet.ts";
 import { Engine } from "../src/core/engine/index.ts";
 import { NodeUdpFactory as RealUdp } from "../src/host/udp.ts";
 import { withEmulatorPorts } from "./emulatorports.ts";
+import { VET_EXPECTED_STEPS, VET_EXPECTED_STEPS_WITH_CONSOLE } from "../src/core/ports.ts";
 
 interface Rig {
   desk: Desk;
@@ -232,6 +233,7 @@ test("--vet passes on this computer, covers every dashboard address and writes a
     io.factory = await io.audio();
     const out = await runVet(parseCliArgs(["--vet"]), io, { openSource: null, lanIp: () => Promise.resolve(null) });
     const text = lines.join("\n");
+    assert.equal(out.rows.length, VET_EXPECTED_STEPS, "update VET_EXPECTED_STEPS in core/ports.ts");
     const hasModule = out.rows.find((x) => x.id === "sys_audio_module")!.status === "pass";
     assert.equal(failed(out.rows.filter((x) => hasModule || x.id !== "sys_audio_module")), "", text);
     assert.equal(out.code, hasModule ? 0 : 1);
@@ -403,8 +405,11 @@ test("the dashboard test reaches a real console through the app's own socket and
       io.factory = await io.audio();
       const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null));
       assert.ok(host.console);
-      const out = await host.run({ channel: 3, gain: true, main: true }, idle);
+      const seen: number[] = [];
+      const out = await host.run({ channel: 3, gain: true, main: true }, { ...idle, progress: (done: number): void => { seen.push(done); } });
       const text = out.text;
+      assert.deepEqual(seen, [...seen].sort((x, y) => x - y));
+      assert.equal(seen[seen.length - 1], VET_EXPECTED_STEPS_WITH_CONSOLE, "update VET_EXPECTED_STEPS_WITH_CONSOLE in core/ports.ts");
       assert.match(out.summary, /^\d+ passed \(\d+ on the real console\), \d+ failed, \d+ skipped$/, text);
       const realPart = text.slice(text.indexOf("  Real console\n"));
       assert.ok(!realPart.includes("[FAIL]"), realPart);

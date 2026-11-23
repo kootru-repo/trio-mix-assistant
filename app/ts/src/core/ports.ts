@@ -13,6 +13,9 @@ export interface AdvisorPort {
   stop(): void;
 }
 
+export const VET_EXPECTED_STEPS = 66;
+export const VET_EXPECTED_STEPS_WITH_CONSOLE = 83;
+
 export interface VetRequest {
   channel: number | null;
   gain: boolean;
@@ -28,6 +31,7 @@ export interface VetSummary {
 export interface VetControl {
   stopped(): boolean;
   takeover(): boolean;
+  progress?(done: number, title: string): void;
 }
 
 export interface VetHostPort {

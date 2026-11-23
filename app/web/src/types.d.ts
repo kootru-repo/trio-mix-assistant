@@ -87,6 +87,9 @@ interface DiagnosticsT {
 
 interface VetT {
   status: "idle" | "running" | "done";
+  done: number;
+  expected: number;
+  title: string;
   available: boolean;
   console: boolean;
   summary: string;

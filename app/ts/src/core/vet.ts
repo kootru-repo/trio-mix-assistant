@@ -72,11 +72,22 @@ export class VetLog {
   private readonly clock: Clock;
   private readonly t0: number;
   private readonly sink: ((line: string) => void) | null;
+  private finished = 0;
+  onProgress: ((done: number, title: string) => void) | null = null;
 
   constructor(clock: Clock, sink: ((line: string) => void) | null = null) {
     this.clock = clock;
     this.t0 = clock.monotonic();
     this.sink = sink;
+  }
+
+  began(title: string): void {
+    if (this.onProgress !== null) this.onProgress(this.finished, title);
+  }
+
+  ended(title: string): void {
+    this.finished += 1;
+    if (this.onProgress !== null) this.onProgress(this.finished, title);
   }
 
   note(text: string): void {
@@ -88,6 +99,7 @@ export class VetLog {
 
 export async function step(rows: VetRow[], log: VetLog, spec: StepSpec, body: () => Promise<string>): Promise<void> {
   log.note(`--- ${spec.id}: ${spec.title}`);
+  log.began(spec.title);
   let status: VetStatus = "pass";
   let detail: string;
   try {
@@ -98,11 +110,13 @@ export async function step(rows: VetRow[], log: VetLog, spec: StepSpec, body: ()
   }
   log.note(`=== ${spec.id}: ${status.toUpperCase()} (${spec.proof}): ${detail}`);
   rows.push({ ...spec, status, detail });
+  log.ended(spec.title);
 }
 
 export function skipRow(rows: VetRow[], log: VetLog, spec: StepSpec, reason: string): void {
   log.note(`=== ${spec.id}: SKIP: ${reason}`);
   rows.push({ ...spec, proof: "nothing", status: "skip", detail: reason });
+  log.ended(spec.title);
 }
 
 class VetConsole extends ConsoleBase {

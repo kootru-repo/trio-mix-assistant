@@ -427,6 +427,25 @@
     color:var(--dim);font-size:11.5px;display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between}
   ::-webkit-scrollbar{width:9px;height:9px}
   ::-webkit-scrollbar-thumb{background:#26313f;border-radius:5px}
+  body.vetrun>:not(header):not(#vetshield):not(script){opacity:.35;filter:grayscale(1);user-select:none}
+  body.vetrun header>:not(.takeover-btn):not(.spacer):not(.brand){opacity:.35;filter:grayscale(1);pointer-events:none}
+  body.vetrun header{position:relative;z-index:60}
+  .vetshield{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);cursor:not-allowed}
+  .vetshield[hidden]{display:none}
+  .vetshield{backdrop-filter:blur(3px)}
+  .vetcard{width:min(520px,calc(100vw - 32px));background:var(--panel,#1b1f27);color:inherit;border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:20px 22px;box-shadow:0 24px 60px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);cursor:default}
+  .vethead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .vettitle{font-size:15px;font-weight:700;letter-spacing:.02em}
+  .vetpct{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .vetbar{position:relative;height:12px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.5)}
+  .vetfill{position:absolute;inset:0 auto 0 0;width:0;border-radius:999px;background:linear-gradient(90deg,#2fd4a0,#4aa8ff);box-shadow:0 0 14px rgba(74,168,255,.55);transition:width .35s cubic-bezier(.2,.8,.2,1);overflow:hidden}
+  .vetfill::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.45) 50%,transparent 70%);transform:translateX(-100%);animation:vetsheen 1.6s ease-in-out infinite}
+  @keyframes vetsheen{to{transform:translateX(100%)}}
+  .vetnow{margin-top:14px;font-size:14px;min-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vetmeta{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;opacity:.7;font-variant-numeric:tabular-nums}
+  .vetnote{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .vetnote span{opacity:.75}
+  .vetnote .btn{cursor:pointer}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -479,6 +498,16 @@
     <div class="crittitle">NEEDS ATTENTION</div>
     <div class="critmsg" id="critmsg"></div>
     <button class="critack" id="critack">ACKNOWLEDGE</button>
+  </div>
+</div>
+
+<div class="vetshield" id="vetshield" hidden>
+  <div class="vetcard" role="status" aria-live="polite">
+    <div class="vethead"><span class="vettitle">Full test running</span><span class="vetpct mono" id="vetpct">0%</span></div>
+    <div class="vetbar" id="vetbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Full test progress"><span class="vetfill" id="vetfill"></span></div>
+    <div class="vetnow" id="vetnow">Starting</div>
+    <div class="vetmeta mono"><span id="vetsteps">0 of 66 steps</span><span id="vetleft"></span></div>
+    <div class="vetnote"><span>The controls are locked until it finishes.</span><button class="btn" id="vetstop" title="Stop the test, put back the value being tested and mute the main">Stop the test (TAKEOVER)</button></div>
   </div>
 </div>
 

@@ -242,6 +242,26 @@ function renderSettings(s: Snapshot): void {
   renderChecks(s.diagnostics);
   renderVet(s.vet);
 }
+let vetStarted = 0;
+function lockForVet(v: VetT | undefined): void {
+  const running = !!v && v.status==="running";
+  document.body.classList.toggle("vetrun", running);
+  $("#vetshield").hidden = !running;
+  if(running && v){
+    if(vetStarted === 0) vetStarted = Date.now();
+    const total = Math.max(v.expected || 1, v.done + 1), pct = Math.min(99, Math.floor(100 * v.done / total));
+    $("#vetpct").textContent = pct + "%";
+    $("#vetfill").style.width = pct + "%";
+    $("#vetbar").setAttribute("aria-valuenow", String(pct));
+    $("#vetnow").textContent = v.title || "Starting";
+    $("#vetsteps").textContent = "Step " + Math.min(v.done + 1, total) + " of about " + total;
+    const secs = (Date.now() - vetStarted) / 1000;
+    $("#vetleft").textContent = v.done >= 3 ? "about " + Math.max(1, Math.round(secs / v.done * (total - v.done))) + " s left" : "";
+  } else vetStarted = 0;
+  for(const el of Array.from(document.body.children)){
+    if(el instanceof HTMLElement && el.tagName !== "HEADER" && el.tagName !== "SCRIPT" && el.id !== "vetshield") el.toggleAttribute("inert", running);
+  }
+}
 let vetText = "";
 function renderVet(v: VetT | undefined): void {
   const running = !!v && v.status==="running";
@@ -315,6 +335,7 @@ function render(s: Snapshot | null | undefined): void {
   _lastState = s;
   if(!built){ buildChannels(s.channels); buildMixer(s.channels); built = true; }
 
+  lockForVet(s.vet);
   curStatus = s.status || "live";
   const op = s.op_mode || "auto";
   const st = $("#status");
@@ -467,6 +488,7 @@ function action(obj: Command): void {
   post("/api/command", obj);
 }
 $("#takeover").onclick = () => action({type:"panic", on: curStatus !== "takeover"});
+$("#vetstop").onclick = () => action({type:"panic", on: true});
 $("#coach").onclick = () => action({type:"coach", on: !(_lastState && _lastState.coach && _lastState.coach.on)});
 $("#calbtn").onclick   = () => action({type:"calibrate"});
 $("#balbtn").onclick   = () => action({type:"balance_capture"});
