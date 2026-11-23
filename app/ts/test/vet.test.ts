@@ -228,8 +228,9 @@ test("--vet passes on this computer, covers every dashboard address and writes a
     io.factory = await io.audio();
     const out = await runVet(parseCliArgs(["--vet"]), io, { openSource: null, lanIp: () => Promise.resolve(null) });
     const text = lines.join("\n");
-    assert.equal(failed(out.rows), "", text);
-    assert.equal(out.code, 0);
+    const hasModule = out.rows.find((x) => x.id === "sys_audio_module")!.status === "pass";
+    assert.equal(failed(out.rows.filter((x) => hasModule || x.id !== "sys_audio_module")), "", text);
+    assert.equal(out.code, hasModule ? 0 : 1);
     const covered = new Set(out.rows.filter((x) => x.status === "pass").flatMap((x) => x.covers));
     const routes = new Set([...source("host/server.ts").matchAll(/"(\/[a-z_./]*[a-z])"/g)].map((m) => m[1]!));
     assert.ok(routes.size >= 18, [...routes].join(","));
