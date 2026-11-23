@@ -94,7 +94,7 @@ options:
                         the built-in emulator, print a report, write a log file and exit.
                         Settings come from the command line, not show.conf. A real
                         console is contacted only with --hardware, and changed only
-                        with the options below
+                        with --vet-channel, --vet-gain or --vet-main
   --vet-channel N       (--vet --hardware) test control on console channel N: each
                         value is changed, read back and put back. Keep the PA off
   --vet-main            (--vet --hardware) also test the main bus and the first FX

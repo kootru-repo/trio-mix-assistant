@@ -299,11 +299,17 @@ async function emulatorExtras(ctx: Ctx, emu: EmulatedDesk): Promise<void> {
     const seen = new Set<string>();
     ep.onMessage((data) => {
       const m = decodeReply(data);
-      if (m !== null) seen.add(m.address);
+      if (m === null) return;
+      seen.add(m.address);
+      ctx.log.note(`recv (mixer-app socket) ${m.address}`);
     });
     try {
       const to = { host: "127.0.0.1", port: emu.listenPort };
-      for (const addr of ["/info", "/xinfo", "/status", "/ch/01/config/name"]) ep.send(encodeMessage(addr, []), to);
+      for (const addr of ["/info", "/xinfo", "/status", "/ch/01/config/name"]) {
+        ctx.log.note(`send (mixer-app socket) ${addr}`);
+        ep.send(encodeMessage(addr, []), to);
+      }
+      ctx.log.note("send (mixer-app socket) /node ch/01/config");
       ep.send(encodeMessage("/node", [oscStr("ch/01/config")]), to);
       const t0 = ctx.clock.monotonic();
       while (seen.size < 5 && ctx.clock.monotonic() - t0 < 1) await ctx.clock.sleep(0.02);
@@ -369,7 +375,7 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
       must((await request(log, t, "GET", "/login.js")).status === 200, "the login script was not served");
       return "the login page was served, not the dashboard";
     });
-    await W("web_auth_required", "Without the PIN nothing can be read or changed", ["feature:pin-required"], async () => {
+    await W("web_auth_required", "Without the PIN the state, live updates and commands are refused", ["feature:pin-required"], async () => {
       for (const [method, path] of [["GET", "/state"], ["GET", "/events"], ["POST", "/api/toggle"], ["POST", "/api/command"]] as const) {
         const r = await request(log, t, method, path, method === "POST" ? { json: {} } : {});
         must(r.status === 401, `${method} ${path} answered ${r.status}, expected 401`);
@@ -498,7 +504,7 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
         return "a certificate was made, the dashboard answered over https and the cookie is Secure";
       });
     });
-    await W("tls_trusted", "Trusted HTTPS: the local root signs a certificate this computer accepts", ["feature:trust", "route:/ca.pem", "route:/ca.crt"], async () => {
+    await W("tls_trusted", "Trusted HTTPS: the local root signs a certificate that verifies against it", ["feature:trust", "route:/ca.pem", "route:/ca.crt"], async () => {
       const [certfile, keyfile, cafile] = ensureTrustedCert(join(dir, "trusted"), hosts);
       const caPem = readFileSync(cafile, "utf8");
       const tls = { key: readFileSync(keyfile, "utf8"), cert: readFileSync(certfile, "utf8") };
@@ -651,7 +657,7 @@ async function phone(ctx: Ctx): Promise<void> {
     try {
       io.out("");
       io.out(`  PHONE: open ${tls ? "https" : "http"}://${ip}:${args.port}/ on the phone and enter the PIN. Waiting up to ${wait} seconds.`);
-      if (tls) io.out("         The phone shows a certificate warning first; accept it to continue.");
+      if (tls) io.out("         If the phone shows a certificate warning, accept it to continue.");
       const t0 = ctx.clock.monotonic();
       while (who === null && !ctx.stopped() && ctx.clock.monotonic() - t0 < wait) await ctx.clock.sleep(0.25);
     } finally {
@@ -691,7 +697,7 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
       logError = errText(e);
     }
   };
-  write([...head, "", "--- every step, with the console messages sent and received ---"], true);
+  write([...head, "", "--- every step, with the console commands sent and the replies received ---"], true);
   const log = new VetLog(io.clock, (line) => write([line]));
   let stop = false;
   void io.waitForStop().then(() => {
@@ -706,7 +712,7 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
   try {
     await thisComputer(ctx);
     await emulated(ctx);
-    if (args.hardware) await realConsole(ctx);
+    if (args.hardware && !stop) await realConsole(ctx);
     if (args.vetSound) await sound(ctx);
     if (args.vetPhone) await phone(ctx);
   } catch (e) {

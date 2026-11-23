@@ -275,7 +275,7 @@ async function writeCheck(rows: VetRow[], desk: Desk, area: string, wc: WriteCas
     if (typeof result === "string") throw new VetSkip(result);
     if (problems.length) throw new VetFailure(problems.join("; "));
     const n = result === null ? 0 : result.size;
-    return `changed ${n} value${n === 1 ? "" : "s"}, read ${n === 1 ? "it" : "each"} back, then put back what was there`;
+    return `set ${n} value${n === 1 ? "" : "s"}, read ${n === 1 ? "it" : "each"} back, then put back what was there`;
   });
 }
 
@@ -305,7 +305,7 @@ const eqAddrs = (base: string, onAddr: string): string[] => [`${base}/type`, `${
 const headampAddr = (ch: number): string => `/headamp/${zeroPad(ch - 1, 3)}/gain`;
 const SCENE_ADDR = "/-show/prepos/current";
 
-function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: OscArg) => void): WriteCase[] {
+function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: string, arg: OscArg) => void): WriteCase[] {
   const p = `/ch/${zeroPad(ch, 2)}`;
   const fader = `${p}/mix/fader`;
   const bus = [...C.FX_BUSES.keys()][0] ?? 1;
@@ -315,7 +315,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
   return [
     {
       id: "con_fader_set",
-      title: `Channel ${ch} fader: set`,
+      title: `Channel ${label} fader: set`,
       feature: "setFaderDb",
       group: "channel",
       addrs: [fader],
@@ -328,7 +328,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
     },
     {
       id: "con_fader_ramp",
-      title: `Channel ${ch} fader: smooth ride`,
+      title: `Channel ${label} fader: smooth ride`,
       feature: "rampFaderDb",
       group: "channel",
       addrs: [fader],
@@ -341,7 +341,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
     },
     {
       id: "con_fader_raw",
-      title: `Channel ${ch} fader: dashboard move`,
+      title: `Channel ${label} fader: dashboard move`,
       feature: "setFaderRaw",
       group: "channel",
       addrs: [fader],
@@ -352,7 +352,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
     },
     {
       id: "con_ch_mute",
-      title: `Channel ${ch} mute`,
+      title: `Channel ${label} mute`,
       feature: "setChannelMute",
       group: "channel",
       addrs: [`${p}/mix/on`],
@@ -364,7 +364,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
     },
     {
       id: "con_polarity",
-      title: `Channel ${ch} polarity`,
+      title: `Channel ${label} polarity`,
       feature: "setPolarity",
       group: "channel",
       addrs: [`${p}/preamp/invert`],
@@ -376,7 +376,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
     },
     {
       id: "con_eq_notch",
-      title: `Channel ${ch} feedback notch (EQ band 1)`,
+      title: `Channel ${label} feedback notch (EQ band 1)`,
       feature: "setEqNotch",
       group: "channel",
       addrs: eqAddrs(`${p}/eq/1`, `${p}/eq/on`),
@@ -387,7 +387,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
     },
     {
       id: "con_eq_band",
-      title: `Channel ${ch} EQ band 2`,
+      title: `Channel ${label} EQ band 2`,
       feature: "setEqBand",
       group: "channel",
       addrs: eqAddrs(`${p}/eq/2`, `${p}/eq/on`),
@@ -398,7 +398,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
     },
     {
       id: "con_eq_clear",
-      title: `Channel ${ch} EQ off`,
+      title: `Channel ${label} EQ off`,
       feature: "clearChannelEq",
       group: "channel",
       addrs: [`${p}/eq/on`],
@@ -410,7 +410,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
     },
     {
       id: "con_send",
-      title: `Channel ${ch} send to ${C.FX_BUSES.get(bus) ?? `bus ${bus}`}`,
+      title: `Channel ${label} send to ${C.FX_BUSES.get(bus) ?? `bus ${bus}`}`,
       feature: "setSend",
       group: "channel",
       addrs: [sendAddr],
@@ -423,7 +423,7 @@ function consoleCases(con: ConsoleBase, ch: number, send: (addr: string, arg: Os
     },
     {
       id: "con_gain",
-      title: `Channel ${ch} preamp gain`,
+      title: `Channel ${label} preamp gain`,
       feature: "nudgeGainDb",
       group: "gain",
       addrs: [headampAddr(ch)],
@@ -530,7 +530,7 @@ export async function vetConsole(rows: VetRow[], desk: Desk, area: string, opts:
     });
   }
   const ch = opts.channel ?? 1;
-  for (const wc of consoleCases(desk.con, ch, (addr, arg) => desk.send(addr, arg))) {
+  for (const wc of consoleCases(desk.con, ch, opts.channel === null ? "N" : String(ch), (addr, arg) => desk.send(addr, arg))) {
     const spec: StepSpec = { id: wc.id, area, title: wc.title, proof: desk.proof, covers: [`console:${wc.feature}`] };
     const wanted =
       wc.group === "channel"
@@ -673,7 +673,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       e.command({ type: "eq_reset", ch: 1 });
       await desk.expect("/ch/01/eq/2/g", 0.5);
       await desk.expect("/ch/01/eq/on", 0);
-      return "channel 1 EQ went flat and off";
+      return "channel 1 band 2 went flat and the channel EQ went off";
     });
     await S("cmd_send", "Dashboard FX send", ["command:send"], async () => {
       e.command({ type: "send", ch: 1, fx: 1, db: -15 });
@@ -739,7 +739,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       must(e.assistant.balanceTargets.size === 2, `captured ${e.assistant.balanceTargets.size} targets, expected 2`);
       return "captured a target for both balance channels";
     });
-    await S("cmd_calibrate", "Calibration measures the room and writes the main-bus EQ", ["command:calibrate", "feature:calibration"], async () => {
+    await S("cmd_calibrate", "Calibration analyses a built-in test recording and writes the main-bus EQ", ["command:calibrate", "feature:calibration"], async () => {
       e.command({ type: "calibrate" });
       must(e.calibrationTask !== null, "calibration did not start");
       await e.calibrationTask;
@@ -834,7 +834,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       j.setEnabled("vocal_ride", false);
       return `lead fader ${fixed(start, 1)} → ${fixed(now, 1)} dB`;
     });
-    await S("job_balance", "Balance job: a channel that drops is brought back", ["job:balance"], async () => {
+    await S("job_balance", "Balance job: the fader of a channel that drops is raised", ["job:balance"], async () => {
       j.onPushedBlock({ feats: new Map([[4, feat({})], [5, feat({})]]), phases: [] }, 0);
       j.setEnabled("balance", true);
       const start = j.assistant.faderDb.get(5) ?? 0;
@@ -855,7 +855,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       j.setEnabled("phase", false);
       return "channel 6 polarity was inverted";
     });
-    await S("job_unmask", "Unmask job: instruments dip while the vocal is up, and recover", ["job:unmask"], async () => {
+    await S("job_unmask", "Unmask job: an instrument channel dips while the vocal is up, and is released when the job is switched off", ["job:unmask"], async () => {
       j.setEnabled("unmask", true);
       for (let i = 0; i < 20; i++) j.assistant.onFeatures(C.LEAD_VOCAL_CH, feat({ rmsDbfs: -20 }), T());
       const applied = j.assistant.duckApplied.get(2);
