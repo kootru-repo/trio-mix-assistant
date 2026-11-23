@@ -97,6 +97,19 @@ export class VetLog {
   }
 }
 
+export function traceLines(lines: readonly string[], rows: readonly VetRow[]): string[] {
+  const wanted = new Set(rows.filter((r) => r.status === "fail" || (r.proof === "real console" && r.status !== "skip")).map((r) => r.id));
+  const out: string[] = [];
+  let inside = false;
+  for (const line of lines) {
+    const begin = /^\[\s*[\d.]+\] --- ([A-Za-z0-9_]+):/.exec(line);
+    if (begin !== null) inside = wanted.has(begin[1]!);
+    if (inside) out.push(`  ${line}`);
+    if (inside && /^\[\s*[\d.]+\] === /.test(line)) inside = false;
+  }
+  return out;
+}
+
 export async function step(rows: VetRow[], log: VetLog, spec: StepSpec, body: () => Promise<string>): Promise<void> {
   log.note(`--- ${spec.id}: ${spec.title}`);
   log.began(spec.title);

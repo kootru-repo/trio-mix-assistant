@@ -12,7 +12,7 @@ import { EmulatedDesk } from "../src/core/emulator.ts";
 import { MemNetwork } from "../src/core/memtransport.ts";
 import { MeterReceiver } from "../src/core/metersrv.ts";
 import { decodePacket } from "../src/core/oscwire.ts";
-import { Desk, VetLog, measureSound, soundVerdict, summaryLines, tableLines, vetConsole, vetSequence } from "../src/core/vet.ts";
+import { Desk, VetLog, measureSound, soundVerdict, summaryLines, tableLines, traceLines, vetConsole, vetSequence } from "../src/core/vet.ts";
 import type { VetRow } from "../src/core/vet.ts";
 import { parseCliArgs } from "../src/host/args.ts";
 import { NativeAudioInputFactory } from "../src/host/audiodevice.ts";
@@ -207,6 +207,18 @@ test("the sound check needs the noise to be heard above the room", async () => {
   await assert.rejects(async () => soundVerdict(await measureSound(src(0.0005, 0.1, false), new Float32Array(8), 1)), /could not be played/);
   await assert.rejects(async () => soundVerdict(await measureSound(src(0.0005, 0.001), new Float32Array(8), 1)), /heard only/);
   await assert.rejects(async () => soundVerdict(await measureSound(src(0.09, 0.1), new Float32Array(8), 1)), /rose only/);
+});
+
+test("the copied trace keeps only failed steps and steps proved on a real console", () => {
+  const row = (id: string, status: "pass" | "fail" | "skip", proof: VetRow["proof"]): VetRow => ({ id, area: "a", title: id, status, proof, detail: "", covers: [] });
+  const lines = [
+    "[    0.001] --- a: A", "[    0.002] send /x", "[    0.003] === a: PASS (emulator): ok",
+    "[    0.004] --- b: B", "[    0.005] send /y", "[    0.006] === b: FAIL (emulator): bad",
+    "[    0.007] --- c: C", "[    0.008] send /z", "[    0.009] === c: PASS (real console): ok",
+    "[    0.010] --- d: D", "[    0.011] send /w", "[    0.012] === d: SKIP: no",
+  ];
+  const out = traceLines(lines, [row("a", "pass", "emulator"), row("b", "fail", "emulator"), row("c", "pass", "real console"), row("d", "skip", "real console")]);
+  assert.deepEqual(out.map((l) => l.replace(/^\s*\[[^\]]*\] /, "").split(" ").slice(0, 2).join(" ")), ["--- b:", "send /y", "=== b:", "--- c:", "send /z", "=== c:"]);
 });
 
 const idle = { stopped: () => false, takeover: () => false };
@@ -414,7 +426,8 @@ test("the dashboard test reaches a real console through the app's own socket and
       const realPart = text.slice(text.indexOf("  Real console\n"));
       assert.ok(!realPart.includes("[FAIL]"), realPart);
       assert.ok(text.includes("Real console"), text);
-      assert.ok(text.includes("[PASS] Channel 3 fader: set  (proved on: real console)"), text);
+      const traced = text.slice(text.indexOf("What was sent to and received from the console"));
+      assert.ok(/\] send \/ch\/03\/mix\/fader/.test(traced) && /\] recv \/ch\/03\/mix\/fader/.test(traced), "the copied report has no console trace");      assert.ok(text.includes("[PASS] Channel 3 fader: set  (proved on: real console)"), text);
       assert.ok(text.includes("[PASS] Main fader  (proved on: real console)"), text);
       assert.ok(rx.running && rx.onMessage === null);
       const plain = await host.run({ channel: null, gain: false, main: false }, idle);

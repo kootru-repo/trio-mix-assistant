@@ -34,6 +34,7 @@ import {
   step,
   summaryLines,
   tableLines,
+  traceLines,
   vetConsole,
   vetSequence,
 } from "../core/vet.ts";
@@ -778,6 +779,14 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
     ...operatorLines(),
   ];
   for (const l of report) io.out(l);
+  if (control !== null) {
+    const trace = traceLines(log.lines, ctx.rows);
+    if (trace.length > 0) {
+      io.out("");
+      io.out("  What was sent to and received from the console, for the failed steps and every step on the real console:");
+      for (const l of trace) io.out(redact(l, sys.home));
+    }
+  }
   write(["", "--- result ---", ...report]);
   io.out("");
   io.out(logPath !== null ? `  Full log: ${path}` : `  [!] The log file could not be written (${logError ?? "unknown error"}).`);
