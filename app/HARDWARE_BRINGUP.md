@@ -7,7 +7,7 @@ firmware, so verify every constant with a sniffer before trusting it
 live. Work through this once on the bench, then once at a real soundcheck.
 
 Nothing here is destructive to a show: do it with the PA off or at low volume, and
-keep a hand on the console. Its fader rides and preamp trims stay inside guardrails, and a human
+keep a hand on the console. The app's fader rides and preamp trims stay inside guardrails, and a human
 takeover mutes the main and holds every job.
 
 ---

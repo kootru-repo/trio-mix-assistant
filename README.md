@@ -21,7 +21,7 @@ It *listens* to the band and the room, and gently *nudges* the console within ha
 Small acoustic acts often play with no one at front‑of‑house. This app watches the channels and a measurement mic and makes small, safe corrections while you keep playing: it catches a feedback ring, pulls back a clipping preamp, and holds the lead vocal at a steady level.
 
 - **Deterministic real‑time core.** Feedback/clip/level decisions are plain DSP and clamped controllers with no machine learning, so behaviour is predictable and repeatable. (An optional Claude "slow layer" can post plain‑language advice. It is **advisory only** and never touches the mix.)
-- **Console stays in charge.** Move a fader on the desk or a tablet and the app yields. One **TAKEOVER** button hands everything back to a human.
+- **Console stays in charge.** Move a fader on the desk or a tablet and its vocal ride and balance back off on that channel for about 5 seconds. One **TAKEOVER** button hands everything back to a human.
 - **Coach mode: you mix, it guides.** One toggle flips the app from *acting* to *advising*. It suspends automatic moves (switching it on first flattens any vocal-unmask dip already applied) and instead tells you the exact manual change to make (channel, band, dB, Hz, even which scene to recall). The deterministic math is the same; it is surfaced as instructions instead of applied. Use it for hands‑on engineering, for teaching, or to preview what the app would do.
 - **Runs with zero hardware.** A built‑in simulator and a protocol‑faithful console emulator let you learn, demo, and rehearse the whole rig on a laptop. You can even mix on the real Mixing Station app against it (see below).
 - **One dashboard, any screen.** A single installable web app (PWA) is built to work the same on a Mac or Windows laptop, an iPhone or iPad, or an Android device over WiFi.
@@ -232,7 +232,7 @@ Serving the dashboard to the network (`--lan`) needs a PIN of at least 6 charact
 
 ## Mixing Station: the operator's mixer surface
 
-The M32C has no faders or screen of its own. It is a stage box, controlled entirely from a tablet or computer. **[Mixing Station](https://mixingstation.app)** is the mixer app this project is designed around (see [docs/ux-design.md](docs/ux-design.md)): the operator mixes on it while the assistant works underneath, and any move you make in Mixing Station instantly wins over the automation.
+The M32C has no faders or screen of its own. It is a stage box, controlled entirely from a tablet or computer. **[Mixing Station](https://mixingstation.app)** is the mixer app this project is designed around (see [docs/ux-design.md](docs/ux-design.md)): the operator mixes on it while the assistant works underneath, and a fader move you make in Mixing Station pauses the assistant's vocal ride and balance on that channel for about 5 seconds.
 
 **The two‑surface setup:** Mixing Station = your hands (full mixer control) · the assistant's dashboard = its voice (what it's doing and why, COACH, TAKEOVER). Run them split‑screen on one iPad or Android tablet, or on two devices (for example an iPhone and the laptop).
 
@@ -279,7 +279,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 | **Vocal unmask** | advisory | Sidechained to the lead vocal: when it's present, **dynamically duck** the ~3 kHz band on the other channels (all but the lead vocal, measurement mic and stage mic) a few dB so the vocal cuts through, then release when it pauses (fast attack / slow release). Coach mode advises a static dip instead. |
 | **Pink‑noise calibration** | pre‑show | Measure the room, cut up to four octave bands that stand out (a fifth or sixth gets a small dip), seed the watch-list. |
 
-**Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends automatic moves (switching it on first flattens any vocal-unmask dip already applied), covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
+**Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends automatic moves (switching it on first flattens any vocal-unmask dip already applied), covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and no new automatic changes are made on the console; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
 Fader rides and preamp trims pass hard **guardrails** (fader/gain range, max step, smooth ramp); the assistant's fader rides, notches, preamp trims and polarity flips are logged and can be undone by hand. Automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 

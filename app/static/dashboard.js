@@ -449,7 +449,7 @@ function render(s) {
     calbtn.disabled = cs === "running";
     $("#callbl").textContent = cs === "running" ? "Calibrating…" : (cs === "done" ? "Re-run calibration" : "Run calibration");
     setHTML($("#calstatus"), cs === "running" ? "Emitting pink noise &amp; measuring the room…" :
-        (cs === "done" ? `Room measured · ${esc((cal.corrections || []).length)} cut(s) ${s.coach && s.coach.on ? "advised" : "applied"}` : "Not yet run — using raw detection thresholds."));
+        (cs === "done" ? `Room measured · ${esc((cal.corrections || []).length)} peak(s) found` : "Not yet run — using raw detection thresholds."));
     const bands = $("#bands");
     const bl = cal.baseline || [];
     if (bl.length) {

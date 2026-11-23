@@ -356,8 +356,8 @@ body-size limits.
   stall DoS. Malformed control messages are ignored, never fatal.
 - **Shared-resource coordination**: calibration resets the whole main-bus EQ
   before applying, and a band allocator keeps live feedback notches off the bands
-  calibration claimed (so they never clobber each other and `reset` flattens the main-bus bands
-  feedback used and switches a channel's EQ off); calibration refuses to run during a takeover and pauses the
+  calibration claimed (so they never clobber each other). `reset` flattens the main-bus bands
+  feedback used and switches a channel's EQ off. Calibration refuses to run during a takeover and pauses the
   assistant during its sweep; the OSC socket and queued ramps close cleanly.
 - **Clean rejection**: an over-cap request body (up to 256 KiB; larger ones are refused unread) is *drained* before the 400 so
   closing can't RST and lose the response.

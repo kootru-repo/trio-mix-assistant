@@ -68,7 +68,7 @@ whatever jobs are enabled) underneath.
 - Assistant moves appear **live inside Mixing Station** (the desk echoes them to
   all clients): faders glide, EQ bands appear. Attribution comes from the decision
   log and from console‑native signaling (§5).
-- When the operator grabs any fader, the assistant yields that channel (existing
+- When the operator grabs any fader, the assistant's vocal ride and balance hold off that channel for about 5 seconds (existing
   reconciliation). The more hands‑on the operator, the more the assistant recedes
   toward pure feedback/clip protection. That is the intended posture, not a bug.
 

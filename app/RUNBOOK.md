@@ -20,8 +20,8 @@ where it differs, there's a **macOS** and a **Windows** version side by side.
 
 - **The console is the source of truth.** The app *listens* (channel audio + a FOH
   measurement mic) and *nudges* the desk within hard guardrails. It never owns the mix.
-- **A human always wins.** Move a fader on the desk and the app adopts it (auto‑ride
-  yields); tap **TAKEOVER** and it mutes main + freezes every automatic move.
+- **A human can always take over.** Move a fader on the desk and the app adopts it (vocal ride
+  and balance back off that channel); tap **TAKEOVER** and it mutes main + freezes every automatic move.
 - **The Claude advisor (optional) never touches the mix.** It only posts text suggestions.
 - **First time on a given console you must validate the OSC formats** against that
   firmware (see `HARDWARE_BRINGUP.md`). After that passes once, every show is just the
