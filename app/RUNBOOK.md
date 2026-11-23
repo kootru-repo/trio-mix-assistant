@@ -91,15 +91,15 @@ that channel's gain; `main bus and FX return` adds the main mute, main fader, on
 band and one FX return. Without the tick the console is only asked to identify itself and
 send meters. A scene is never recalled on a real console.
 
-From a terminal the same test runs with your `show.conf` (MODE, CONSOLE_IP, AUDIO_DEVICE and
-the `VET_CHANNEL`, `VET_GAIN`, `VET_MAIN`, `VET_SOUND`, `VET_PHONE` keys):
+From a terminal the same test runs with your `show.conf` (MODE, and with MODE=hardware CONSOLE_IP,
+AUDIO_DEVICE and the `VET_CHANNEL`, `VET_GAIN`, `VET_MAIN`, `VET_SOUND`, `VET_PHONE` keys):
 ```bash
 $ ./TrioMixAssistant --vet
 ```
 ```powershell
 PS> .\TrioMixAssistant.exe --vet
 ```
-It exits with 1 if a step failed. `VET_SOUND=yes` plays 10 seconds of pink noise through the output
+It exits with 1 if a step failed. `VET_SOUND=yes` (needs MODE=hardware and AUDIO_DEVICE) plays 10 seconds of pink noise through the output
 device and checks the measurement input hears it; `VET_PHONE=yes` (needs `LAN=yes` and a PIN) waits up
 to two minutes for a phone or tablet to sign in. With any other flag, `--vet` ignores `show.conf`
 and takes its options from the command line (§9).
@@ -349,7 +349,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 
 Default (no flags) = the setup in `show.conf`: **simulation** on `http://127.0.0.1:8770/` as
 shipped (`LAN=no`; `HTTPS=yes` takes effect once `LAN=yes`). Started with any
-flag other than `--diagnose`, `--list-devices` or `--rehearse` (your `show.conf` in emulate mode), the app ignores `show.conf`.
+flag other than `--diagnose`, `--vet`, `--list-devices` or `--rehearse` (your `show.conf` in emulate mode), the app ignores `show.conf`.
 
 ---
 

@@ -145,6 +145,41 @@ With a console connected (hardware mode), the panel also offers **Also test cont
 
 From a terminal, `TrioMixAssistant --vet` runs the same test using your `show.conf` (MODE, CONSOLE_IP and the `VET_` keys in that file; `VET_SOUND=yes` plays 10 seconds of pink noise to check the measurement input, `VET_PHONE=yes` waits up to two minutes for a phone to sign in) and exits with 1 if a step failed. The report ends with the things to check by hand.
 
+> **No console yet:** run `TrioMixAssistant --emulate` to rehearse the whole app against the built-in console emulator. Add `--auto` to listen on a real mic.
+>
+> **iPhone, iPad or Android:** with `LAN=yes` and a `PIN`, the start window prints a **scan-to-open QR code**. See [On a phone or tablet](#phone).
+>
+> **Show day:** the full guide is the [runbook](app/RUNBOOK.md).
+
+<a id="from-source"></a>
+
+<details>
+<summary><b>Run from source</b> (for developers; needs Node.js 22.13+)</summary>
+
+The app is written in TypeScript and has no runtime dependencies. Get the code (**Code → Download ZIP**, or `git clone`), open a terminal in its folder, then:
+
+```bash
+cd app/ts
+npm install
+npm run run
+```
+
+Open **http://127.0.0.1:8770/**.
+
+- **Live listening** goes through an optional native module, `naudiodon2`, which `npm install` compiles when a C++ compiler is present. Without it the app still runs in simulation and emulation, and for manual mixing and scene recall.
+- **Double-click folder:** `npm run package` writes `app/ts/dist/package/TrioMixAssistant.zip`, a zipped folder with `start`, `rehearse` and `list-devices` scripts and its own `show.conf`. It needs Node.js on the computer and does not carry the audio module. `START-HERE.txt` inside it has the steps.
+- **Build the single-file app yourself:** `npm run exe`. Details are in the [app README](app/README.md#single-file-app-no-nodejs-install).
+
+</details>
+
+<a id="operating-it"></a>
+
+## Operating it
+
+The commands below are for the downloaded app on a Mac. On Windows, type `.\TrioMixAssistant.exe` in place of `./TrioMixAssistant`.
+
+Started with no flags, the app uses `show.conf` (simulation until you change it). Started with flags, it ignores `show.conf`, so put everything on the command line; `--diagnose`, `--vet` and `--rehearse` (your `show.conf` in emulate mode), on their own or together, are the exceptions and still read `show.conf`. Add any other flag to `--diagnose` and `show.conf` is ignored; `--rehearse` cannot be combined with other flags (use `--emulate` with flags instead). From source, in the **`app/ts`** folder, `npm start` is the no-flag form (`npm start -- --diagnose`, `npm start -- --rehearse`) and `npm run run --` takes any other flags.
+
 ### Run modes
 
 | Mode | Command | What it does |
