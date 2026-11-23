@@ -195,6 +195,9 @@
   .diagitem .what b{color:#eaf2ff;font-weight:600} .diagitem .what span{color:var(--mut)}
   .diagitem .rows{grid-column:2;color:var(--mut);font-size:12px;white-space:pre-line}
   .diagitem .fix{grid-column:2;color:#ffd58a;font-size:12.5px}
+  .vetrow{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:13px;margin:0 0 10px;color:#eaf2ff}
+  .vetrow input[type=number]{width:120px;background:#0b111c;color:#cfe0f5;border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+  #vettext{width:100%;min-height:220px;margin-top:12px;background:#0b111c;color:#cfe0f5;border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
   #diagtext{width:100%;min-height:150px;margin-top:12px;background:#0b111c;color:#cfe0f5;border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
   .takeover-btn{display:inline-flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.06em;font-size:13px;
     padding:11px 18px;min-height:46px;border-radius:13px;cursor:pointer;white-space:nowrap;position:relative;overflow:hidden;
@@ -594,6 +597,20 @@
       <div class="diagsum" id="diagsum"></div>
       <div id="diaglist"></div>
       <textarea id="diagtext" readonly hidden aria-label="Check report, ready to copy"></textarea>
+    </div>
+    <div class="panel diagpanel"><h3>Full test</h3>
+      <p class="diagnote">Tries every control, job and dashboard address against a built-in test console and on this computer, and saves a log in the settings folder. It takes about half a minute and plays no sound. The automatic jobs pause while it runs.</p>
+      <div id="vetconsole" hidden>
+        <label class="vetrow"><input type="checkbox" id="vetreal"> Also test control on the real console. Turn the PA <b>OFF</b> first: each value is changed, read back and put back.</label>
+        <div class="vetrow" id="vetopts" hidden>
+          Channel <input type="number" id="vetch" min="1" max="32" placeholder="spare channel">
+          <label><input type="checkbox" id="vetgain"> preamp gain</label>
+          <label><input type="checkbox" id="vetmain"> main bus and FX return</label>
+        </div>
+      </div>
+      <div class="diagbtns"><button class="btn" id="vetrun">Run full test</button><button class="btn" id="vetcopy" hidden>Copy report</button></div>
+      <div class="diagsum" id="vetsum"></div>
+      <textarea id="vettext" readonly hidden aria-label="Full test report, ready to copy"></textarea>
     </div>
   </div>
 </div>

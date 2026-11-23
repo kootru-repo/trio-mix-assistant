@@ -21,7 +21,7 @@ It *listens* to the band and the room, and gently *nudges* the console within ha
 Small acoustic acts often play with no one at front‑of‑house. This app watches the channels and a measurement mic and makes small, safe corrections while you keep playing: it catches a feedback ring, pulls back a clipping preamp, and holds the lead vocal at a steady level.
 
 - **Deterministic real‑time core.** Feedback/clip/level decisions are plain DSP and clamped controllers with no machine learning, so behaviour is predictable and repeatable. (An optional Claude "slow layer" can post plain‑language advice. It is **advisory only** and never touches the mix.)
-- **Console stays in charge.** Move a fader on the desk or a tablet and its vocal ride and balance back off on that channel for about 5 seconds. One **TAKEOVER** button hands everything back to a human.
+- **Console stays in charge.** Move a fader on the desk or a tablet and the assistant's vocal ride and balance back off on that channel for about 5 seconds. One **TAKEOVER** button hands everything back to a human.
 - **Coach mode: you mix, it guides.** One toggle flips the app from *acting* to *advising*. It suspends automatic moves (switching it on first flattens any vocal-unmask dip already applied) and instead tells you the exact manual change to make (channel, band, dB, Hz, even which scene to recall). The deterministic math is the same; it is surfaced as instructions instead of applied. Use it for hands‑on engineering, for teaching, or to preview what the app would do.
 - **Runs with zero hardware.** A built‑in simulator and a protocol‑faithful console emulator let you learn, demo, and rehearse the whole rig on a laptop. You can even mix on the real Mixing Station app against it (see below).
 - **One dashboard, any screen.** A single installable web app (PWA) is built to work the same on a Mac or Windows laptop, an iPhone or iPad, or an Android device over WiFi.
@@ -139,51 +139,11 @@ The report can be copied. If something fails on your gear, or you got a Mac or a
 
 ### Test everything
 
-`TrioMixAssistant --vet` is the full test. It is newer than release 0.2.2, so until the next release it runs only from source (`npm run run -- --vet` in `app/ts`). Its settings come from the command line, not from `show.conf`; it only checks that `show.conf` can be read into valid options (not the PIN length, or that the template file exists). With no other flags it tests this computer and the built-in emulator: it plays no sound and contacts no console. It runs each console command, dashboard control and job against the emulated console and checks the result, prints PASS, FAIL or SKIP for each step, and writes a log of each console command sent and each reply received (meter data is counted, not logged) (`vet-<date>-<time>.log`) to your settings folder. It exits with 1 if a step failed. A pass on the emulator does not prove a real console.
+In the dashboard, open **Settings → Run full test**. It tries every control, job and dashboard address against a built-in test console and on this computer, shows PASS, FAIL or SKIP for each step, and saves a log (`vet-<date>-<time>.log`, with each console command sent and each reply received) in your settings folder. It takes about half a minute, plays no sound, and pauses the automatic jobs while it runs. Use **Copy report** to send the result. A pass on the built-in test console proves the app's own logic, not a real console.
 
-To test real gear, add options. Keep the PA off for the ones that change the console.
+With a console connected (hardware mode), the panel also offers **Also test control on the real console**. Turn the PA off first. Enter a spare channel number (and tick preamp gain or the main bus if you want those too). On that channel the app changes the fader, mute, polarity, EQ and one FX send, reads each value back from the console and puts it back; the main bus option adds the main mute, main fader, one main-bus EQ band and one FX return. Without it, the console is only asked to identify itself and send meters. A value the console does not answer a read for is not written, a step that cannot run safely is skipped and says why, and a scene is never recalled on a real console. A value that reads back correctly shows the console stored what the app sent, not what the console displays, so the [bring-up checklist](app/HARDWARE_BRINGUP.md) still applies.
 
-- `--hardware --console-ip <address>`: asks the console to identify itself and send meters. Nothing on it is changed.
-- `--vet-channel <number>` (with the two above): on that one channel, changes the fader, mute, polarity, EQ and one FX send, reads each value back and puts it back. `--vet-gain` adds that channel's preamp gain. `--vet-main` adds the main mute, the main fader, one main-bus EQ band and one FX return.
-- `--vet-sound --audio-device <number>`: plays pink noise for 10 seconds and checks that the measurement input hears it. Nothing is applied to the console.
-- `--vet-phone --lan --pin <PIN>`: serves the dashboard and waits up to two minutes for a phone or tablet to sign in.
-
-A value the console does not answer a read for is not written. A step that cannot run safely is skipped and says why (for example, the channel is already muted). A scene is never recalled on a real console, because a recall cannot be undone. A value that reads back correctly shows that the console stored what the app sent; it does not show what the console displays, so the [bring-up checklist](app/HARDWARE_BRINGUP.md) still applies. The report ends with the things to check by hand.
-
-> **No console yet:** run `TrioMixAssistant --emulate` to rehearse the whole app against the built-in console emulator. Add `--auto` to listen on a real mic.
->
-> **iPhone, iPad or Android:** with `LAN=yes` and a `PIN`, the start window prints a **scan-to-open QR code**. See [On a phone or tablet](#phone).
->
-> **Show day:** the full guide is the [runbook](app/RUNBOOK.md).
-
-<a id="from-source"></a>
-
-<details>
-<summary><b>Run from source</b> (for developers; needs Node.js 22.13+)</summary>
-
-The app is written in TypeScript and has no runtime dependencies. Get the code (**Code → Download ZIP**, or `git clone`), open a terminal in its folder, then:
-
-```bash
-cd app/ts
-npm install
-npm run run
-```
-
-Open **http://127.0.0.1:8770/**.
-
-- **Live listening** goes through an optional native module, `naudiodon2`, which `npm install` compiles when a C++ compiler is present. Without it the app still runs in simulation and emulation, and for manual mixing and scene recall.
-- **Double-click folder:** `npm run package` writes `app/ts/dist/package/TrioMixAssistant.zip`, a zipped folder with `start`, `rehearse` and `list-devices` scripts and its own `show.conf`. It needs Node.js on the computer and does not carry the audio module. `START-HERE.txt` inside it has the steps.
-- **Build the single-file app yourself:** `npm run exe`. Details are in the [app README](app/README.md#single-file-app-no-nodejs-install).
-
-</details>
-
-<a id="operating-it"></a>
-
-## Operating it
-
-The commands below are for the downloaded app on a Mac. On Windows, type `.\TrioMixAssistant.exe` in place of `./TrioMixAssistant`.
-
-Started with no flags, the app uses `show.conf` (simulation until you change it). Started with flags, it ignores `show.conf`, so put everything on the command line; `--diagnose` and `--rehearse` (your `show.conf` in emulate mode), on their own or together, are the exceptions and still read `show.conf`. Add any other flag to `--diagnose` and `show.conf` is ignored; `--rehearse` cannot be combined with other flags (use `--emulate` with flags instead). From source, in the **`app/ts`** folder, `npm start` is the no-flag form (`npm start -- --diagnose`, `npm start -- --rehearse`) and `npm run run --` takes any other flags.
+From a terminal, `TrioMixAssistant --vet` runs the same test using your `show.conf` (MODE, CONSOLE_IP and the `VET_` keys in that file; `VET_SOUND=yes` plays 10 seconds of pink noise to check the measurement input, `VET_PHONE=yes` waits up to two minutes for a phone to sign in) and exits with 1 if a step failed. The report ends with the things to check by hand.
 
 ### Run modes
 
@@ -250,7 +210,7 @@ The emulator answers Mixing Station's full discovery + sync + metering protocol,
 
 1. `./TrioMixAssistant --emulate --lan --https --pin 123456` on the laptop (`.\TrioMixAssistant.exe` on Windows).
 2. Phone/tablet on the same WiFi → Mixing Station → **Behringer X32** → the emulated desk appears as **MixAssist** in the search list (or enter the laptop's IP manually) → **Connect**, access **Full**.
-3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list. The assistant's moves mirror live; your fader moves win instantly. From source you can push test moves: `npm run osc-demo -- --animate` in `app/ts`.
+3. It syncs the desk, live meters flow, and the setlist's scenes appear in Mixing Station's scene list. The assistant's moves mirror live; your fader moves are adopted instantly. From source you can push test moves: `npm run osc-demo -- --animate` in `app/ts`.
 
 **Split screen on one Android device** during an emulator session: the assistant's dashboard (top) and Mixing Station (bottom, the trio's channels with live meters):
 
@@ -281,7 +241,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 
 **Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends automatic moves (switching it on first flattens any vocal-unmask dip already applied), covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and no new automatic changes are made on the console; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
-Fader rides and preamp trims pass hard **guardrails** (fader/gain range, max step, smooth ramp); the assistant's fader rides, notches, preamp trims and polarity flips are logged and can be undone by hand. Automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
+Fader rides pass hard **guardrails** (fader range, max step, smooth ramp) and preamp trims are clamped to the gain range and applied as fixed steps; the assistant's fader rides, notches, preamp trims and polarity flips are logged and can be undone by hand. Automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 
 ## Project layout
 

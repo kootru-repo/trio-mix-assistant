@@ -75,31 +75,34 @@ The checks cover the audio module, the input, the audio flow, the microphone
 permission, each channel's level, the console's meter feed and phone or tablet access. They do
 not test that fader and EQ commands land correctly; that is §1.2 and §2.4.
 
-### 1.2 Test everything (`--vet`)
+### 1.2 Test everything
 
-`--vet` is the full test. It is newer than release 0.2.2, so until the next release it
-runs only from source (`npm run run -- --vet` in `app/ts`). Its settings come from the
-command line, not from `show.conf`; it only checks that `show.conf` can be read into valid options (not the PIN length, or that the template file exists). On its own it tests this computer and the built-in emulator, plays no sound and contacts
-no console:
+On the dashboard, **Settings → Run full test** tries every control, job and dashboard
+address against a built-in test console and on this computer (about half a minute, no
+sound; the automatic jobs pause while it runs). Each step is PASS, FAIL or SKIP; **Copy
+report** copies the result, and `vet-<date>-<time>.log` (each console command sent and
+each reply received; meter data is not logged) is saved in the settings folder. A pass on
+the built-in test console does not prove a real console.
+
+With a real console connected, tick **Also test control on the real console**, turn the
+PA off, and enter a spare channel number. On that channel the app changes the fader, mute,
+polarity, EQ and one FX send, reads each value back and puts it back. `preamp gain` adds
+that channel's gain; `main bus and FX return` adds the main mute, main fader, one main-bus EQ
+band and one FX return. Without the tick the console is only asked to identify itself and
+send meters. A scene is never recalled on a real console.
+
+From a terminal the same test runs with your `show.conf` (MODE, CONSOLE_IP, AUDIO_DEVICE and
+the `VET_CHANNEL`, `VET_GAIN`, `VET_MAIN`, `VET_SOUND`, `VET_PHONE` keys):
 ```bash
 $ ./TrioMixAssistant --vet
 ```
 ```powershell
 PS> .\TrioMixAssistant.exe --vet
 ```
-Each step is PASS, FAIL or SKIP. The command exits with 1 if a step failed and writes
-`vet-<date>-<time>.log`, with each console command sent and each reply received (meter data is not logged), to the settings folder.
-A pass on the emulator does not prove a real console. To test the real one, with the PA off:
-```bash
-$ ./TrioMixAssistant --vet --hardware --console-ip 192.168.1.50 --vet-channel 16
-```
-```powershell
-PS> .\TrioMixAssistant.exe --vet --hardware --console-ip 192.168.1.50 --vet-channel 16
-```
-On channel 16 this changes the fader, mute, polarity, EQ and one FX send, reads each value
-back and puts it back. Without `--vet-channel` or `--vet-main` the console is only asked to identify itself
-and send meters. `--vet-gain`, `--vet-main`, `--vet-sound` and `--vet-phone` are in §9.
-A scene is never recalled on a real console.
+It exits with 1 if a step failed. `VET_SOUND=yes` plays 10 seconds of pink noise through the output
+device and checks the measurement input hears it; `VET_PHONE=yes` (needs `LAN=yes` and a PIN) waits up
+to two minutes for a phone or tablet to sign in. With any other flag, `--vet` ignores `show.conf`
+and takes its options from the command line (§9).
 
 Settings and logs live in `~/Library/Application Support/TrioMixAssistant` (macOS) or
 `%LOCALAPPDATA%\TrioMixAssistant` (Windows); the downloaded app prints the folder at
@@ -262,8 +265,7 @@ Launched with `--lan` (and ideally `--https`):
 - **Notifications, 4 levels:** silent auto-correct → log entry → dismissable **banner**
   (warn) → full-screen **acknowledge overlay** (critical). No non-critical pop-ups in
   the **first 8 bars** of a song.
-- **Operator overrides win:** a console/iPad fader move is adopted automatically; the
-  app stops riding that channel briefly. EQ/FX/fader edits stay live even under takeover.
+- **A fader move or dashboard mute holds vocal ride and balance off that channel for about 5 s:** a console/iPad fader move is adopted automatically. EQ/FX/fader edits stay live even under takeover.
 - **COACH** (header button): flips the assistant from *acting* to *advising*. It detects
   the same feedback/clip/level problems but, instead of making new changes on the console, lists the
   exact manual move (channel, band, dB, Hz) in a **Coach — manual moves** panel and the
@@ -322,7 +324,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--channel-map "1:0,…"` | explicit console-channel:device-column map (console 1-based, column 0-based); default N→N−1 |
 | `--list-devices` | print input devices (with host API) and exit |
 | `--diagnose` | run the built-in checks (§1.1), print the report and exit; read-only |
-| `--vet` | run the full test (§1.2) against the built-in emulator, print the report, write a log and exit |
+| `--vet` | run the full test (§1.2): alone it uses `show.conf`; with other flags it uses the command line. Prints the report, writes a log and exits |
 | `--vet-channel <N>` | with `--vet --hardware`: change, read back and put back the fader, mute, polarity, EQ and one FX send of console channel N. PA off |
 | `--vet-gain` | with `--vet-channel`: also that channel's preamp gain |
 | `--vet-main` | with `--vet --hardware`: also the main mute, main fader, one main-bus EQ band and one FX return. PA off |

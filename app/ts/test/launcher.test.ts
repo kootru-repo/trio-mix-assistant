@@ -143,3 +143,26 @@ test("TRUST=yes turns on the trusted certificate mode", () => {
   assert.ok(p.argv.includes("--trust"));
   assert.ok(!p.argv.includes("--https"));
 });
+
+test("a bare --vet takes the console and the test options from show.conf", async () => {
+  const { vetArgv } = await import("../src/host/launcher.ts");
+  const { parseCliArgs } = await import("../src/host/args.ts");
+  const cfg: Conf = { MODE: "hardware", CONSOLE_IP: "10.0.0.9", AUDIO_DEVICE: "3", LAN: "no", VET_CHANNEL: "12", VET_GAIN: "yes", VET_MAIN: "yes", VET_SOUND: "yes" };
+  const argv = vetArgv(cfg, plan(cfg), () => undefined);
+  const a = parseCliArgs(argv);
+  assert.ok(a.vet && a.hardware);
+  assert.equal(a.consoleIp, "10.0.0.9");
+  assert.equal(a.vetChannel, 12);
+  assert.ok(a.vetGain && a.vetMain && a.vetSound && !a.vetPhone);
+  assert.equal(a.audioDevice, "3");
+  const notes: string[] = [];
+  const sim: Conf = { MODE: "emulate", LAN: "no", VET_CHANNEL: "5" };
+  const simArgs = parseCliArgs(vetArgv(sim, plan(sim), (l) => notes.push(l)));
+  assert.ok(simArgs.vet && !simArgs.emulate && !simArgs.hardware && simArgs.vetChannel === null);
+  assert.match(notes.join(" "), /only with MODE=hardware/);
+  const bad: Conf = { MODE: "hardware", LAN: "no", VET_CHANNEL: "99" };
+  assert.throws(() => vetArgv(bad, plan(bad), () => undefined), ConfError);
+  const shipped = readConf(join(base, "show.conf"));
+  const none = parseCliArgs(vetArgv(shipped, plan(shipped), () => undefined));
+  assert.ok(none.vet && !none.vetSound && !none.vetPhone && none.vetChannel === null);
+});

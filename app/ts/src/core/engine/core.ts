@@ -4,6 +4,7 @@ import { currentAnalysisConfig } from "../blockanalysis.ts";
 import type { AnalysedBlock } from "../blockanalysis.ts";
 import { LevelWindow, audioFacts, buildReport } from "../diagnostics.ts";
 import type { AudioFacts, ConsoleFacts } from "../diagnostics.ts";
+import type { VetRequest } from "../ports.ts";
 import { asBool, intOf, numOf } from "./base.ts";
 import { EngineCalibration } from "./calibration.ts";
 
@@ -241,6 +242,38 @@ export class Engine extends EngineCalibration {
     }
   }
 
+  private currentStatus(): string {
+    return this.status;
+  }
+
+  async runVet(req: VetRequest): Promise<void> {
+    const host = this.vetHost;
+    if (host === null || this.vetStatus === "running" || this.stopped) return;
+    const refuse = (why: string): void => {
+      this.assistant.emit("system", `the full test did not start: ${why}`);
+      this.rebuildTelemetry();
+    };
+    if (this.status !== "live") return refuse("the app must be live (not in takeover or calibrating)");
+    if ((req.channel !== null || req.main) && !host.console) return refuse("there is no real console connected to test");
+    const held = { ...this.assistant.enabled };
+    for (const k of Object.keys(this.assistant.enabled)) this.assistant.enabled[k] = false;
+    this.vetStatus = "running";
+    this.assistant.emit("system", "full test running: the automatic jobs are paused until it finishes");
+    this.rebuildTelemetry();
+    try {
+      this.vetOutcome = await host.run(req);
+      this.assistant.emit("system", `full test finished: ${this.vetOutcome.summary}`);
+    } catch (exc) {
+      this.noteError(exc);
+      this.assistant.emit("system", "the full test stopped on an unexpected error");
+    } finally {
+      if (this.currentStatus() === "takeover") this.enabledBackup = { ...held };
+      else Object.assign(this.assistant.enabled, held);
+      this.vetStatus = this.vetOutcome !== null ? "done" : "idle";
+      this.rebuildTelemetry();
+    }
+  }
+
   static readonly AUDIO_RESTART_S = 3.0;
 
   private async recoverAudio(now: number): Promise<void> {
@@ -293,6 +326,12 @@ export class Engine extends EngineCalibration {
       else if (t === "panic") this.panic(bool("on"));
       else if (t === "calibrate") this.runCalibration();
       else if (t === "diagnose") void this.runDiagnostics();
+      else if (t === "vet") {
+        const channel = Object.hasOwn(d, "channel") && d["channel"] !== null ? int("channel") : null;
+        if (channel !== null && (channel < 1 || channel > 32)) throw new BadCommand("channel must be 1 to 32");
+        const flag = (k: string): boolean => (Object.hasOwn(d, k) && d[k] !== null ? bool(k) : false);
+        void this.runVet({ channel, gain: flag("gain"), main: flag("main") });
+      }
       else if (t === "lead_target") this.setLeadTarget(num("db"));
       else if (t === "balance_capture") this.captureBalanceNow();
       else if (t === "reset_notches") this.resetNotches();

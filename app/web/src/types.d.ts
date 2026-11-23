@@ -85,6 +85,15 @@ interface DiagnosticsT {
   report: { result: CheckStatusT; summary: string; checks: CheckT[]; text: string } | null;
 }
 
+interface VetT {
+  status: "idle" | "running" | "done";
+  available: boolean;
+  console: boolean;
+  summary: string;
+  failed: number;
+  text: string;
+}
+
 interface Snapshot {
   status: "live" | "takeover" | "calibrating" | string;
   op_mode: "auto" | "alert" | "manual" | "calibrating" | "coach";
@@ -118,6 +127,7 @@ interface Snapshot {
     corrections: { hz: number; cut: number }[];
   };
   diagnostics?: DiagnosticsT;
+  vet?: VetT;
   channels: ChannelT[];
   log: LogEntryT[];
 }
@@ -129,6 +139,7 @@ type Command =
   | { type: "toggle"; job: string; on: boolean }
   | { type: "coach"; on: boolean }
   | { type: "panic"; on: boolean }
+  | { type: "vet"; channel: number | null; gain: boolean; main: boolean }
   | { type: "calibrate" }
   | { type: "diagnose" }
   | { type: "lead_target"; db: number }

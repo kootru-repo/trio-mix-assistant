@@ -46,7 +46,9 @@ WHAT YOU NEED
 ------------------------------------------------------------
   Open the dashboard, go to Settings and press "Run checks". It listens
   for a few seconds, changes nothing on the console, and lists what
-  passed, what failed and how to fix it.
+  passed, what failed and how to fix it. "Run full test" below it tries every
+  control and job (about half a minute, no sound) and can also test one
+  channel of a real console with the PA off.
 
 ------------------------------------------------------------
   PHONE OR TABLET (iPhone / iPad / Android)
@@ -85,7 +87,7 @@ WHAT YOU NEED
   Mixing Station app (iOS/Android/desktop) on the same WiFi: console type
   Behringer X32, pick "MixAssist" from the search list (or type this computer's
   IP), access Full. It syncs the desk with live meters; the assistant's moves
-  mirror live and your fader moves win instantly. The setlist's scenes appear
+  mirror live and your fader moves are adopted instantly. The setlist's scenes appear
   in Mixing Station's scene list. (The X32-Edit desktop editor also works;
   M32-Edit has not been tried.)
 

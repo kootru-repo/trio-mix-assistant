@@ -92,7 +92,8 @@ options:
                         it never changes the console and plays no sound
   --vet                 full test: run every control, job and dashboard address against
                         the built-in emulator, print a report, write a log file and exit.
-                        Settings come from the command line, not show.conf. A real
+                        Alone, it takes its settings from show.conf (the VET_ keys add
+                        options); with other flags they come from the command line. A real
                         console is contacted only with --hardware, and changed only
                         with --vet-channel, --vet-gain or --vet-main
   --vet-channel N       (--vet --hardware) test control on console channel N: each

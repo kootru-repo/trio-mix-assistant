@@ -38,7 +38,7 @@ import { allLanIps, ensureCert, ensureTrustedCert, hostPermittedByCa, tlsHosts }
 import { NodeUdpFactory } from "./udp.ts";
 import { UdpSink } from "./udpsink.ts";
 import { VenueStore } from "./venuestore.ts";
-import { runVet } from "./vet.ts";
+import { inAppVet, runVet } from "./vet.ts";
 
 const AUTO_CANDIDATES = 6;
 const AUTO_DIGITAL_SILENCE_DB = -150;
@@ -605,6 +605,12 @@ async function runChecked(args: Args, io: Io): Promise<number> {
       consoleEmulated: args.emulate,
       network: networkFacts({ ...args, https: plan.tls !== null }, ip),
     });
+    const rxLive = args.hardware && engine.meterRx instanceof MeterReceiver ? engine.meterRx : null;
+    engine.vetHost = inAppVet(
+      io,
+      rxLive !== null ? { rx: rxLive, ip: args.consoleIp || C.CONSOLE_IP, port: C.CONSOLE_PORT } : null,
+      () => Promise.resolve(ip),
+    );
     const url = `${scheme}://${ip}:${args.port}/`;
     const wildcard = WILDCARD_HOSTS.includes(args.host);
     const qr = wildcard && ip ? qrAscii(qrEncode(url).modules) : null;

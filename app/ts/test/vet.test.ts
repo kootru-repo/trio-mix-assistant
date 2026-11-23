@@ -22,7 +22,9 @@ import { entryFor } from "../src/host/exe.ts";
 import { findLayout } from "../src/host/layout.ts";
 import type { Io } from "../src/host/main.ts";
 import { NodeUdpFactory } from "../src/host/udp.ts";
-import { runVet } from "../src/host/vet.ts";
+import { inAppVet, runVet } from "../src/host/vet.ts";
+import { Engine } from "../src/core/engine/index.ts";
+import { NodeUdpFactory as RealUdp } from "../src/host/udp.ts";
 import { withEmulatorPorts } from "./emulatorports.ts";
 
 interface Rig {
@@ -94,7 +96,7 @@ test("every console method, engine command and job has a row", async () => {
   for (const m of methods) assert.ok(covered.has(`console:${m}`), `no passing row covers the console method ${m}`);
   const commands = [...source("core/engine/core.ts").matchAll(/if \(t === "([a-z_]+)"\)/g)].map((m) => m[1]!);
   assert.ok(commands.length >= 16, commands.join(","));
-  for (const c of commands) assert.ok(covered.has(`command:${c}`), `no passing row covers the engine command ${c}`);
+  for (const c of commands.filter((x) => x !== "vet")) assert.ok(covered.has(`command:${c}`), `no passing row covers the engine command ${c}`);
   for (const job of Object.keys(C.DEFAULT_ENABLED)) assert.ok(covered.has(`job:${job}`), `no passing row covers the job ${job}`);
 });
 
@@ -276,7 +278,8 @@ test("the options that change a real console cannot be given by accident", () =>
   const a = parseCliArgs(["--vet", "--hardware", "--console-ip", "10.0.0.9", "--vet-channel", "3", "--vet-gain"]);
   assert.equal(a.vetChannel, 3);
   assert.ok(a.vetGain && !a.vetMain);
-  assert.equal(entryFor(["--vet"]), "run");
+  assert.equal(entryFor(["--vet"]), "launch");
+  assert.equal(entryFor(["--vet", "--hardware"]), "run");
 });
 
 test("the sound and phone layers run only when asked, and say what they need", async () => {
@@ -348,6 +351,68 @@ test("--vet sends nothing to the port a running app listens on", () =>
       assert.deepEqual(strays, []);
     } finally {
       await new Promise<void>((resolve) => app.close(() => resolve()));
+      rmSync(home, { recursive: true, force: true });
+    }
+  }));
+
+test("the dashboard command runs the full test, pauses the jobs while it runs and restores them", async () => {
+  const clock = new ManualClock(100, 1_700_000_000);
+  const e = new Engine({ clock, sim: true });
+  const during: boolean[] = [];
+  e.vetHost = {
+    console: false,
+    run: () => {
+      during.push(...Object.values(e.assistant.enabled));
+      return Promise.resolve({ text: "report", summary: "1 passed, 0 failed, 0 skipped", failed: 0 });
+    },
+  };
+  const before = { ...e.assistant.enabled };
+  e.command({ type: "vet", channel: null, gain: false, main: false });
+  assert.equal((e.snapshot()["vet"] as { status: string }).status, "running");
+  await new Promise((r) => setTimeout(r, 10));
+  const vet = e.snapshot()["vet"] as { status: string; available: boolean; console: boolean; summary: string; text: string };
+  assert.equal(vet.status, "done");
+  assert.ok(vet.available && !vet.console);
+  assert.equal(vet.summary, "1 passed, 0 failed, 0 skipped");
+  assert.equal(vet.text, "report");
+  assert.ok(during.length > 0 && during.every((on) => !on));
+  assert.deepEqual(e.assistant.enabled, before);
+  e.command({ type: "vet", channel: 3, gain: false, main: false });
+  assert.ok(e.events.some((ev) => ev.msg.includes("no real console")));
+  e.command({ type: "vet", channel: 99, gain: false, main: false });
+  e.command({ type: "panic", on: true });
+  e.command({ type: "vet", channel: null, gain: false, main: false });
+  assert.ok(e.events.some((ev) => ev.msg.includes("must be live")));
+});
+
+test("the dashboard test reaches a real console through the app's own socket and leaves that socket running", () =>
+  withEmulatorPorts(async () => {
+    const home = mkdtempSync(join(tmpdir(), "vet-home-"));
+    writeFileSync(join(home, "show.conf"), ["MODE=sim", "LAN=no", ""].join("\n"));
+    const udp = new RealUdp();
+    const clock = new SystemClock();
+    const emu = new EmulatedDesk(udp, clock, { listenPort: 0, listenHost: "127.0.0.1", appPort: C.LOCAL_PORT });
+    await emu.start();
+    const rx = new MeterReceiver(udp, { ip: "127.0.0.1", port: C.LOCAL_PORT, allowFrom: "127.0.0.1" });
+    await rx.start();
+    try {
+      const lines: string[] = [];
+      const io: Io = { ...vetIo(lines, home), clock };
+      io.factory = await io.audio();
+      const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null));
+      assert.ok(host.console);
+      const out = await host.run({ channel: 3, gain: true, main: true });
+      const text = out.text;
+      assert.match(out.summary, /^\d+ passed, 0 failed, \d+ skipped$/, text);
+      assert.ok(text.includes("Real console"), text);
+      assert.ok(text.includes("[PASS] Channel 3 fader: set  (proved on: real console)"), text);
+      assert.ok(text.includes("[PASS] Main fader  (proved on: real console)"), text);
+      assert.ok(rx.running && rx.onMessage === null);
+      const plain = await host.run({ channel: null, gain: false, main: false });
+      assert.ok(plain.text.includes("read-only"), plain.text);
+    } finally {
+      rx.stop();
+      emu.stop();
       rmSync(home, { recursive: true, force: true });
     }
   }));

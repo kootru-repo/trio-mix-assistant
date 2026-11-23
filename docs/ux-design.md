@@ -21,7 +21,7 @@
 3. **The assistant must be legible from inside any mixer surface.** An operator
    staring at Mixing Station should be able to attribute a moving fader or a new EQ
    band to the assistant *without switching apps* (see §5, console‑native signaling).
-4. **A human fader move wins, instantly.** Vocal ride and balance hold off that channel for about 5 seconds after a fader move or a dashboard mute;
+4. **A human fader move is adopted.** Vocal ride and balance hold off that channel for about 5 seconds after a fader move or a dashboard mute;
    global TAKEOVER always one tap away on the dashboard.
 5. **Rehearsal ≡ show.** Same apps, same layout, same muscle memory in the living
    room as at the gig. The only thing that changes is the IP Mixing Station points
@@ -68,7 +68,7 @@ whatever jobs are enabled) underneath.
 - Assistant moves appear **live inside Mixing Station** (the desk echoes them to
   all clients): faders glide, EQ bands appear. Attribution comes from the decision
   log and from console‑native signaling (§5).
-- When the operator grabs any fader, the assistant's vocal ride and balance hold off that channel for about 5 seconds (existing
+- When the operator moves a channel fader, the assistant's vocal ride and balance hold off that channel for about 5 seconds (existing
   reconciliation). The more hands‑on the operator, the more the assistant recedes
   toward pure feedback/clip protection. That is the intended posture, not a bug.
 
@@ -146,7 +146,7 @@ Guardrails (non‑negotiable):
 | Mixing Station loses Wi‑Fi | Nothing changes for the assistant or the show (independent paths to the console). Operator reconnects at leisure. |
 | Dashboard tab dies / phone sleeps | Assistant keeps mixing (it is headless by design); the PWA reconnects via WS→SSE fallback on reopen. Wake Lock (`--https`) prevents the sleep case on the dedicated pad. |
 | Laptop dies mid‑show | Assistant gone; console untouched and last‑written; operator still has full manual control in Mixing Station. Degradation is graceful *by architecture*. |
-| Operator and assistant touch the same channel | Fader rides yield on that channel briefly (existing reconciliation), then resume; notches, trims and other automatic writes do not yield. |
+| Operator and assistant touch the same channel | Fader rides yield on that channel briefly (existing reconciliation), then resume; notches, preamp trims, polarity flips, unmask writes and scene recall do not yield (a song-change guest mute does). |
 | Both surfaces on one pad | iPad Split View keeps both live. If the OS suspends the PWA half, banners are missed but nothing breaks. Recommend the two‑device layout for shows. |
 
 ## 7. Status of the work

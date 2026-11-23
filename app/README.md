@@ -88,11 +88,10 @@ and open the dashboard, or pass the same flags as `npm run run --`
   per-channel levels, console feed and phone or tablet access. It is read-only: the
   command-line form builds no engine and sends the console nothing but the meter
   and update subscriptions. The logic is in `ts/src/core/diagnostics.ts`.
-- **It can test itself.** `--vet` (newer than release 0.2.2) runs every console
+- **It can test itself.** The **Run full test** button on the Settings tab (or `--vet`) runs every console
   command, dashboard control and job against the built-in emulator, checks the
-  result and writes a log. With
-  `--hardware --vet-channel <N>` it changes the fader, mute, polarity, EQ and one
-  FX send on one channel of a real console and puts each value back. The logic is in `ts/src/core/vet.ts`
+  result and writes a log. With a real console it can also change the fader, mute,
+  polarity, EQ and one FX send on one channel you name and put each value back. The logic is in `ts/src/core/vet.ts`
   and `ts/src/host/vet.ts`.
 - **It is unsigned,** so macOS blocks a downloaded build until you choose
   **Open Anyway** (see "On a Mac" below), and Windows shows a SmartScreen warning on first run.
@@ -266,8 +265,7 @@ over `wss://` automatically under https.
 | **Manual mixing surface** | performer | Draggable per-channel fader strips + master + one-tap mute, over WebSocket. A human move makes the auto-ride **yield** on that channel for a few seconds (shared-control). |
 | **Coach mode** | advisory | A header toggle that suspends new automatic console writes (switching it on first flattens any vocal-unmask dip already applied), covering mix corrections *and* setlist automation (scene recall, guest mutes), and instead lists the exact manual move (channel, band, dB, Hz, scene) in a panel + the log. Only your own manual moves act. The numbers are the same deterministic math as auto mode. For mixing by hand with guidance, or previewing what the app would do. |
 
-Fader rides and preamp trims pass through **guardrails** (hard fader/gain range, max step,
-smooth ramp); fader rides, notches, preamp trims and polarity flips are **logged and can be undone by hand**; and a **TAKEOVER**
+Fader rides pass through **guardrails** (hard fader range, max step, smooth ramp) and preamp trims are clamped to the gain range and applied as fixed steps; fader rides, notches, preamp trims and polarity flips are **logged and can be undone by hand**; and a **TAKEOVER**
 button mutes the main and holds all jobs so a human always wins.
 
 ## Architecture

@@ -10,7 +10,7 @@ import { ConsoleBase, OscConsole, SimConsole } from "../console.ts";
 import { BlockAnalyser } from "../blockanalysis.ts";
 import type { DiagHost, DiagReport, LevelWindow } from "../diagnostics.ts";
 import type { ChannelFeatures } from "../dsp.ts";
-import type { AdvisorPort, MeterReceiverPort, SessionLogPort } from "../ports.ts";
+import type { AdvisorPort, MeterReceiverPort, SessionLogPort, VetHostPort, VetSummary } from "../ports.ts";
 import { roundHalfEven, roundTo } from "../numfmt.ts";
 import { SeededRng } from "../rng.ts";
 import type { Rng } from "../rng.ts";
@@ -109,6 +109,9 @@ export class EngineBase {
   protected deadSince = -1e9;
   show: ShowInfo = { current: "", next: "", section: "", bpm: null, scene: null, playing: false, index: null };
   diagHost: (() => DiagHost) | null = null;
+  vetHost: VetHostPort | null = null;
+  protected vetStatus: "idle" | "running" | "done" = "idle";
+  protected vetOutcome: VetSummary | null = null;
   protected diagStatus: "idle" | "running" | "done" = "idle";
   protected diagReport: DiagReport | null = null;
   protected diagWindow: LevelWindow | null = null;
@@ -443,6 +446,14 @@ export class EngineBase {
         corrections: this.calib ? this.calib.corrections.map(([f, c]) => ({ hz: roundHalfEven(f), cut: c })) : [],
       },
       diagnostics: { status: this.diagStatus, report: this.diagReport },
+      vet: {
+        status: this.vetStatus,
+        available: this.vetHost !== null,
+        console: this.vetHost !== null && this.vetHost.console,
+        summary: this.vetOutcome !== null ? this.vetOutcome.summary : "",
+        failed: this.vetOutcome !== null ? this.vetOutcome.failed : 0,
+        text: this.vetOutcome !== null ? this.vetOutcome.text : "",
+      },
       channels: this.channelTelemetry(now),
       log: this.events.slice(-40).reverse(),
     };

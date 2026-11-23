@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { buildArgv, ConfError, readConf } from "./launcher.ts";
+import { buildArgv, ConfError, readConf, vetArgv } from "./launcher.ts";
 import { defaultIo, run } from "./main.ts";
 import type { Io } from "./main.ts";
 
@@ -36,6 +36,19 @@ export async function launch(argv: readonly string[], io: Io, open: (url: string
     throw exc;
   }
   if (argv.includes("--diagnose")) return run([...plan.argv, "--diagnose"], io);
+  if (argv.includes("--vet")) {
+    let vet: string[];
+    try {
+      vet = vetArgv(cfg, plan, (l) => io.out(l));
+    } catch (exc) {
+      if (exc instanceof ConfError) {
+        io.out("  [!] " + exc.message);
+        return 2;
+      }
+      throw exc;
+    }
+    return run(vet, io);
+  }
   const scheme = plan.argv.includes("--https") || plan.argv.includes("--trust") ? "https" : "http";
   io.out("=".repeat(60));
   io.out("  Trio Mix-Assistant — " + (rehearse ? "REHEARSE (emulator)" : plan.mode.toUpperCase()));

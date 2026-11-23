@@ -13,6 +13,23 @@ export interface AdvisorPort {
   stop(): void;
 }
 
+export interface VetRequest {
+  channel: number | null;
+  gain: boolean;
+  main: boolean;
+}
+
+export interface VetSummary {
+  text: string;
+  summary: string;
+  failed: number;
+}
+
+export interface VetHostPort {
+  readonly console: boolean;
+  run(request: VetRequest): Promise<VetSummary>;
+}
+
 export interface MeterReceiverPort {
   readonly lastError?: unknown;
   start(): Promise<void>;

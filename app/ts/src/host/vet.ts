@@ -37,6 +37,7 @@ import {
   vetConsole,
   vetSequence,
 } from "../core/vet.ts";
+import type { VetHostPort, VetRequest, VetSummary } from "../core/ports.ts";
 import type { SoundSource, StepSpec, VetProof, VetRow } from "../core/vet.ts";
 import { parseCliArgs } from "./args.ts";
 import type { Args } from "./args.ts";
@@ -60,7 +61,14 @@ export interface VetAudio extends SoundSource {
   settled(): Promise<void>;
 }
 
+export interface LiveConsole {
+  rx: MeterReceiver;
+  ip: string;
+  port: number;
+}
+
 export interface VetHooks {
+  live?: LiveConsole | null;
   openSource: (() => VetAudio) | null;
   lanIp: () => Promise<string | null>;
   phoneSeconds?: number;
@@ -551,6 +559,13 @@ async function emulated(ctx: Ctx): Promise<void> {
 
 const REAL = "Real console";
 
+function liveLink(ctx: Ctx, live: LiveConsole): Link {
+  const target: Peer = { host: live.ip, port: live.port };
+  const desk = new Desk({ transmit: (data) => live.rx.send(data, target), clock: ctx.clock, log: ctx.log, proof: "real console", stopped: ctx.stopped });
+  live.rx.onMessage = (addr, args) => desk.receive(addr, args);
+  return { desk, rx: live.rx };
+}
+
 async function realConsole(ctx: Ctx): Promise<void> {
   const { args, io } = ctx;
   const ip = args.consoleIp || C.CONSOLE_IP;
@@ -565,9 +580,10 @@ async function realConsole(ctx: Ctx): Promise<void> {
       ? `  Real console at ${ip}: this run sets values on ${writes.join(", ")}, reads each back and puts it back. Keep the PA off.`
       : `  Real console at ${ip}: read-only (no --vet-channel or --vet-main), so nothing on it is changed.`,
   );
+  const live = ctx.hooks.live ?? null;
   let made: Link;
   try {
-    made = await link(ctx, "0.0.0.0", ctx.hooks.localPort ?? C.LOCAL_PORT, isIP(ip) !== 0 ? ip : null, "real console", () => Promise.resolve({ host: ip, port: C.CONSOLE_PORT }));
+    made = live !== null ? liveLink(ctx, live) : await link(ctx, "0.0.0.0", ctx.hooks.localPort ?? C.LOCAL_PORT, isIP(ip) !== 0 ? ip : null, "real console", () => Promise.resolve({ host: ip, port: C.CONSOLE_PORT }));
   } catch (e) {
     ctx.rows.push({
       id: "con_listen",
@@ -583,7 +599,8 @@ async function realConsole(ctx: Ctx): Promise<void> {
   try {
     await vetConsole(ctx.rows, made.desk, REAL, { channel: args.vetChannel, main: args.vetMain, gain: args.vetGain });
   } finally {
-    made.rx.stop();
+    if (live !== null) live.rx.onMessage = null;
+    else made.rx.stop();
   }
 }
 
@@ -667,6 +684,31 @@ async function phone(ctx: Ctx): Promise<void> {
     must(who !== null, `no phone signed in within ${wait} seconds; check it is on the same network and that this computer's firewall allows port ${args.port}`);
     return `a device at ${String(who)} signed in over ${tls ? "https" : "http"}`;
   });
+}
+
+export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<string | null>): VetHostPort {
+  return {
+    console: live !== null,
+    async run(req: VetRequest): Promise<VetSummary> {
+      const flags = ["--vet"];
+      if (live !== null) {
+        flags.push("--hardware", `--console-ip=${live.ip}`);
+        if (req.channel !== null) {
+          flags.push(`--vet-channel=${req.channel}`);
+          if (req.gain) flags.push("--vet-gain");
+        }
+        if (req.main) flags.push("--vet-main");
+      }
+      const lines: string[] = [];
+      const out = await runVet(parseCliArgs(flags), { ...io, out: (l) => lines.push(l) }, { openSource: null, lanIp, live });
+      const count = (st: string): number => out.rows.filter((r) => r.status === st).length;
+      return {
+        text: lines.join("\n"),
+        summary: `${count("pass")} passed, ${count("fail")} failed, ${count("skip")} skipped`,
+        failed: count("fail"),
+      };
+    },
+  };
 }
 
 const stamp = (d: Date): string => {

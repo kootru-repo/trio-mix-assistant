@@ -296,6 +296,24 @@ function renderSettings(s) {
         row("Calibration", (s.calibration || {}).status || "—") +
         row("Venue model", ven ? (ven.shows + " show(s) · " + Math.round((ven.confidence || 0) * 100) + "% · " + (ven.freqs || []).length + " known freqs") : "—"));
     renderChecks(s.diagnostics);
+    renderVet(s.vet);
+}
+let vetText = "";
+function renderVet(v) {
+    const running = !!v && v.status === "running";
+    const run = $("#vetrun");
+    run.disabled = running || !v || !v.available;
+    run.textContent = running ? "Testing… about half a minute" : (v && v.status === "done" ? "Run full test again" : "Run full test");
+    $("#vetconsole").hidden = !(v && v.console);
+    $("#vetopts").hidden = !$("#vetreal").checked;
+    setHTML($("#vetsum"), v && v.status === "done" ? esc("Result: " + v.summary + (v.failed ? " — see the FAIL lines below" : "")) : "");
+    const box = $("#vettext"), text = v && v.status === "done" ? v.text : "";
+    if (text !== vetText) {
+        vetText = text;
+        box.value = text;
+    }
+    box.hidden = !text;
+    $("#vetcopy").hidden = !text;
 }
 let diagText = "";
 function renderChecks(d) {
@@ -334,6 +352,44 @@ $("#eqreset").onclick = () => { if (eqCh != null) {
 } };
 $("#setcal").onclick = () => action({ type: "calibrate" });
 $("#diagrun").onclick = () => action({ type: "diagnose" });
+$("#vetreal").onchange = () => { $("#vetopts").hidden = !$("#vetreal").checked; };
+$("#vetrun").onclick = () => {
+    const real = $("#vetreal").checked && !$("#vetconsole").hidden;
+    const ch = parseInt($("#vetch").value, 10);
+    const main = real && $("#vetmain").checked;
+    const gain = real && $("#vetgain").checked;
+    const channel = real && ch >= 1 && ch <= 32 ? ch : null;
+    if (real) {
+        if (channel === null && !main) {
+            alert("Enter the console channel number to test (1 to 32), or tick the main bus.");
+            return;
+        }
+        if (gain && channel === null) {
+            alert("Preamp gain needs a channel number.");
+            return;
+        }
+        const what = (channel !== null ? "channel " + channel : "") + (channel !== null && main ? " and " : "") + (main ? "the main bus and FX return" : "");
+        if (!confirm("Turn the PA OFF first.\n\nThis changes values on " + what + ", reads each back and puts it back. Continue?"))
+            return;
+    }
+    action({ type: "vet", channel, gain, main });
+};
+$("#vetcopy").onclick = () => {
+    const box = $("#vettext"), btn = $("#vetcopy");
+    box.select();
+    const done = (ok) => { btn.textContent = ok ? "Copied" : "Press Ctrl+C to copy"; setTimeout(() => { btn.textContent = "Copy report"; }, 2000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(box.value).then(() => done(true), () => done(false));
+    }
+    else {
+        try {
+            done(document.execCommand("copy"));
+        }
+        catch (e) {
+            done(false);
+        }
+    }
+};
 $("#diagcopy").onclick = () => {
     const box = $("#diagtext"), btn = $("#diagcopy");
     const done = (ok) => { btn.textContent = ok ? "Copied" : "Select the text below and copy it"; setTimeout(() => { btn.textContent = "Copy report"; }, 2500); };

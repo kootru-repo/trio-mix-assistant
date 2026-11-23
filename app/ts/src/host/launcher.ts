@@ -44,6 +44,29 @@ function yes(v: unknown, key: string): boolean {
 
 const get = (cfg: Conf, key: string, fallback: string): string => cfg[key] ?? fallback;
 
+export function vetArgv(cfg: Conf, plan: LaunchPlan, print: (line: string) => void = () => undefined): string[] {
+  const argv = plan.argv.filter((a) => a !== "--emulate");
+  argv.push("--vet");
+  const channel = get(cfg, "VET_CHANNEL", "").trim();
+  const gain = yes(get(cfg, "VET_GAIN", "no"), "VET_GAIN");
+  const main = yes(get(cfg, "VET_MAIN", "no"), "VET_MAIN");
+  if (plan.mode === "hardware") {
+    if (channel) {
+      if (!/^\d+$/.test(channel) || Number(channel) < 1 || Number(channel) > 32) {
+        throw new ConfError(`VET_CHANNEL in show.conf must be a channel number from 1 to 32, not '${channel}'`);
+      }
+      argv.push(`--vet-channel=${channel}`);
+      if (gain) argv.push("--vet-gain");
+    }
+    if (main) argv.push("--vet-main");
+  } else if (channel || main || gain) {
+    print("  [i] VET_CHANNEL, VET_GAIN and VET_MAIN are used only with MODE=hardware; testing the built-in emulator only.");
+  }
+  if (yes(get(cfg, "VET_SOUND", "no"), "VET_SOUND")) argv.push("--vet-sound");
+  if (yes(get(cfg, "VET_PHONE", "no"), "VET_PHONE")) argv.push("--vet-phone");
+  return argv;
+}
+
 export interface LaunchPlan {
   argv: string[];
   mode: string;
