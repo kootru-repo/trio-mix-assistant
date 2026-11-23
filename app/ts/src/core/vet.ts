@@ -135,6 +135,7 @@ export class Desk {
   meterPackets = 0;
   onFader: ((ch: number, db: number) => void) | null = null;
   holdMain: () => boolean = () => false;
+  mainHeld = false;
   private readonly transmit: (data: Uint8Array) => boolean;
   private readonly timeoutS: number;
   private readonly stoppedFn: () => boolean;
@@ -209,6 +210,11 @@ export class Desk {
   async putBack(addr: string, arg: OscArg, was: number): Promise<number | null> {
     let got: number | null = null;
     for (let attempt = 0; attempt < RESTORE_ATTEMPTS; attempt++) {
+      if (addr === `/${C.MAIN_BUS}/mix/on` && this.holdMain()) {
+        this.log.note(`restore of ${addr} skipped: takeover is holding the main muted`);
+        this.mainHeld = true;
+        return was;
+      }
       this.send(addr, arg);
       got = await this.num(addr);
       if (got !== null && near(got, was)) return got;
@@ -267,13 +273,10 @@ async function writeCheck(rows: VetRow[], desk: Desk, area: string, wc: WriteCas
       if (typeof result !== "string") {
         await desk.con.flushRamps();
         for (const [addr, was] of before) {
-          if (addr === `/${C.MAIN_BUS}/mix/on` && desk.holdMain()) {
-            desk.log.note(`restore of ${addr} skipped: takeover is holding the main muted`);
-            held = true;
-            continue;
-          }
+          desk.mainHeld = false;
           const now = await desk.putBack(addr, original.get(addr)!, was);
-          if (now === null || !near(now, was)) {
+          if (desk.mainHeld) held = true;
+          else if (now === null || !near(now, was)) {
             problems.push(`${addr} was NOT put back: it was ${fixed(was, 3)} and is now ${now === null ? "unknown" : fixed(now, 3)}`);
           }
         }

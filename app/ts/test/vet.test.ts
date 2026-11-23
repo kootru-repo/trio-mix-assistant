@@ -509,3 +509,51 @@ test("a takeover keeps the main bus muted when the test would put it back", asyn
   assert.ok(r.log.lines.some((l) => l.includes("restore of /main/st/mix/on skipped: takeover")));
   assert.equal(r.emu.params.get("/main/st/mix/on")?.[0]?.v, 0);
 });
+
+test("the dashboard shows a takeover pressed during the full test straight away", async () => {
+  const clock = new ManualClock(100, 1_700_000_000);
+  const e = new Engine({ clock, sim: true });
+  let release: () => void = () => undefined;
+  e.vetHost = {
+    console: false,
+    run: () =>
+      new Promise((resolve) => {
+        release = () => resolve({ text: "t", summary: "s", failed: 0 });
+      }),
+  };
+  e.command({ type: "vet", channel: null, gain: false, main: false });
+  assert.equal(e.snapshot()["status"], "live");
+  e.command({ type: "panic", on: true });
+  assert.equal(e.snapshot()["status"], "takeover");
+  assert.equal((e.snapshot()["vet"] as { status: string }).status, "running");
+  assert.ok((e.snapshot()["log"] as { msg: string }[]).some((l) => l.msg.includes("TAKEOVER")));
+  release();
+  await new Promise((r) => setTimeout(r, 10));
+  e.command({ type: "panic", on: false });
+  assert.equal(e.snapshot()["status"], "live");
+});
+
+test("a takeover pressed while a restore is being retried stops the retries from un-muting the main bus", async () => {
+  const r = await rig("real console");
+  const rows: VetRow[] = [];
+  let sent = 0;
+  const original = r.emu.handleAny.bind(r.emu);
+  r.emu.handleAny = (client, addr, args) => {
+    if (addr === "/main/st/mix/on" && args.length > 0 && args[0]!.t === "i" && args[0]!.v === 1) {
+      sent += 1;
+      return;
+    }
+    original(client, addr, args);
+  };
+  r.desk.holdMain = () => sent >= 1;
+  try {
+    await vetConsole(rows, r.desk, "Console", { channel: null, main: true, gain: false });
+  } finally {
+    r.close();
+  }
+  const row = rows.find((x) => x.id === "con_main_mute")!;
+  assert.equal(row.status, "pass", row.detail);
+  assert.match(row.detail, /left muted because TAKEOVER/);
+  assert.equal(sent, 1);
+  assert.equal(r.emu.params.get("/main/st/mix/on")?.[0]?.v, 0);
+});

@@ -376,8 +376,43 @@ export class EngineBase {
     return out;
   }
 
+  protected vetTelemetry(): Record<string, unknown> {
+    return {
+      status: this.vetStatus,
+      available: this.vetHost !== null,
+      console: this.vetHost !== null && this.vetHost.console,
+      summary: this.vetOutcome !== null ? this.vetOutcome.summary : "",
+      failed: this.vetOutcome !== null ? this.vetOutcome.failed : 0,
+      text: this.vetOutcome !== null ? this.vetOutcome.text : "",
+    };
+  }
+
+  protected refreshLiveTelemetry(): void {
+    const now = this.clock.monotonic();
+    const live: Telemetry = {
+      status: this.status,
+      enabled: { ...this.assistant.enabled },
+      coach: { on: this.assistant.coachMode, recs: this.assistant.coachSnapshot(now) },
+      main_muted: this.con instanceof SimConsole ? this.con.mainMuted : false,
+      diagnostics: { status: this.diagStatus, report: this.diagReport },
+      vet: this.vetTelemetry(),
+      log: this.events.slice(-40).reverse(),
+    };
+    try {
+      const [alerts, opMode] = this.alertsAndMode(now, now - this.lastRxT < 5.0);
+      live["alerts"] = alerts;
+      live["op_mode"] = opMode;
+    } catch {
+      live["op_mode"] = this.status === "takeover" ? "manual" : this.telemetry["op_mode"];
+    }
+    this.telemetry = { ...this.telemetry, ...live };
+  }
+
   protected rebuildTelemetry(): void {
-    if (this.telemetryFrozen) return;
+    if (this.telemetryFrozen) {
+      this.refreshLiveTelemetry();
+      return;
+    }
     const now = this.clock.monotonic();
     const lead = C.LEAD_VOCAL_CH;
     const inEma = this.assistant.inEma.get(lead) ?? null;
@@ -457,14 +492,7 @@ export class EngineBase {
         corrections: this.calib ? this.calib.corrections.map(([f, c]) => ({ hz: roundHalfEven(f), cut: c })) : [],
       },
       diagnostics: { status: this.diagStatus, report: this.diagReport },
-      vet: {
-        status: this.vetStatus,
-        available: this.vetHost !== null,
-        console: this.vetHost !== null && this.vetHost.console,
-        summary: this.vetOutcome !== null ? this.vetOutcome.summary : "",
-        failed: this.vetOutcome !== null ? this.vetOutcome.failed : 0,
-        text: this.vetOutcome !== null ? this.vetOutcome.text : "",
-      },
+      vet: this.vetTelemetry(),
       channels: this.channelTelemetry(now),
       log: this.events.slice(-40).reverse(),
     };
