@@ -311,7 +311,7 @@ function renderTabPanels(s: Snapshot): void {
 }
 $("#eqreset").onclick = () => { if(eqCh!=null){ action({type:"eq_reset", ch:eqCh}); eqDirty=true; } };
 $("#setcal").onclick = () => action({type:"calibrate"});
-$("#diagrun").onclick = () => action({type:"diagnose"});
+$("#diagrun").onclick = () => action({type:"diagnose", identify: $<HTMLInputElement>("#diagkeep").checked});
 $("#vetreal").onchange = () => { $("#vetopts").hidden = !$<HTMLInputElement>("#vetreal").checked; };
 $("#vetrun").onclick = () => {
   const real = $<HTMLInputElement>("#vetreal").checked && !$("#vetconsole").hidden;
@@ -325,7 +325,7 @@ $("#vetrun").onclick = () => {
     const what = (channel !== null ? "channel "+channel+(gain ? " (including its preamp gain)" : "") : "") + (channel !== null && main ? " and " : "") + (main ? "the main bus and FX return" : "");
     if(!confirm("Turn the PA OFF first.\n\nThis changes values on "+what+", reads each back and puts it back. Continue?")) return;
   }
-  action({type:"vet", channel, gain, main});
+  action({type:"vet", channel, gain, main, identify: $<HTMLInputElement>("#vetkeep").checked});
 };
 $("#vetdownload").onclick = () => downloadText("trio-full-test", $<HTMLTextAreaElement>("#vettext").value);
 $("#diagdownload").onclick = () => downloadText("trio-checks", $<HTMLTextAreaElement>("#diagtext").value);

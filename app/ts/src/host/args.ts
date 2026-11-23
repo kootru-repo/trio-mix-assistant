@@ -27,6 +27,7 @@ export interface Args {
   vetChannel: number | null;
   vetMain: boolean;
   vetGain: boolean;
+  vetKeepNames: boolean;
   vetSound: boolean;
   vetPhone: boolean;
   https: boolean;
@@ -50,6 +51,7 @@ export const USAGE = `usage: TrioMixAssistant [-h] [--host HOST] [--lan] [--port
            [--channel-map CHANNEL_MAP] [--auto] [--trace-osc] [--list-devices]
            [--diagnose]
            [--vet] [--vet-channel N] [--vet-main] [--vet-gain] [--vet-sound] [--vet-phone]
+           [--vet-keep-names]
            [--https] [--pin PIN] [--trust] [--insecure-open] [--template TEMPLATE]
            [--ableset-port ABLESET_PORT] [--ableset-from ADDRESS] [--no-show-clock]
            [--venue VENUE]
@@ -102,6 +104,8 @@ options:
                         return the same way. Keep the PA off
   --vet-gain            (--vet --hardware --vet-channel N) also test that channel's
                         preamp gain
+  --vet-keep-names      (--vet) keep audio device names, IP addresses and show names in
+                        the report and log. By default they are replaced
   --vet-sound           (--vet) play pink noise and check that the measurement input
                         hears it; needs --audio-device
   --vet-phone           (--vet) serve the dashboard and wait for a phone to sign in;
@@ -154,6 +158,7 @@ const OPTIONS = {
   vet: { type: "boolean" },
   "vet-channel": { type: "string" },
   "vet-main": { type: "boolean" },
+  "vet-keep-names": { type: "boolean" },
   "vet-gain": { type: "boolean" },
   "vet-sound": { type: "boolean" },
   "vet-phone": { type: "boolean" },
@@ -214,6 +219,7 @@ export function parseCliArgs(argv: readonly string[]): Args {
     vetChannel: intOption("vet-channel", values["vet-channel"], null, 1, 32),
     vetMain: Boolean(values["vet-main"]),
     vetGain: Boolean(values["vet-gain"]),
+    vetKeepNames: Boolean(values["vet-keep-names"]),
     vetSound: Boolean(values["vet-sound"]),
     vetPhone: Boolean(values["vet-phone"]),
     https: Boolean(values["https"]),
@@ -233,7 +239,7 @@ export function parseCliArgs(argv: readonly string[]): Args {
   if (args.ablesetFrom !== null && isIP(args.ablesetFrom) === 0) {
     throw new UsageError(`argument --ableset-from: '${args.ablesetFrom}' is not an IP address`);
   }
-  const vetExtras = args.vetChannel !== null || args.vetMain || args.vetGain || args.vetSound || args.vetPhone;
+  const vetExtras = args.vetChannel !== null || args.vetMain || args.vetGain || args.vetSound || args.vetPhone || args.vetKeepNames;
   if (vetExtras && !args.vet) throw new UsageError("the --vet-... options need --vet");
   if (args.vet && (args.diagnose || args.listDevices)) throw new UsageError("--vet cannot be combined with --diagnose or --list-devices");
   if (args.vet && args.emulate) throw new UsageError("--vet always tests the built-in emulator; leave out --emulate");

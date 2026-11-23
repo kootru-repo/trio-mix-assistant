@@ -68,6 +68,7 @@ export interface DiagFacts {
   audioSkipped: string;
   console: ConsoleFacts | null;
   network: NetworkFacts;
+  scrub?: (text: string) => string;
 }
 
 export interface DiagReport {
@@ -292,8 +293,32 @@ export function redact(text: string, home: string | null): string {
   return out;
 }
 
+export interface ScrubFacts {
+  devices: readonly string[];
+  words: readonly string[];
+}
+
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export function makeScrubber(f: ScrubFacts): (text: string) => string {
+  const byLength = (a: string, b: string): number => b.length - a.length;
+  const names = [...new Set(f.devices.map((d) => d.replace(/\s+/g, " ").trim()).filter((d) => d.length >= 4))].sort(byLength);
+  const devices = names.map((d) => new RegExp(d.split(" ").map(escapeRegExp).join("\\s+"), "g"));
+  const words = [...new Set(f.words.map((w) => w.trim()).filter((w) => w.length >= 3))].sort(byLength);
+  return (text) => {
+    let out = text;
+    for (const d of devices) out = out.replace(d, "(device name hidden)");
+    for (const w of words) out = out.replace(new RegExp(escapeRegExp(w), "gi"), "(name hidden)");
+    out = out.replace(/\b(?!127\.0\.0\.1\b)\d{1,3}(?:\.\d{1,3}){3}\b/g, "x.x.x.x");
+    out = out.replace(/\b[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}\b/g, "xx:xx:xx:xx:xx:xx");
+    out = out.replace(/((?:\/xinfo|answered:) (?:x\.x\.x\.x|127\.0\.0\.1)) (.+) (\S+) (\S+)$/gm, "$1 (console name hidden) $3 $4");
+    return out;
+  };
+}
+
 export function buildReport(f: DiagFacts): DiagReport {
-  const clean = (text: string): string => redact(text, f.home);
+  const scrub = f.scrub ?? ((text: string): string => text);
+  const clean = (text: string): string => scrub(redact(text, f.home));
   const checks = evaluate(f).map((c) => ({ ...c, detail: clean(c.detail), rows: c.rows.map(clean), fix: c.fix === null ? null : clean(c.fix) }));
   const text = [...headerLines(f), ...checks.flatMap(checkLines), ...footerLines(checks)].join("\n");
   return { result: resultOf(checks), summary: summaryOf(checks), checks, text };
@@ -310,6 +335,7 @@ export interface DiagHost {
   mappedChannels: readonly number[] | null;
   consoleEmulated: boolean;
   network: NetworkFacts;
+  scrub?: (text: string) => string;
 }
 
 const count = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);

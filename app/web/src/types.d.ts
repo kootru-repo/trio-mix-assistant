@@ -142,9 +142,9 @@ type Command =
   | { type: "toggle"; job: string; on: boolean }
   | { type: "coach"; on: boolean }
   | { type: "panic"; on: boolean }
-  | { type: "vet"; channel: number | null; gain: boolean; main: boolean }
+  | { type: "vet"; channel: number | null; gain: boolean; main: boolean; identify: boolean }
   | { type: "calibrate" }
-  | { type: "diagnose" }
+  | { type: "diagnose"; identify?: boolean }
   | { type: "lead_target"; db: number }
   | { type: "balance_capture" }
   | { type: "reset_notches" }

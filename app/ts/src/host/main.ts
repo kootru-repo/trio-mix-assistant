@@ -38,7 +38,7 @@ import { allLanIps, ensureCert, ensureTrustedCert, hostPermittedByCa, tlsHosts }
 import { NodeUdpFactory } from "./udp.ts";
 import { UdpSink } from "./udpsink.ts";
 import { VenueStore } from "./venuestore.ts";
-import { inAppVet, runVet } from "./vet.ts";
+import { inAppVet, runVet, scrubberFor } from "./vet.ts";
 
 const AUTO_CANDIDATES = 6;
 const AUTO_DIGITAL_SILENCE_DB = -150;
@@ -596,8 +596,9 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     const scheme = plan.tls ? "https" : "http";
     const usesEmulatedFeed = args.emulate && auto === null && args.audioDevice === null;
     const mapped = args.auto || chanMap === null ? null : [...chanMap.keys()];
-    engine.diagHost = () => ({
+    engine.diagHost = (identify) => ({
       ...systemFacts(),
+      scrub: identify ? (text: string): string => text : scrubberFor(io),
       mode: modeLabel(args),
       audioModule: moduleFacts(io.factory),
       audioSkipped: usesEmulatedFeed ? EMULATED_FEED : null,

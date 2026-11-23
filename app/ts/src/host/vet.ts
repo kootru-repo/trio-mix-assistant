@@ -1,15 +1,15 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
 import net, { isIP } from "node:net";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { Calibrator } from "../core/calibration.ts";
 import type { Clock } from "../core/clock.ts";
 import { C } from "../core/config.ts";
 import { SimConsole, dbToFader } from "../core/console.ts";
-import { redact } from "../core/diagnostics.ts";
+import { makeScrubber, redact } from "../core/diagnostics.ts";
 import { listAudioDevices } from "../core/devicecapture.ts";
 import { generatePinkNoise } from "../core/dsp.ts";
 import { EmulatedDesk } from "../core/emulator.ts";
@@ -695,6 +695,7 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
     console: live !== null,
     async run(req: VetRequest, control: VetControl): Promise<VetSummary> {
       const flags = ["--vet"];
+      if (req.identify) flags.push("--vet-keep-names");
       if (live !== null) {
         flags.push("--hardware", `--console-ip=${live.ip}`);
         if (req.channel !== null) {
@@ -704,7 +705,10 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
         if (req.main) flags.push("--vet-main");
       }
       const lines: string[] = [];
-      const out = await runVet(parseCliArgs(flags), { ...io, out: (l) => lines.push(l) }, { openSource: null, lanIp, live, control });
+      const scrub = req.identify ? (text: string): string => text : scrubberFor(io);
+      const out = await runVet(parseCliArgs(flags), { ...io, out: (l) => lines.push(l.replace(/\r/g, "")) }, { openSource: null, lanIp, live, control });
+      if (control.appState !== undefined) lines.push(...scrub(redact(control.appState().join("\n"), systemFacts().home)).split("\n"));
+      lines.push("", `  Checksum: SHA-256 of every line above, joined with line breaks: ${createHash("sha256").update(lines.join("\n"), "utf8").digest("hex")}`);
       const count = (st: string): number => out.rows.filter((r) => r.status === st).length;
       return {
         text: lines.join("\n"),
@@ -713,6 +717,28 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
       };
     },
   };
+}
+
+export function scrubberFor(io: Io): (text: string) => string {
+  const words: string[] = [];
+  try {
+    words.push(hostname(), userInfo().username);
+  } catch {
+    words.length = 0;
+  }
+  try {
+    const cfg = readConf(join(io.layout.appDir, "show.conf"));
+    for (const k of ["VENUE", "TEMPLATE"]) if (cfg[k]) words.push(cfg[k]);
+  } catch {
+    words.push();
+  }
+  let devices: string[] = [];
+  try {
+    devices = io.factory === null ? [] : io.factory.listDevices().map((d) => d.name ?? "");
+  } catch {
+    devices = [];
+  }
+  return makeScrubber({ devices, words });
 }
 
 const SECRET_KEY = /PIN|PASS|SECRET|TOKEN|KEY/i;
@@ -748,7 +774,7 @@ export async function setupLines(io: Io, lanIp: () => Promise<string | null>): P
   out.push(`    Network address of this computer: ${ip ?? "none found"}`);
   out.push("    Audio devices:");
   const devices = io.factory === null ? "the audio module was not loaded" : listAudioDevices(io.factory);
-  for (const l of devices.split("\n")) out.push(`      ${l}`);
+  for (const l of devices.replace(/\r/g, "").split("\n")) out.push(`      ${l}`);
   return out;
 }
 
@@ -763,15 +789,23 @@ export interface VetOutcome {
   logPath: string | null;
 }
 
-export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOutcome> {
+export async function runVet(args: Args, ioIn: Io, hooks: VetHooks): Promise<VetOutcome> {
+  const scrub = args.vetKeepNames ? (text: string): string => text : scrubberFor(ioIn);
+  const io: Io = { ...ioIn, out: (line) => ioIn.out(scrub(line)) };
   const sys = systemFacts();
-  const head = ["", "===== Trio Mix-Assistant full test =====", `  App:    ${sys.app}`, `  System: ${sys.system}`];
+  const head = [
+    "",
+    "===== Trio Mix-Assistant full test =====",
+    `  Run:    ${new Date(io.clock.time() * 1000).toISOString().replace(/\.\d+Z$/, "Z")} (UTC)`,
+    `  App:    ${sys.app}`,
+    `  System: ${sys.system}`,
+  ];
   const path = join(io.layout.appDir, `vet-${stamp(new Date())}.log`);
   let logPath: string | null = path;
   let logError: string | null = null;
   const write = (lines: readonly string[], fresh: boolean = false): void => {
     if (logPath === null) return;
-    const text = redact(lines.join("\n") + "\n", sys.home);
+    const text = scrub(redact(lines.join("\n") + "\n", sys.home));
     try {
       if (fresh) writeFileSync(path, text, "utf8");
       else appendFileSync(path, text, "utf8");
@@ -780,7 +814,7 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
       logError = errText(e);
     }
   };
-  const setup = (await setupLines(io, hooks.lanIp)).map((l) => redact(l, sys.home));
+  const setup = scrub(redact((await setupLines(io, hooks.lanIp)).join("\n"), sys.home)).split("\n");
   write([...head, ...setup, "", "--- every step, with the console commands sent and the replies received (meter data is not logged) ---"], true);
   const log = new VetLog(io.clock, (line) => write([line]));
   let stop = false;

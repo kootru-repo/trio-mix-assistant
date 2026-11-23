@@ -389,7 +389,7 @@ $("#eqreset").onclick = () => { if (eqCh != null) {
     eqDirty = true;
 } };
 $("#setcal").onclick = () => action({ type: "calibrate" });
-$("#diagrun").onclick = () => action({ type: "diagnose" });
+$("#diagrun").onclick = () => action({ type: "diagnose", identify: $("#diagkeep").checked });
 $("#vetreal").onchange = () => { $("#vetopts").hidden = !$("#vetreal").checked; };
 $("#vetrun").onclick = () => {
     const real = $("#vetreal").checked && !$("#vetconsole").hidden;
@@ -410,7 +410,7 @@ $("#vetrun").onclick = () => {
         if (!confirm("Turn the PA OFF first.\n\nThis changes values on " + what + ", reads each back and puts it back. Continue?"))
             return;
     }
-    action({ type: "vet", channel, gain, main });
+    action({ type: "vet", channel, gain, main, identify: $("#vetkeep").checked });
 };
 $("#vetdownload").onclick = () => downloadText("trio-full-test", $("#vettext").value);
 $("#diagdownload").onclick = () => downloadText("trio-checks", $("#diagtext").value);

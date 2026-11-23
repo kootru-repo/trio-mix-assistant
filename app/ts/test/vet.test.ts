@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { makeScrubber } from "../src/core/diagnostics.ts";
 import assert from "node:assert/strict";
 import dgram from "node:dgram";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -209,6 +211,22 @@ test("the sound check needs the noise to be heard above the room", async () => {
   await assert.rejects(async () => soundVerdict(await measureSound(src(0.09, 0.1), new Float32Array(8), 1)), /rose only/);
 });
 
+test("the scrubber hides device names, addresses, show names and the console's own name, and leaves the facts", () => {
+  const scrub = makeScrubber({ devices: ["Andrew's S22 Hands-Free", "Behringer X-USB"], words: ["Grace Chapel", "ANDREW"] });
+  const input = [
+    "  [3] Andrew's S22 Hands-Free  (1 in, 44100 Hz, MME)",
+    "  [4] Behringer X-USB  (18 in, 48000 Hz, ASIO)",
+    "VENUE=Grace Chapel",
+    "console 192.168.1.50 and 127.0.0.1, card aa:bb:cc:dd:ee:ff, owner andrew",
+    "[    0.200] recv /xinfo 192.168.1.50 Grace FOH M32C 4.06-8",
+    "answered: 127.0.0.1 MixAssist X32 4.06-8",
+    "18 input devices found, 48000 Hz",
+  ].join("\n");
+  const out = scrub(input);
+  for (const gone of ["Andrew", "S22", "Behringer", "Grace", "192.168", "aa:bb", "FOH", "MixAssist"]) assert.ok(!out.includes(gone), `${gone} survived: ${out}`);
+  for (const kept of ["(1 in, 44100 Hz, MME)", "(18 in, 48000 Hz, ASIO)", "127.0.0.1", "4.06-8", "18 input devices found, 48000 Hz", "x.x.x.x"]) assert.ok(out.includes(kept), `${kept} lost: ${out}`);
+});
+
 test("the copied trace keeps only failed steps and steps proved on a real console", () => {
   const row = (id: string, status: "pass" | "fail" | "skip", proof: VetRow["proof"]): VetRow => ({ id, area: "a", title: id, status, proof, detail: "", covers: [] });
   const lines = [
@@ -377,10 +395,12 @@ test("the dashboard command runs the full test, pauses the jobs while it runs an
   const clock = new ManualClock(100, 1_700_000_000);
   const e = new Engine({ clock, sim: true });
   const during: boolean[] = [];
+  let stateText = "";
   e.vetHost = {
     console: false,
-    run: () => {
+    run: (_req, control) => {
       during.push(...Object.values(e.assistant.enabled));
+      stateText = control.appState!().join("\n");
       return Promise.resolve({ text: "report", summary: "1 passed, 0 failed, 0 skipped", failed: 0 });
     },
   };
@@ -392,8 +412,8 @@ test("the dashboard command runs the full test, pauses the jobs while it runs an
   assert.equal(vet.status, "done");
   assert.ok(vet.available && !vet.console);
   assert.equal(vet.summary, "1 passed, 0 failed, 0 skipped");
-  assert.ok(vet.text.startsWith("report\n"), vet.text);
-  assert.ok(vet.text.includes("App state when the test finished") && vet.text.includes("Recent decision log"), vet.text);
+  assert.equal(vet.text, "report");
+  assert.ok(stateText.includes("App state when the test finished") && stateText.includes("Recent decision log"), stateText);
   assert.ok(during.length > 0 && during.every((on) => !on));
   assert.deepEqual(e.assistant.enabled, before);
   e.command({ type: "vet", channel: 3, gain: false, main: false });
@@ -421,8 +441,12 @@ test("the dashboard test reaches a real console through the app's own socket and
       const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null));
       assert.ok(host.console);
       const seen: number[] = [];
-      const out = await host.run({ channel: 3, gain: true, main: true }, { ...idle, progress: (done: number): void => { seen.push(done); } });
+      const out = await host.run({ channel: 3, gain: true, main: true, identify: false }, { ...idle, progress: (done: number): void => { seen.push(done); } });
       const text = out.text;
+      const at = text.lastIndexOf("\n\n  Checksum: ");
+      assert.ok(at > 0, "no checksum line");
+      assert.equal(text.slice(at).trim().split(": ").pop(), createHash("sha256").update(text.slice(0, at), "utf8").digest("hex"));
+      assert.match(text, /\n {2}Run: {4}\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ \(UTC\)\n/);
       assert.deepEqual(seen, [...seen].sort((x, y) => x - y));
       assert.equal(seen[seen.length - 1], VET_EXPECTED_STEPS_WITH_CONSOLE, "update VET_EXPECTED_STEPS_WITH_CONSOLE in core/ports.ts");
       assert.match(out.summary, /^\d+ passed \(\d+ on the real console\), \d+ failed, \d+ skipped$/, text);
@@ -433,7 +457,7 @@ test("the dashboard test reaches a real console through the app's own socket and
       assert.ok(/\] send \/ch\/03\/mix\/fader/.test(traced) && /\] recv \/ch\/03\/mix\/fader/.test(traced), "the copied report has no console trace");      assert.ok(text.includes("[PASS] Channel 3 fader: set  (proved on: real console)"), text);
       assert.ok(text.includes("[PASS] Main fader  (proved on: real console)"), text);
       assert.ok(rx.running && rx.onMessage === null);
-      const plain = await host.run({ channel: null, gain: false, main: false }, idle);
+      const plain = await host.run({ channel: null, gain: false, main: false, identify: false }, idle);
       assert.ok(plain.text.includes("read-only"), plain.text);
     } finally {
       rx.stop();

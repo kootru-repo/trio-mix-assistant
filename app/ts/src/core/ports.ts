@@ -20,6 +20,7 @@ export interface VetRequest {
   channel: number | null;
   gain: boolean;
   main: boolean;
+  identify: boolean;
 }
 
 export interface VetSummary {
@@ -32,6 +33,7 @@ export interface VetControl {
   stopped(): boolean;
   takeover(): boolean;
   progress?(done: number, title: string): void;
+  appState?(): string[];
 }
 
 export interface VetHostPort {

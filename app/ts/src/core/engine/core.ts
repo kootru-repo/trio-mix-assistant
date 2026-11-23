@@ -178,10 +178,10 @@ export class Engine extends EngineCalibration {
 
   static readonly DIAG_WINDOW_S = 8.0;
 
-  async runDiagnostics(windowS: number = Engine.DIAG_WINDOW_S): Promise<void> {
+  async runDiagnostics(windowS: number = Engine.DIAG_WINDOW_S, identify: boolean = false): Promise<void> {
     if (this.diagStatus === "running" || this.stopped) return;
     if (this.vetBusy("checks")) return;
-    const host = this.diagHost !== null ? this.diagHost() : null;
+    const host = this.diagHost !== null ? this.diagHost(identify) : null;
     if (host === null) return;
     if (this.status === "calibrating") {
       this.assistant.emit("system", "checks cannot run during calibration — run them again when it finishes");
@@ -238,6 +238,7 @@ export class Engine extends EngineCalibration {
         audioSkipped: skipped,
         console: con,
         network: host.network,
+        ...(host.scrub !== undefined ? { scrub: host.scrub } : {}),
       });
       settle(`checks finished: ${this.diagReport.summary}`);
     } catch (exc) {
@@ -250,7 +251,7 @@ export class Engine extends EngineCalibration {
     return this.status;
   }
 
-  private stateLines(jobs: Record<string, boolean>): string[] {
+  private stateLines(jobs: Record<string, boolean>, identify: boolean): string[] {
     const compact = (v: unknown): string => {
       try {
         return JSON.stringify(v) ?? "none";
@@ -271,7 +272,7 @@ export class Engine extends EngineCalibration {
       `    Room: ${compact(t["room"])}`,
       "    Recent decision log (newest first):",
     ];
-    for (const e of this.events.slice(-40).reverse()) out.push(`      ${e.time} ${e.kind}${e.ch !== null ? ` ch${e.ch}` : ""}: ${e.msg}`);
+    for (const e of this.events.slice(-40).reverse()) out.push(`      ${e.time} ${e.kind}${e.ch !== null ? ` ch${e.ch}` : ""}: ${e.kind === "show" && !identify ? "(song and scene details hidden)" : e.msg}`);
     out.push("", "  Latest Run checks report (audio input, console feed, network)");
     if (this.diagReport === null) out.push("    Run checks has not been run since the app started. Press Run checks in Settings and send its report as well.");
     else for (const l of this.diagReport.text.split("\n")) out.push(`    ${l}`);
@@ -300,6 +301,7 @@ export class Engine extends EngineCalibration {
     const control = {
       stopped: () => this.vetAbort || this.stopped,
       takeover: () => this.currentStatus() === "takeover",
+      appState: (): string[] => this.stateLines(held, req.identify),
       progress: (done: number, title: string): void => {
         this.vetDone = done;
         this.vetTitle = title;
@@ -309,7 +311,7 @@ export class Engine extends EngineCalibration {
     const task = (async (): Promise<void> => {
       try {
         const outcome = await host.run(req, control);
-        this.vetOutcome = { ...outcome, text: `${outcome.text}\n${this.stateLines(held).join("\n")}` };
+        this.vetOutcome = outcome;
         this.assistant.emit("system", `full test finished: ${outcome.summary}`);
       } catch (exc) {
         this.noteError(exc);
@@ -382,12 +384,12 @@ export class Engine extends EngineCalibration {
       else if (t === "coach") this.setCoachMode(bool("on"));
       else if (t === "panic") this.panic(bool("on"));
       else if (t === "calibrate") this.runCalibration();
-      else if (t === "diagnose") void this.runDiagnostics();
+      else if (t === "diagnose") void this.runDiagnostics(Engine.DIAG_WINDOW_S, Object.hasOwn(d, "identify") && d["identify"] !== null ? bool("identify") : false);
       else if (t === "vet") {
         const channel = Object.hasOwn(d, "channel") && d["channel"] !== null ? int("channel") : null;
         if (channel !== null && (channel < 1 || channel > 32)) throw new BadCommand("channel must be 1 to 32");
         const flag = (k: string): boolean => (Object.hasOwn(d, k) && d[k] !== null ? bool(k) : false);
-        void this.runVet({ channel, gain: flag("gain"), main: flag("main") });
+        void this.runVet({ channel, gain: flag("gain"), main: flag("main"), identify: flag("identify") });
       }
       else if (t === "lead_target") this.setLeadTarget(num("db"));
       else if (t === "balance_capture") this.captureBalanceNow();

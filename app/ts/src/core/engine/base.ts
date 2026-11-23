@@ -109,7 +109,7 @@ export class EngineBase {
   protected songStartT = -1e9;
   protected deadSince = -1e9;
   show: ShowInfo = { current: "", next: "", section: "", bpm: null, scene: null, playing: false, index: null };
-  diagHost: (() => DiagHost) | null = null;
+  diagHost: ((identify: boolean) => DiagHost) | null = null;
   vetHost: VetHostPort | null = null;
   protected vetStatus: "idle" | "running" | "done" = "idle";
   protected vetOutcome: VetSummary | null = null;
