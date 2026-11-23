@@ -4,7 +4,7 @@
 
 **A live‑sound safety net and operator dashboard for a Midas M32C / Behringer X32, for the gig with no sound engineer.**
 
-It *listens* to the band and the room, and gently *nudges* the console within hard guardrails. The console is always the source of truth, every move is logged and reversible, and a human can take over instantly. It runs, and is fully testable, with no hardware at all.
+It *listens* to the band and the room, and gently *nudges* the console within hard guardrails. The console is always the source of truth; the assistant's fader rides, notches, preamp trims and polarity flips are logged and can be undone by hand; and a human can take over instantly. It runs, and is fully testable, with no hardware at all.
 
 **[Download for Mac (Apple Silicon)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-arm64.tar.gz)** · **[Mac (Intel)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-x64.tar.gz)** · **[Windows](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-windows-x64.zip)** · [All versions](https://github.com/kootru-repo/trio-mix-assistant/releases)
 
@@ -281,7 +281,7 @@ This also validates the OSC against a production mixer app with no gear. Set a f
 
 **Coach mode** turns this inside‑out: instead of acting, the app *advises*. One toggle suspends every automatic move, covering all the jobs above plus setlist scene recall and guest mutes, and surfaces the exact manual change to make (channel, band, dB, Hz, scene) in a Coach panel and the decision log. The math is the same deterministic math and the console is left untouched; only your own manual moves act. Use it to mix by hand with guidance, or to preview what the app would do before you trust a job.
 
-Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); every move is logged and reversible. Automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
+Everything passes hard **guardrails** (fader/gain range, max step, smooth ramp); the assistant's fader rides, notches, preamp trims and polarity flips are logged and can be undone by hand. Automated tests cover the OSC scaling, detection logic, the decision loops (auto *and* coach), the HTTP/WebSocket server, the hardware capture path, and a real‑socket round‑trip against the emulator.
 
 ## Project layout
 

@@ -267,7 +267,7 @@ over `wss://` automatically under https.
 | **Coach mode** | advisory | A header toggle that suspends every automatic console write, covering mix corrections *and* setlist automation (scene recall, guest mutes), and instead lists the exact manual move (channel, band, dB, Hz, scene) in a panel + the log. Only your own manual moves act. The numbers are the same deterministic math as auto mode. For mixing by hand with guidance, or previewing what the app would do. |
 
 Everything passes through **guardrails** (hard fader/gain range, max step,
-smooth ramp), every move is **logged and reversible**, and a **TAKEOVER**
+smooth ramp); fader rides, notches, preamp trims and polarity flips are **logged and can be undone by hand**; and a **TAKEOVER**
 button mutes the main and holds all jobs so a human always wins.
 
 ## Architecture
