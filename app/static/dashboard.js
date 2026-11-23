@@ -338,6 +338,19 @@ function renderVet(v) {
     }
     box.hidden = !text;
     $("#vetcopy").hidden = !text;
+    $("#vetdownload").hidden = !text;
+}
+function downloadText(name, text) {
+    const d = new Date(), two = (n) => String(n).padStart(2, "0");
+    const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
+    const url = URL.createObjectURL(new Blob([text.replace(/\r?\n/g, "\r\n")], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name}-${stamp}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 let diagText = "";
 function renderChecks(d) {
@@ -357,6 +370,7 @@ function renderChecks(d) {
     }
     box.hidden = !rep;
     $("#diagcopy").hidden = !rep;
+    $("#diagdownload").hidden = !rep;
 }
 function renderTabPanels(s) {
     if (activeTab === "settings")
@@ -398,6 +412,8 @@ $("#vetrun").onclick = () => {
     }
     action({ type: "vet", channel, gain, main });
 };
+$("#vetdownload").onclick = () => downloadText("trio-full-test", $("#vettext").value);
+$("#diagdownload").onclick = () => downloadText("trio-checks", $("#diagtext").value);
 $("#vetcopy").onclick = () => {
     const box = $("#vettext"), btn = $("#vetcopy");
     box.select();

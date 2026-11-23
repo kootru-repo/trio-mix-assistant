@@ -275,6 +275,16 @@ function renderVet(v: VetT | undefined): void {
   if(text !== vetText){ vetText = text; box.value = text; }
   box.hidden = !text;
   $("#vetcopy").hidden = !text;
+  $("#vetdownload").hidden = !text;
+}
+function downloadText(name: string, text: string): void {
+  const d = new Date(), two = (n: number): string => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}${two(d.getMonth()+1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
+  const url = URL.createObjectURL(new Blob([text.replace(/\r?\n/g, "\r\n")], {type: "text/plain;charset=utf-8"}));
+  const a = document.createElement("a");
+  a.href = url; a.download = `${name}-${stamp}.txt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 let diagText = "";
 function renderChecks(d: DiagnosticsT | undefined): void {
@@ -292,6 +302,7 @@ function renderChecks(d: DiagnosticsT | undefined): void {
   if(text !== diagText){ diagText = text; box.value = text; }
   box.hidden = !rep;
   $("#diagcopy").hidden = !rep;
+  $("#diagdownload").hidden = !rep;
 }
 function renderTabPanels(s: Snapshot): void {
   if(activeTab==="settings") renderSettings(s);
@@ -316,6 +327,8 @@ $("#vetrun").onclick = () => {
   }
   action({type:"vet", channel, gain, main});
 };
+$("#vetdownload").onclick = () => downloadText("trio-full-test", $<HTMLTextAreaElement>("#vettext").value);
+$("#diagdownload").onclick = () => downloadText("trio-checks", $<HTMLTextAreaElement>("#diagtext").value);
 $("#vetcopy").onclick = () => {
   const box = $<HTMLTextAreaElement>("#vettext"), btn = $("#vetcopy");
   box.select();

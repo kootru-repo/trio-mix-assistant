@@ -260,6 +260,8 @@ test("--vet passes on this computer, covers every dashboard address and writes a
     assert.ok(log.includes("send /ch/02/mix/fader"), "the log has no sent values");
     assert.ok(log.includes("recv /ch/02/mix/fader"), "the log has no received values");
     assert.ok(!log.includes("secret-show-pin"));
+    assert.ok(!text.includes("secret-show-pin"));
+    assert.ok(text.includes("PIN=(set)") && text.includes("MODE=sim") && text.includes("Audio devices:"), text);
     assert.ok(!/"pin"/.test(log));
     assert.deepEqual(readdirSync(home).filter((n) => !n.startsWith("vet-")).sort(), ["show.conf"]);
   } finally {
@@ -390,7 +392,8 @@ test("the dashboard command runs the full test, pauses the jobs while it runs an
   assert.equal(vet.status, "done");
   assert.ok(vet.available && !vet.console);
   assert.equal(vet.summary, "1 passed, 0 failed, 0 skipped");
-  assert.equal(vet.text, "report");
+  assert.ok(vet.text.startsWith("report\n"), vet.text);
+  assert.ok(vet.text.includes("App state when the test finished") && vet.text.includes("Recent decision log"), vet.text);
   assert.ok(during.length > 0 && during.every((on) => !on));
   assert.deepEqual(e.assistant.enabled, before);
   e.command({ type: "vet", channel: 3, gain: false, main: false });

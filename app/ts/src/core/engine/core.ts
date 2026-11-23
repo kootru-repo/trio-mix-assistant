@@ -250,6 +250,34 @@ export class Engine extends EngineCalibration {
     return this.status;
   }
 
+  private stateLines(jobs: Record<string, boolean>): string[] {
+    const compact = (v: unknown): string => {
+      try {
+        return JSON.stringify(v) ?? "none";
+      } catch {
+        return "unreadable";
+      }
+    };
+    const t = this.telemetry;
+    const out = [
+      "",
+      "  App state when the test finished",
+      `    Mode: ${this.sim ? "simulation" : "live-hardware"}, ${this.currentStatus()}`,
+      `    Automatic jobs before the test: ${Object.entries(jobs).map(([k, v]) => `${k} ${v ? "on" : "off"}`).join(", ")}`,
+      `    Audio input: ${compact(this.source ? this.source.status() : { kind: "none" })}`,
+      `    Console feed: ${compact(t["console"])}`,
+      `    Loop timing: ${compact(t["perf"])}`,
+      `    Detect to actuate: ${compact(t["latency"])}`,
+      `    Room: ${compact(t["room"])}`,
+      "    Recent decision log (newest first):",
+    ];
+    for (const e of this.events.slice(-40).reverse()) out.push(`      ${e.time} ${e.kind}${e.ch !== null ? ` ch${e.ch}` : ""}: ${e.msg}`);
+    out.push("", "  Latest Run checks report (audio input, console feed, network)");
+    if (this.diagReport === null) out.push("    Run checks has not been run since the app started. Press Run checks in Settings and send its report as well.");
+    else for (const l of this.diagReport.text.split("\n")) out.push(`    ${l}`);
+    return out;
+  }
+
   async runVet(req: VetRequest): Promise<void> {
     const host = this.vetHost;
     if (host === null || this.vetStatus === "running" || this.stopped) return;
@@ -281,7 +309,7 @@ export class Engine extends EngineCalibration {
     const task = (async (): Promise<void> => {
       try {
         const outcome = await host.run(req, control);
-        this.vetOutcome = outcome;
+        this.vetOutcome = { ...outcome, text: `${outcome.text}\n${this.stateLines(held).join("\n")}` };
         this.assistant.emit("system", `full test finished: ${outcome.summary}`);
       } catch (exc) {
         this.noteError(exc);

@@ -10,6 +10,7 @@ import type { Clock } from "../core/clock.ts";
 import { C } from "../core/config.ts";
 import { SimConsole, dbToFader } from "../core/console.ts";
 import { redact } from "../core/diagnostics.ts";
+import { listAudioDevices } from "../core/devicecapture.ts";
 import { generatePinkNoise } from "../core/dsp.ts";
 import { EmulatedDesk } from "../core/emulator.ts";
 import { Engine } from "../core/engine/index.ts";
@@ -714,6 +715,43 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
   };
 }
 
+const SECRET_KEY = /PIN|PASS|SECRET|TOKEN|KEY/i;
+
+export async function setupLines(io: Io, lanIp: () => Promise<string | null>): Promise<string[]> {
+  const out: string[] = ["", "  Setup"];
+  out.push(`    Settings folder: ${io.layout.appDir}`);
+  try {
+    const cfg = readConf(join(io.layout.appDir, "show.conf"));
+    const keys = Object.keys(cfg);
+    if (keys.length === 0) out.push("    show.conf: missing or empty");
+    else {
+      out.push("    show.conf (secrets shown only as set or empty):");
+      for (const k of keys) out.push(`      ${k}=${SECRET_KEY.test(k) ? (cfg[k] === "" ? "(empty)" : "(set)") : cfg[k]}`);
+    }
+  } catch (e) {
+    out.push(`    show.conf could not be read: ${errText(e)}`);
+  }
+  try {
+    const names = readdirSync(io.layout.appDir);
+    const logs = names.filter((n) => n.startsWith("vet-")).length;
+    const rest = names.filter((n) => !n.startsWith("vet-")).sort();
+    out.push(`    Files here: ${rest.join(", ") || "none"}${logs > 0 ? ` and ${logs} earlier test log${logs === 1 ? "" : "s"}` : ""}`);
+  } catch (e) {
+    out.push(`    Files here: could not be listed (${errText(e)})`);
+  }
+  let ip: string | null = null;
+  try {
+    ip = await lanIp();
+  } catch {
+    ip = null;
+  }
+  out.push(`    Network address of this computer: ${ip ?? "none found"}`);
+  out.push("    Audio devices:");
+  const devices = io.factory === null ? "the audio module was not loaded" : listAudioDevices(io.factory);
+  for (const l of devices.split("\n")) out.push(`      ${l}`);
+  return out;
+}
+
 const stamp = (d: Date): string => {
   const two = (n: number): string => String(n).padStart(2, "0");
   return `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
@@ -742,7 +780,8 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
       logError = errText(e);
     }
   };
-  write([...head, "", "--- every step, with the console commands sent and the replies received (meter data is not logged) ---"], true);
+  const setup = (await setupLines(io, hooks.lanIp)).map((l) => redact(l, sys.home));
+  write([...head, ...setup, "", "--- every step, with the console commands sent and the replies received (meter data is not logged) ---"], true);
   const log = new VetLog(io.clock, (line) => write([line]));
   let stop = false;
   void io.waitForStop().then(() => {
@@ -755,6 +794,7 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
   if (control !== null && control.progress !== undefined) log.onProgress = (done, title) => control.progress?.(done, title);
   const ctx: Ctx = { args, io, hooks, rows: [], log, clock: io.clock, stopped: () => stop || (control !== null && control.stopped()) };
   for (const l of head) io.out(l);
+  for (const l of setup) io.out(l);
   io.out("  Testing this computer and the built-in emulator. No sound is played and no real console is touched in this part.");
   try {
     await thisComputer(ctx);
