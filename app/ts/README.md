@@ -1,13 +1,13 @@
 # Trio Mix-Assistant
 
-The application: Node 22.13 or newer is the only requirement. The runtime has no npm dependencies;
+The application: Node 22.13 or newer is the only requirement. The runtime has no required npm dependencies (the audio module `naudiodon2` is optional);
 `typescript` and `@types/node` are needed only to build and check.
 
 ## Layout
 
 | Folder | Holds | Rule |
 |---|---|---|
-| `src/core` | Signal processing, console protocol, the four jobs, coach mode, calibration, show flow, the engine and its telemetry, the desk emulator, the QR encoder, device-capture logic | No platform APIs. `tsconfig.core.json` compiles it with no DOM and no Node types, so `setTimeout`, `Buffer` or `node:*` fail the build. Time, randomness and networking arrive through `Clock`, `Rng` and `UdpFactory`. |
+| `src/core` | Signal processing, console protocol, the six jobs, coach mode, calibration, show flow, the engine and its telemetry, the desk emulator, the QR encoder, device-capture logic | No platform APIs. `tsconfig.core.json` compiles it with no DOM and no Node types, so `setTimeout`, `Buffer` or `node:*` fail the build. Time, randomness and networking arrive through `Clock`, `Rng` and `UdpFactory`. |
 | `src/host` | Node bindings: UDP, HTTP/WebSocket server, TLS certificates, SQLite session log, advisor, command line | Everything that touches the operating system |
 | `test` | Tests, run directly by Node | |
 | `fixtures` | Recorded reference data the tests compare against | Committed |
@@ -43,7 +43,7 @@ deliberately and give the reason in the commit.
 
 ## What is not verified
 
-- Live audio input needs a native audio module that is not a dependency (see
-  `src/host/audiodevice.ts`). The logic around it is tested with a fake stream; the adapter has not
-  run against real hardware.
+- Live audio input needs the optional native audio module `naudiodon2` (see
+  `src/host/audiodevice.ts`). The logic around it is tested with a fake stream; the adapter has run
+  on a real one- and two-channel Windows input, but not on a Mac or on a console's multichannel USB feed.
 - Nothing here has driven a real M32C or X32. Follow `../HARDWARE_BRINGUP.md` before a show.

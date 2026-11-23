@@ -51,8 +51,8 @@ WHAT YOU NEED
 ------------------------------------------------------------
   PHONE OR TABLET (iPhone / iPad / Android)
 ------------------------------------------------------------
-  Set LAN=yes and a PIN of 6 or more characters in show.conf (the app will
-  not start on the network without one). The start window then prints a URL
+  Set LAN=yes and a PIN of 6 or more characters in show.conf (without one the app
+  refuses to start on the network unless ALLOW_OPEN=yes is set, which is not recommended). The start window then prints a URL
   and a QR code (if it prints none, type https://<this computer's IP>:8770/
   on the phone). Each device enters the PIN once per run of the app, and nobody else on the
   network can touch the console.
