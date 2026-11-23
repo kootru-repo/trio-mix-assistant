@@ -180,6 +180,7 @@ export class Engine extends EngineCalibration {
 
   async runDiagnostics(windowS: number = Engine.DIAG_WINDOW_S): Promise<void> {
     if (this.diagStatus === "running" || this.stopped) return;
+    if (this.vetBusy("checks")) return;
     const host = this.diagHost !== null ? this.diagHost() : null;
     if (host === null) return;
     if (this.status === "calibrating") {

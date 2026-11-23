@@ -442,10 +442,12 @@ test("while the full test runs other controls are ignored, a song change waits, 
   e.command({ type: "toggle", job: "clip", on: false });
   e.command({ type: "fader", ch: 1, db: -5 });
   e.command({ type: "scene", index: 4 });
+  e.command({ type: "diagnose" });
+  assert.notEqual((e.snapshot()["diagnostics"] as { status: string }).status, "running");
   e.command({ type: "calibrate" });
   assert.equal(e.assistant.leadTarget, leadBefore);
   assert.ok(Object.values(e.assistant.enabled).every((on) => !on));
-  assert.ok(e.events.filter((ev) => ev.msg.includes("ignored while the full test runs")).length >= 5);
+  assert.ok(e.events.filter((ev) => ev.msg.includes("ignored while the full test runs")).length >= 6);
   const state = { songName: "Bloom", nextSong: "", section: "", bpm: null, playing: true, songIndex: 0 };
   e.onSongChange(state);
   assert.equal(e.show.current, "");
