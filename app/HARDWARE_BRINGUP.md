@@ -36,7 +36,7 @@ real bytes and the test suite becomes a true regression gate.
 - [ ] The single-file app downloaded from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest) (it carries the runtime and the audio module). From source instead: Node.js 22.13+ and the native audio module `naudiodon2`. Capture from the console's multichannel USB feed has not been tried yet; §3 below is that test.
 - [ ] Console and laptop on the same wired/Wi-Fi LAN; note the console IP.
 - [ ] A sniffer ready: Wireshark (UDP 10023/10024) or the X32 OSC monitor / `OSC` debug.
-- [ ] With the PA off, run the full test on one spare channel: `./TrioMixAssistant --vet --hardware --console-ip <ip> --vet-channel <N>` (newer than release 0.2.2: until the next release, from source with `npm run run -- --vet …` in `app/ts`). It changes each control on that channel, reads the value back from the console and puts it back. Keep the log it writes. It shows the console stored what the app sent, not what the console displays, so §1 below is still needed.
+- [ ] With the PA off, run the full test on one spare channel: `./TrioMixAssistant --vet --hardware --console-ip <ip> --vet-channel <N>` (newer than release 0.2.2: until the next release, from source with `npm run run -- --vet …` in `app/ts`). It changes the fader, mute, polarity, EQ and one FX send on that channel, reads each value back from the console and puts it back. Keep the log it writes. It shows the console stored what the app sent, not what the console displays, so §1 below is still needed.
 
 ## 1. OSC control scalings  (the #1 thing to verify)
 For each, make the app change it and confirm the console does the **same** thing. Faders

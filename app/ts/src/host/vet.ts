@@ -417,7 +417,7 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
       must((await request(log, t, "GET", "/ws", { cookie })).status === 400, "a plain request to the live connection address was not refused");
       return "state arrived and a lead-target command took effect";
     });
-    await W("web_api", "Every control address works and reaches the console", [
+    await W("web_api", "Every control address answers", [
       "route:/api/toggle",
       "route:/api/lead_target",
       "route:/api/balance_capture",
@@ -591,9 +591,10 @@ async function sound(ctx: Ctx): Promise<void> {
     return;
   }
   await step(ctx.rows, ctx.log, spec, async () => {
+    if (ctx.stopped()) throw new VetSkip("stopped before this step ran");
     const seconds = C.CAL_DURATION_S;
     ctx.io.out("");
-    ctx.io.out(`  SOUND: pink noise plays through the output device for ${seconds} seconds, starting now.`);
+    ctx.io.out(`  SOUND: pink noise plays through the output device for ${seconds} seconds.`);
     const source = open();
     try {
       source.start();
@@ -607,7 +608,7 @@ async function sound(ctx: Ctx): Promise<void> {
       const verdict = soundVerdict(result);
       const found = result.capture === null ? null : new Calibrator(new SimConsole()).analyze(result.capture);
       const cuts = found === null ? 0 : found.corrections.length;
-      return `${verdict}; a calibration from this would make ${cuts} room cut${cuts === 1 ? "" : "s"} (nothing was applied)`;
+      return `${verdict}; the room analysis found ${cuts} band${cuts === 1 ? "" : "s"} that stand${cuts === 1 ? "s" : ""} out (nothing was applied)`;
     } finally {
       source.stop();
       await within(source.settled(), ctx.clock, 5, "closing the audio device").catch(() => undefined);
@@ -625,6 +626,7 @@ async function phone(ctx: Ctx): Promise<void> {
     return;
   }
   await step(ctx.rows, ctx.log, spec, async () => {
+    if (ctx.stopped()) throw new VetSkip("stopped before this step ran");
     const ip = await ctx.hooks.lanIp();
     must(ip !== null, "this computer has no network address a phone could reach");
     let tls: { key: string; cert: string } | null = null;
@@ -655,6 +657,7 @@ async function phone(ctx: Ctx): Promise<void> {
     } finally {
       await server.stop();
     }
+    if (who === null && ctx.stopped()) throw new VetSkip("stopped before a phone signed in");
     must(who !== null, `no phone signed in within ${wait} seconds; check it is on the same network and that this computer's firewall allows port ${args.port}`);
     return `a device at ${String(who)} signed in over ${tls ? "https" : "http"}`;
   });
@@ -688,12 +691,12 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
       logError = errText(e);
     }
   };
-  write([...head, "", "--- every step, with what was sent and received ---"], true);
+  write([...head, "", "--- every step, with the console messages sent and received ---"], true);
   const log = new VetLog(io.clock, (line) => write([line]));
   let stop = false;
   void io.waitForStop().then(() => {
     stop = true;
-    io.out("  Stopping: the value being tested is put back first, then the rest is skipped.");
+    io.out("  Stopping: the value being tested is put back first.");
   });
   const holdInterrupt = (): void => undefined;
   process.on("SIGINT", holdInterrupt);

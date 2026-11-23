@@ -139,7 +139,7 @@ The report can be copied. If something fails on your gear, or you got a Mac or a
 
 ### Test everything
 
-`TrioMixAssistant --vet` is the full test. It is newer than release 0.2.2, so until the next release it runs only from source (`npm run run -- --vet` in `app/ts`). Its settings come from the command line, not from `show.conf`; it only checks that `show.conf` is valid. With no other flags it tests this computer and the built-in emulator: it plays no sound and contacts no console. It sends each console command and dashboard control to the emulated console, triggers each job, and reads the result back, prints PASS, FAIL or SKIP for each step, and writes a log of every value sent and received (`vet-<date>-<time>.log`) to your settings folder. It exits with 1 if a step failed. A pass on the emulator does not prove a real console.
+`TrioMixAssistant --vet` is the full test. It is newer than release 0.2.2, so until the next release it runs only from source (`npm run run -- --vet` in `app/ts`). Its settings come from the command line, not from `show.conf`; it only checks that `show.conf` is valid. With no other flags it tests this computer and the built-in emulator: it plays no sound and contacts no console. It sends each console command and dashboard control to the emulated console, triggers each job, and reads the result back, prints PASS, FAIL or SKIP for each step, and writes a log of each console message sent and received (`vet-<date>-<time>.log`) to your settings folder. It exits with 1 if a step failed. A pass on the emulator does not prove a real console.
 
 To test real gear, add options. Keep the PA off for the ones that change the console.
 

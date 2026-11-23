@@ -85,10 +85,10 @@ no console:
 $ ./TrioMixAssistant --vet
 ```
 ```powershell
-PS> .TrioMixAssistant.exe --vet
+PS> .\TrioMixAssistant.exe --vet
 ```
 Each step is PASS, FAIL or SKIP. The command exits with 1 if a step failed and writes
-`vet-<date>-<time>.log`, with every value sent and received, to the settings folder.
+`vet-<date>-<time>.log`, with each console message sent and received, to the settings folder.
 A pass on the emulator does not prove a real console. To test the real one, with the PA off:
 ```bash
 $ ./TrioMixAssistant --vet --hardware --console-ip 192.168.1.50 --vet-channel 16

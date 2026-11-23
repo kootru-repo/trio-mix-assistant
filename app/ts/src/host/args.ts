@@ -237,7 +237,7 @@ export function parseCliArgs(argv: readonly string[]): Args {
   if (args.vet && (args.diagnose || args.listDevices)) throw new UsageError("--vet cannot be combined with --diagnose or --list-devices");
   if (args.vet && args.emulate) throw new UsageError("--vet always tests the built-in emulator; leave out --emulate");
   if ((args.vetChannel !== null || args.vetMain) && !args.hardware) {
-    throw new UsageError("--vet-channel and --vet-main change a real console, so they need --hardware (and --console-ip)");
+    throw new UsageError("--vet-channel and --vet-main change a real console, so they need --hardware");
   }
   if (args.vetGain && args.vetChannel === null) throw new UsageError("--vet-gain needs --vet-channel N");
   if (args.lan) args.host = "0.0.0.0";

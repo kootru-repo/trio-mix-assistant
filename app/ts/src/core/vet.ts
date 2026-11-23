@@ -243,7 +243,7 @@ async function writeCheck(rows: VetRow[], desk: Desk, area: string, wc: WriteCas
       const got = await desk.ask(addr);
       const v = got === null ? null : argFloat(got[0]);
       if (got === null || v === null || !Number.isFinite(v)) {
-        throw new VetSkip(`the console did not answer a read of ${addr}, so nothing was written`);
+        throw new VetSkip(`the console gave no usable answer to a read of ${addr}, so nothing was written`);
       }
       original.set(addr, got[0]!);
       before.set(addr, v);
@@ -275,7 +275,7 @@ async function writeCheck(rows: VetRow[], desk: Desk, area: string, wc: WriteCas
     if (typeof result === "string") throw new VetSkip(result);
     if (problems.length) throw new VetFailure(problems.join("; "));
     const n = result === null ? 0 : result.size;
-    return `wrote ${n} value${n === 1 ? "" : "s"}, read ${n === 1 ? "it" : "each"} back, then put back what was there`;
+    return `changed ${n} value${n === 1 ? "" : "s"}, read ${n === 1 ? "it" : "each"} back, then put back what was there`;
   });
 }
 
@@ -705,7 +705,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       }
       return `switched: ${jobs.join(", ")}`;
     });
-    await S("cmd_coach", "Coach mode advises and leaves the console alone", ["command:coach", "feature:coach"], async () => {
+    await S("cmd_coach", "Coach mode advises and leaves the preamp gain alone", ["command:coach", "feature:coach"], async () => {
       e.command({ type: "coach", on: true });
       must(e.assistant.coachMode, "coach mode did not switch on");
       e.command({ type: "toggle", job: "clip", on: true });
@@ -716,7 +716,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       must(e.assistant.coachRecs.size > 0, "no recommendation was made for a clipping channel");
       e.command({ type: "coach", on: false });
       must(!e.assistant.coachMode, "coach mode did not switch off");
-      return "a clipping channel produced a recommendation and no console write";
+      return "a clipping channel produced a recommendation and its preamp gain did not change";
     });
     await S("cmd_panic", "Takeover mutes the main, holds the jobs, blocks scenes, then releases", ["command:panic", "feature:takeover"], async () => {
       e.command({ type: "panic", on: true });
@@ -810,7 +810,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       await desk.expect(`${main}/eq/${busBand}/g`, 0.5);
       return "the channel EQ went off and the main-bus band went flat";
     });
-    await S("job_clip", "Clip job: trims a clipping preamp, then restores it", ["job:clip"], async () => {
+    await S("job_clip", "Clip job: trims a clipping preamp, then raises it again", ["job:clip"], async () => {
       j.setEnabled("clip", true);
       const start = j.assistant.gainDb.get(4) ?? 0;
       j.assistant.onFeatures(4, feat({ peakDbfs: 0 }), T());
@@ -1038,5 +1038,5 @@ export const OPERATOR_STEPS: readonly string[] = [
 ];
 
 export function operatorLines(): string[] {
-  return ["", "  Not checked by any program (do these by hand):", ...OPERATOR_STEPS.map((s) => `    [ ] ${s}`)];
+  return ["", "  Check these by hand (the steps above cannot prove them):", ...OPERATOR_STEPS.map((s) => `    [ ] ${s}`)];
 }

@@ -235,7 +235,7 @@ test("--vet passes on this computer, covers every dashboard address and writes a
     assert.ok(routes.size >= 18, [...routes].join(","));
     for (const r of routes) assert.ok(covered.has(`route:${r}`), `no passing row covers the dashboard address ${r}`);
     assert.ok(text.includes("A real console was not tested"), text);
-    assert.ok(text.includes("Not checked by any program"), text);
+    assert.ok(text.includes("Check these by hand"), text);
     assert.ok(out.logPath !== null && out.logPath.startsWith(home));
     const log = readFileSync(out.logPath!, "utf8");
     assert.ok(log.includes("send /ch/02/mix/fader"), "the log has no sent values");

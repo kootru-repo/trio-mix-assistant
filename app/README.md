@@ -91,8 +91,8 @@ and open the dashboard, or pass the same flags as `npm run run --`
 - **It can test itself.** `--vet` (newer than release 0.2.2) sends every console
   command and dashboard control to the built-in emulator, triggers each job, reads
   the result back and writes a log. With
-  `--hardware --vet-channel <N>` it does the console commands on one channel of a
-  real console and puts each value back. The logic is in `ts/src/core/vet.ts`
+  `--hardware --vet-channel <N>` it changes the fader, mute, polarity, EQ and one
+  FX send on one channel of a real console and puts each value back. The logic is in `ts/src/core/vet.ts`
   and `ts/src/host/vet.ts`.
 - **It is unsigned,** so macOS blocks a downloaded build until you choose
   **Open Anyway** (see "On a Mac" below), and Windows shows a SmartScreen warning on first run.
