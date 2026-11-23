@@ -303,6 +303,7 @@ function lockForVet(v) {
     const running = !!v && v.status === "running";
     document.body.classList.toggle("vetrun", running);
     $("#vetshield").hidden = !running;
+    $("#coach").toggleAttribute("inert", running);
     if (running && v) {
         if (vetStarted === 0)
             vetStarted = Date.now();

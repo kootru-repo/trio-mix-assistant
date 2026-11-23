@@ -48,7 +48,8 @@ WHAT YOU NEED
   for a few seconds, changes nothing on the console, and lists what
   passed, what failed and how to fix it. "Run full test" below it tries every
   control and job (about half a minute, no sound) and can also test one
-  channel of a real console with the PA off.
+  channel of a real console with the PA off. Each report has a Download
+  report button; device names and addresses are hidden by default.
 
 ------------------------------------------------------------
   PHONE OR TABLET (iPhone / iPad / Android)

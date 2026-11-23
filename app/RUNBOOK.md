@@ -69,7 +69,7 @@ command exits with 1 if a check failed. Add flags to check something other than
 
 While the app is running, use **Settings → Run checks** on the dashboard instead (the
 running app already holds the audio input and the console's reply port). The report
-there has a **Copy report** button.
+there has **Copy report** and **Download report** buttons; the same hiding of names and addresses applies as in §1.2.
 
 The checks cover the audio module, the input, the audio flow, the microphone
 permission, each channel's level, the console's meter feed and phone or tablet access. They do
@@ -79,11 +79,28 @@ not test that fader and EQ commands land correctly; that is §1.2 and §2.4.
 
 On the dashboard, **Settings → Run full test** tries every control, job and dashboard
 address against a built-in test console and on this computer (about half a minute, no
-sound; the automatic jobs pause and other controls are ignored while it runs, except TAKEOVER,
-which stops the test after it puts back the value it is testing). Each step is PASS, FAIL or SKIP; **Copy
-report** copies the result, and `vet-<date>-<time>.log` (each console command sent and
-each reply received; meter data is not logged) is saved in the settings folder. A pass on
-the built-in test console does not prove a real console.
+sound; the automatic jobs pause while it runs and the dashboard greys out and ignores touches, clicks
+and keys, except TAKEOVER, which stops the test after it puts back the value it is testing). A card shows a
+progress bar, the step being checked and a **Stop the test** button that does the same as TAKEOVER.
+Each step is PASS, FAIL or SKIP. **Download report** saves the result as
+`trio-full-test-<date>-<time>.txt` (the browser decides whether you are asked where to save it) and **Copy
+report** copies it. `vet-<date>-<time>.log` (each console command sent and each reply received; meter
+data is not logged) is saved in the settings folder. A pass on the built-in test console does not prove a
+real console.
+
+The report starts with the run time (UTC), the `show.conf` settings (the PIN shown only as set or empty),
+the files in the settings folder and the audio devices. It ends with the app state, the last 40
+decision-log entries, the latest Run checks report and a SHA-256 checksum of every line above it (join the
+lines with `\n` before hashing; a downloaded file has Windows line endings, so convert them to `\n` first); the checksum shows whether the file was edited after it was made. For every
+failed step and every step run on the real console it lists the commands sent to the console and the replies
+received.
+
+By default the report and the log hide audio device names, IP and MAC addresses, the computer and user
+names, the venue and template names from `show.conf`, the console's own name and the song and scene
+entries of the decision log in the full-test report, replacing them with "hidden" or `x.x.x.x`. Channel counts, sample rates, firmware and every
+step result stay. A private word that is not in one of those places is not caught. Tick **Keep device
+names, network addresses and show names** (under Run checks, **Keep device names and network
+addresses**) only when you are asked to send them.
 
 With a real console connected, tick **Also test control on the real console**, turn the
 PA off, and enter a spare channel number. On that channel the app changes the fader, mute,
@@ -329,6 +346,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--vet-channel <N>` | with `--vet --hardware`: change, read back and put back the fader, mute, polarity, EQ and one FX send of console channel N. PA off |
 | `--vet-gain` | with `--vet-channel`: also that channel's preamp gain |
 | `--vet-main` | with `--vet --hardware`: also the main mute, main fader, one main-bus EQ band and one FX return. PA off |
+| `--vet-keep-names` | with `--vet`: keep audio device names, IP addresses and show names in the report and log (they are replaced by default) |
 | `--vet-sound` | with `--vet --audio-device`: play pink noise for 10 seconds and check the measurement input hears it |
 | `--vet-phone` | with `--vet --lan --pin`: wait up to two minutes for a phone or tablet to sign in |
 | `--rehearse` | on its own or with `--diagnose`: use `show.conf` in emulate mode whatever `MODE` says (the emulated console, with its built-in audio feed unless `AUTO=yes`; the hardware-only keys such as `AUDIO_DEVICE` are not used) |

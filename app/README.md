@@ -90,7 +90,8 @@ and open the dashboard, or pass the same flags as `npm run run --`
   and update subscriptions. The logic is in `ts/src/core/diagnostics.ts`.
 - **It can test itself.** The **Run full test** button on the Settings tab (or `--vet`) runs every console
   command, dashboard control and job against the built-in emulator, checks the
-  result and writes a log. With a real console it can also change the fader, mute,
+  result and writes a log; the dashboard locks and shows progress while it runs, and the report can be
+  downloaded, with device names and addresses hidden by default. With a real console it can also change the fader, mute,
   polarity, EQ and one FX send on one channel you name and put each value back. The logic is in `ts/src/core/vet.ts`
   and `ts/src/host/vet.ts`.
 - **It is unsigned,** so macOS blocks a downloaded build until you choose

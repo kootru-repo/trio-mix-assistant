@@ -247,6 +247,7 @@ function lockForVet(v: VetT | undefined): void {
   const running = !!v && v.status==="running";
   document.body.classList.toggle("vetrun", running);
   $("#vetshield").hidden = !running;
+  $("#coach").toggleAttribute("inert", running);
   if(running && v){
     if(vetStarted === 0) vetStarted = Date.now();
     const total = Math.max(v.expected || 1, v.done + 1), pct = Math.min(99, Math.floor(100 * v.done / total));
