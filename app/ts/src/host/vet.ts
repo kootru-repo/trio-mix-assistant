@@ -213,7 +213,7 @@ async function thisComputer(ctx: Ctx): Promise<void> {
     must(m.ok, `the audio module did not load: ${m.error ?? "unknown error"}`);
     return `${m.inputs} input device${m.inputs === 1 ? "" : "s"} found`;
   });
-  await local(ctx, "conf_show", HERE, "show.conf is valid", ["feature:show-conf"], async () => {
+  await local(ctx, "conf_show", HERE, "show.conf is read without errors", ["feature:show-conf"], async () => {
     const notes: string[] = [];
     const cfg = readConf(join(io.layout.appDir, "show.conf"));
     const plan = buildArgv(cfg, io.layout.appDir, false, (l) => notes.push(l));
@@ -421,7 +421,7 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
       while (engine.assistant.leadTarget !== -19 && ctx.clock.monotonic() - t0 < 1) await ctx.clock.sleep(0.02);
       must(engine.assistant.leadTarget === -19, "a command sent over the live connection did not reach the engine");
       must((await request(log, t, "GET", "/ws", { cookie })).status === 400, "a plain request to the live connection address was not refused");
-      return "state arrived and a lead-target command took effect";
+      return "a text message arrived and a lead-target command took effect";
     });
     await W("web_api", "Every control address answers", [
       "route:/api/toggle",
@@ -463,7 +463,7 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
       const r = await request(log, t, "POST", "/api/toggle", { cookie, json: { job: "clip", on: false }, origin: "http://evil.example" });
       must(r.status === 403, `a cross-site request answered ${r.status}, expected 403`);
       must(engine.assistant.enabled["clip"] === true, "a cross-site request changed a job");
-      return "refused with 403 and nothing changed";
+      return "refused with 403 and the job stayed on";
     });
   });
   await W("web_lockout", "Repeated wrong PINs lock the login", ["feature:login-lockout"], async () =>
@@ -562,7 +562,7 @@ async function realConsole(ctx: Ctx): Promise<void> {
   io.out("");
   io.out(
     writes.length
-      ? `  Real console at ${ip}: this run changes ${writes.join(", ")}, reads each value back and puts it back. Keep the PA off.`
+      ? `  Real console at ${ip}: this run sets values on ${writes.join(", ")}, reads each back and puts it back. Keep the PA off.`
       : `  Real console at ${ip}: read-only (no --vet-channel or --vet-main), so nothing on it is changed.`,
   );
   let made: Link;
@@ -626,7 +626,7 @@ const PHONE = "Phone";
 
 async function phone(ctx: Ctx): Promise<void> {
   const { args, io } = ctx;
-  const spec: StepSpec = { id: "phone_login", area: PHONE, title: "A phone or tablet on the network signs in", proof: "this computer", covers: ["feature:phone-login"] };
+  const spec: StepSpec = { id: "phone_login", area: PHONE, title: "A device on the network signs in", proof: "this computer", covers: ["feature:phone-login"] };
   if (!args.pin || !args.lan) {
     skipRow(ctx.rows, ctx.log, spec, "needs the network and a PIN: add --lan --pin <at least 6 characters> (and --https to test that too)");
     return;
@@ -697,7 +697,7 @@ export async function runVet(args: Args, io: Io, hooks: VetHooks): Promise<VetOu
       logError = errText(e);
     }
   };
-  write([...head, "", "--- every step, with the console commands sent and the replies received ---"], true);
+  write([...head, "", "--- every step, with the console commands sent and the replies received (meter data is not logged) ---"], true);
   const log = new VetLog(io.clock, (line) => write([line]));
   let stop = false;
   void io.waitForStop().then(() => {

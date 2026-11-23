@@ -79,7 +79,7 @@ not test that fader and EQ commands land correctly; that is §1.2 and §2.4.
 
 `--vet` is the full test. It is newer than release 0.2.2, so until the next release it
 runs only from source (`npm run run -- --vet` in `app/ts`). Its settings come from the
-command line, not from `show.conf`; it only checks that `show.conf` is valid. On its own it tests this computer and the built-in emulator, plays no sound and contacts
+command line, not from `show.conf`; it only checks that `show.conf` can be read into valid options (not the PIN length, or that the template file exists). On its own it tests this computer and the built-in emulator, plays no sound and contacts
 no console:
 ```bash
 $ ./TrioMixAssistant --vet
@@ -88,7 +88,7 @@ $ ./TrioMixAssistant --vet
 PS> .\TrioMixAssistant.exe --vet
 ```
 Each step is PASS, FAIL or SKIP. The command exits with 1 if a step failed and writes
-`vet-<date>-<time>.log`, with each console command sent and each reply received, to the settings folder.
+`vet-<date>-<time>.log`, with each console command sent and each reply received (meter data is not logged), to the settings folder.
 A pass on the emulator does not prove a real console. To test the real one, with the PA off:
 ```bash
 $ ./TrioMixAssistant --vet --hardware --console-ip 192.168.1.50 --vet-channel 16

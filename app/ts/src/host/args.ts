@@ -96,7 +96,7 @@ options:
                         console is contacted only with --hardware, and changed only
                         with --vet-channel, --vet-gain or --vet-main
   --vet-channel N       (--vet --hardware) test control on console channel N: each
-                        value is changed, read back and put back. Keep the PA off
+                        value is set, read back and put back. Keep the PA off
   --vet-main            (--vet --hardware) also test the main bus and the first FX
                         return the same way. Keep the PA off
   --vet-gain            (--vet --hardware --vet-channel N) also test that channel's

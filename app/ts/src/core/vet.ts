@@ -712,7 +712,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       const before = await desk.num(headampAddr(4));
       e.assistant.onFeatures(4, feat({ peakDbfs: 0 }), T());
       const after = await desk.num(headampAddr(4));
-      must(before !== null && after !== null && near(before, after), "the preamp gain changed while coach mode was on");
+      must(before !== null && after !== null && near(before, after), "the preamp gain changed, or could not be read, while coach mode was on");
       must(e.assistant.coachRecs.size > 0, "no recommendation was made for a clipping channel");
       e.command({ type: "coach", on: false });
       must(!e.assistant.coachMode, "coach mode did not switch off");
@@ -726,7 +726,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       const scene = await desk.num(SCENE_ADDR);
       e.command({ type: "scene", index: 9 });
       const after = await desk.num(SCENE_ADDR);
-      must(scene !== null && after !== null && near(scene, after), "a scene was recalled during takeover");
+      must(scene !== null && after !== null && near(scene, after), "a scene was recalled, or could not be read, during takeover");
       e.command({ type: "panic", on: false });
       await desk.expect(`${main}/mix/on`, 1);
       must(e.status === "live", `status is '${e.status}' after release`);
@@ -821,7 +821,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       const restored = j.assistant.gainDb.get(4) ?? 0;
       must(restored > trimmed, "a clean channel did not get its gain back");
       await desk.expect(headampAddr(4), (restored + 12) / 72);
-      return `gain ${fixed(start, 1)} → ${fixed(trimmed, 1)} → ${fixed(restored, 1)} dB`;
+      return `gain trimmed to ${fixed(trimmed, 1)} dB, then raised to ${fixed(restored, 1)} dB`;
     });
     await S("job_vocal_ride", "Vocal ride job: a quiet lead vocal is raised", ["job:vocal_ride"], async () => {
       j.setEnabled("vocal_ride", true);
@@ -832,7 +832,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       must(now > start, "a quiet lead vocal was not raised");
       await desk.expect(`/ch/${zeroPad(C.LEAD_VOCAL_CH, 2)}/mix/fader`, dbToFader(now));
       j.setEnabled("vocal_ride", false);
-      return `lead fader ${fixed(start, 1)} → ${fixed(now, 1)} dB`;
+      return `lead fader raised to ${fixed(now, 1)} dB`;
     });
     await S("job_balance", "Balance job: the fader of a channel that drops is raised", ["job:balance"], async () => {
       j.onPushedBlock({ feats: new Map([[4, feat({})], [5, feat({})]]), phases: [] }, 0);
@@ -855,7 +855,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       j.setEnabled("phase", false);
       return "channel 6 polarity was inverted";
     });
-    await S("job_unmask", "Unmask job: an instrument channel dips while the vocal is up, and is released when the job is switched off", ["job:unmask"], async () => {
+    await S("job_unmask", "Unmask job: another channel (2) dips while the lead vocal is up, and is released when the job is switched off", ["job:unmask"], async () => {
       j.setEnabled("unmask", true);
       for (let i = 0; i < 20; i++) j.assistant.onFeatures(C.LEAD_VOCAL_CH, feat({ rmsDbfs: -20 }), T());
       const applied = j.assistant.duckApplied.get(2);
@@ -934,7 +934,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       await desk.expect(SCENE_ADDR, 12);
       must(s.assistant.coachRecs.size > 0, "no recommendation was made");
       s.setCoachMode(false);
-      return "the scene stayed at 12 and a recommendation was shown";
+      return "the scene stayed at 12 and a recommendation was made";
     });
     const moved: StepSpec = { id: "show_console_move", area, title: "A fader moved on the console is picked up", proof: desk.proof, covers: ["feature:console-fader-sync"] };
     const move = opts.externalMove;
@@ -994,7 +994,7 @@ export function soundVerdict(r: SoundResult): string {
   must(noise > SOUND_MIN_DBFS, `the microphone heard only ${fixed(noise, 0)} dBFS during the noise (needs more than ${SOUND_MIN_DBFS}); raise the speaker or mic level`);
   const rise = r.ambientDb === null ? null : noise - r.ambientDb;
   must(rise === null || rise >= SOUND_MIN_RISE_DB, `the level rose only ${fixed(rise ?? 0, 1)} dB when the noise played, so the microphone may not be hearing the speakers`);
-  return `heard ${fixed(noise, 0)} dBFS during the noise` + (rise === null ? "" : `, ${fixed(rise, 0)} dB above the room before it`);
+  return `heard ${fixed(noise, 0)} dBFS during the noise` + (rise === null ? " (the room level before the noise was not measured)" : `, ${fixed(rise, 0)} dB above the room before it`);
 }
 
 const TAG: Record<VetStatus, string> = { pass: "PASS", fail: "FAIL", skip: "SKIP" };
