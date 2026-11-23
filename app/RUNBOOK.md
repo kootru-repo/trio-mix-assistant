@@ -79,7 +79,8 @@ not test that fader and EQ commands land correctly; that is §1.2 and §2.4.
 
 On the dashboard, **Settings → Run full test** tries every control, job and dashboard
 address against a built-in test console and on this computer (about half a minute, no
-sound; the automatic jobs pause while it runs). Each step is PASS, FAIL or SKIP; **Copy
+sound; the automatic jobs pause and other controls are ignored while it runs, except TAKEOVER,
+which stops the test after it puts back the value it is testing). Each step is PASS, FAIL or SKIP; **Copy
 report** copies the result, and `vet-<date>-<time>.log` (each console command sent and
 each reply received; meter data is not logged) is saved in the settings folder. A pass on
 the built-in test console does not prove a real console.
