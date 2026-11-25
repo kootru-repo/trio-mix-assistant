@@ -286,7 +286,8 @@ export class Engine extends EngineCalibration {
       this.assistant.emit("system", `the full test did not start: ${why}`);
       this.rebuildTelemetry();
     };
-    if (this.status !== "live") return refuse("the app must be live (not in takeover or calibrating)");
+    const blocked = this.vetBlockedReason();
+    if (blocked !== "") return refuse(blocked);
     if ((req.channel !== null || req.main) && !host.console) return refuse("there is no real console connected to test");
     const held = { ...this.assistant.enabled };
     for (const k of Object.keys(this.assistant.enabled)) this.assistant.enabled[k] = false;

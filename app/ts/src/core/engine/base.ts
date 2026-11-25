@@ -379,8 +379,26 @@ export class EngineBase {
     return out;
   }
 
+  protected vetBlockedReason(): string {
+    if (this.vetHost === null) return "The full test is not available in this copy of the app.";
+    if (this.stopped) return "The app is shutting down.";
+    if (this.status === "takeover") return "Press RELEASE (top right) first. The test does not run in takeover.";
+    if (this.status === "calibrating") return "Wait for calibration to finish.";
+    if (this.diagStatus === "running") return "Wait for Run checks to finish.";
+    return "";
+  }
+
+  protected checksBlockedReason(): string {
+    if (this.stopped) return "The app is shutting down.";
+    if (this.vetStatus === "running") return "Wait for the full test to finish.";
+    if (this.status === "calibrating") return "Wait for calibration to finish.";
+    return "";
+  }
+
   protected vetTelemetry(): Record<string, unknown> {
     return {
+      blocked: this.vetStatus === "running" ? "" : this.vetBlockedReason(),
+      checksBlocked: this.checksBlockedReason(),
       status: this.vetStatus,
       done: this.vetDone,
       expected: Math.max(this.vetHost !== null && this.vetHost.console ? VET_EXPECTED_STEPS_WITH_CONSOLE : VET_EXPECTED_STEPS, this.vetDone + 1),

@@ -295,7 +295,7 @@ function renderSettings(s) {
         row("Scene", show.scene != null ? show.scene : "—") +
         row("Calibration", (s.calibration || {}).status || "—") +
         row("Venue model", ven ? (ven.shows + " show(s) · " + Math.round((ven.confidence || 0) * 100) + "% · " + (ven.freqs || []).length + " known freqs") : "—"));
-    renderChecks(s.diagnostics);
+    renderChecks(s.diagnostics, s.vet);
     renderVet(s.vet);
     vetDoneNotice(s.vet);
     diagDoneNotice(s.diagnostics);
@@ -330,7 +330,11 @@ let vetText = "";
 function renderVet(v) {
     const running = !!v && v.status === "running";
     const run = $("#vetrun");
-    run.disabled = running;
+    const why = !v ? "Waiting for the app." : running ? "" : (v.blocked || "");
+    run.disabled = running || why !== "";
+    const wy = $("#vetwhy");
+    wy.hidden = why === "";
+    wy.textContent = why ? "Run full test is greyed out: " + why : "";
     run.textContent = running ? "Testing… about half a minute" : (v && v.status === "done" ? "Run full test again" : "Run full test");
     $("#vetconsole").hidden = !(v && v.console);
     $("#vetopts").hidden = !$("#vetreal").checked;
@@ -410,10 +414,14 @@ function downloadText(name, text) {
     return a.download;
 }
 let diagText = "";
-function renderChecks(d) {
+function renderChecks(d, v) {
     const running = !!d && d.status === "running", rep = d ? d.report : null;
     const run = $("#diagrun");
-    run.disabled = running;
+    const why = running || !v ? "" : (v.checksBlocked || "");
+    run.disabled = running || why !== "";
+    const wy = $("#diagwhy");
+    wy.hidden = why === "";
+    wy.textContent = why ? "Run checks is greyed out: " + why : "";
     run.textContent = running ? "Checking… about 8 seconds" : (rep ? "Run checks again" : "Run checks");
     setHTML($("#diagsum"), rep ? esc("Result: " + rep.summary) : "");
     setHTML($("#diaglist"), rep ? rep.checks.map(c => `<div class="diagitem ${esc(c.status)}"><span class="tag">${esc(String(c.status).toUpperCase())}</span>` +
@@ -450,12 +458,12 @@ $("#diagrun").onclick = () => action({ type: "diagnose", identify: $("#diagkeep"
 $("#vetreal").onchange = () => { $("#vetopts").hidden = !$("#vetreal").checked; };
 $("#vetrun").onclick = () => {
     const vs = _lastState ? _lastState.vet : undefined;
-    if (!vs || !vs.available) {
-        showDone("bad", "The full test is not available", "This copy of the app has no full test ready, or the dashboard is not connected to it. Reload the page (Cmd+Shift+R) and check the app is still running in Terminal. If it still fails, download the newest version.", "", null);
+    if (!vs) {
+        showDone("bad", "The full test is not available", "The dashboard is not connected to the app. Reload the page (Cmd+Shift+R) and check the app is still running in Terminal.", "", null);
         return;
     }
-    if (curStatus !== "live") {
-        showDone("warn", "The full test cannot start now", "The app is in " + curStatus + " mode. Press RELEASE (top right) so it is live again, then run the test.", "", null);
+    if (vs.blocked) {
+        showDone("warn", "The full test cannot start now", vs.blocked, "", null);
         return;
     }
     const real = $("#vetreal").checked && !$("#vetconsole").hidden;

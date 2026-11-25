@@ -86,6 +86,8 @@ interface DiagnosticsT {
 }
 
 interface VetT {
+  blocked: string;
+  checksBlocked: string;
   status: "idle" | "running" | "done";
   done: number;
   expected: number;

@@ -391,6 +391,19 @@ test("--vet sends nothing to the port a running app listens on", () =>
     }
   }));
 
+test("the full test and Run checks report why they are blocked, so the dashboard can grey them out", () => {
+  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000), sim: true });
+  type VetView = { blocked: string; checksBlocked: string };
+  const view = (): VetView => e.snapshot()["vet"] as VetView;
+  assert.match(view().blocked, /not available/);
+  e.vetHost = { console: false, run: () => Promise.resolve({ text: "r", summary: "s", failed: 0 }) };
+  e.panic(true);
+  assert.match(view().blocked, /RELEASE/);
+  assert.equal(view().checksBlocked, "");
+  e.panic(false);
+  assert.equal(view().blocked, "");
+});
+
 test("the dashboard command runs the full test, pauses the jobs while it runs and restores them", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
   const e = new Engine({ clock, sim: true });
@@ -421,7 +434,7 @@ test("the dashboard command runs the full test, pauses the jobs while it runs an
   e.command({ type: "vet", channel: 99, gain: false, main: false });
   e.command({ type: "panic", on: true });
   e.command({ type: "vet", channel: null, gain: false, main: false });
-  assert.ok(e.events.some((ev) => ev.msg.includes("must be live")));
+  assert.ok(e.events.some((ev) => ev.msg.includes("Press RELEASE")));
 });
 
 test("the dashboard test reaches a real console through the app's own socket and leaves that socket running", () =>

@@ -448,6 +448,9 @@
   .vetnote .btn{cursor:pointer}
   .diagprog{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:12px}
   .diagprog[hidden]{display:none}
+  .diagwhy{margin:8px 0;padding:8px 12px;border-radius:10px;border:1px solid #f2b84b;background:rgba(242,184,75,.12);font-size:13px}
+  .diagwhy[hidden]{display:none}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
   .donewrap{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
   .donewrap[hidden]{display:none}
   .donecard{width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:var(--panel,#1b1f27);color:inherit;border:2px solid #2fd4a0;border-radius:18px;padding:26px 24px 20px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.65)}
@@ -650,6 +653,7 @@
       <p class="diagnote">Checks that the audio input, the console link and tablet access work. It listens for a few seconds, changes nothing on the console and plays no sound.</p>
       <label class="vetrow"><input type="checkbox" id="diagkeep"> Keep device names and network addresses in the report. Leave this off unless asked; they are replaced by default.</label>
       <div class="diagbtns"><button class="btn" id="diagrun">Run checks</button><button class="btn" id="diagdownload" hidden>Download report</button><button class="btn" id="diagcopy" hidden>Copy report</button></div>
+      <div class="diagwhy" id="diagwhy" hidden></div>
       <div class="diagprog" id="diagprog" hidden>
         <div class="vethead"><span class="vettitle">Checking your setup</span><span class="vetpct mono" id="diagpct">0%</span></div>
         <div class="vetbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Checks progress" id="diagbar"><span class="vetfill" id="diagfill"></span></div>
@@ -671,6 +675,7 @@
       </div>
       <label class="vetrow"><input type="checkbox" id="vetkeep"> Keep device names, network addresses and show names in the report and log. Leave this off unless asked; they are replaced by default.</label>
       <div class="diagbtns"><button class="btn" id="vetrun">Run full test</button><button class="btn" id="vetdownload" hidden>Download report</button><button class="btn" id="vetcopy" hidden>Copy report</button></div>
+      <div class="diagwhy" id="vetwhy" hidden></div>
       <div class="diagsum" id="vetsum"></div>
       <textarea id="vettext" readonly hidden aria-label="Full test report, ready to copy"></textarea>
     </div>
