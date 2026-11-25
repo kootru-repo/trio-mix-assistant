@@ -366,13 +366,17 @@ $("#doneok").onclick = () => { $("#donewrap").hidden = true; };
 $("#donedl").onclick = () => { if (doneAction)
     doneAction(); };
 const SAVED_HINT = "The file is in your browser's Downloads folder (on a Mac: Finder → Downloads). Chrome, Safari and Firefox also show it under the download arrow in the toolbar.";
-let seenVet = null, seenDiag = null, diagStarted = 0;
+let seenVetError = "", seenVet = null, seenDiag = null, diagStarted = 0;
 function vetDoneNotice(v) {
     const st = v ? v.status : "idle";
     if (seenVet !== null && seenVet === "running" && st === "done" && v) {
         const dl = () => { const n = downloadText("trio-full-test", $("#vettext").value); showDone(v.failed ? "bad" : "ok", "Full test finished", "Result: " + v.summary, "Saved as " + n + "\n" + SAVED_HINT, dl); };
         showDone(v.failed ? "bad" : "ok", v.failed ? "Full test finished with failures" : "Full test passed", "Result: " + v.summary + (v.failed ? "\nThe FAIL lines are in the report below." : ""), "The report is on screen under Full test. Download it to send it.", dl);
     }
+    const err = v ? v.error : "";
+    if (err !== "" && err !== seenVetError && seenVet !== null)
+        showDone("bad", "The full test stopped with an error", err + "\n\nPlease send this text to Andrew. The decision log on the Mix tab has the same message.", "", null);
+    seenVetError = err;
     seenVet = st;
 }
 function diagDoneNotice(d) {

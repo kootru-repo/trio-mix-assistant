@@ -112,6 +112,7 @@ export class EngineBase {
   diagHost: ((identify: boolean) => DiagHost) | null = null;
   vetHost: VetHostPort | null = null;
   protected vetStatus: "idle" | "running" | "done" = "idle";
+  protected vetError = "";
   protected vetOutcome: VetSummary | null = null;
   protected vetAbort = false;
   protected vetDone = 0;
@@ -399,6 +400,7 @@ export class EngineBase {
     return {
       blocked: this.vetStatus === "running" ? "" : this.vetBlockedReason(),
       checksBlocked: this.checksBlockedReason(),
+      error: this.vetError,
       status: this.vetStatus,
       done: this.vetDone,
       expected: Math.max(this.vetHost !== null && this.vetHost.console ? VET_EXPECTED_STEPS_WITH_CONSOLE : VET_EXPECTED_STEPS, this.vetDone + 1),

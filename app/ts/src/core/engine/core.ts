@@ -292,6 +292,7 @@ export class Engine extends EngineCalibration {
     const held = { ...this.assistant.enabled };
     for (const k of Object.keys(this.assistant.enabled)) this.assistant.enabled[k] = false;
     this.vetOutcome = null;
+    this.vetError = "";
     this.vetAbort = false;
     this.vetDone = 0;
     this.vetTitle = "Starting";
@@ -316,7 +317,9 @@ export class Engine extends EngineCalibration {
         this.assistant.emit("system", `full test finished: ${outcome.summary}`);
       } catch (exc) {
         this.noteError(exc);
-        this.assistant.emit("system", "the full test stopped on an unexpected error");
+        const e = exc instanceof Error ? exc : new Error(String(exc));
+        this.vetError = `${e.name}: ${e.message}${e.stack !== undefined ? "\n" + e.stack.split("\n").slice(1, 4).join("\n") : ""}`;
+        this.assistant.emit("system", `the full test stopped on an unexpected error: ${e.name}: ${e.message}`);
       } finally {
         if (this.currentStatus() === "takeover") this.enabledBackup = { ...held };
         else Object.assign(this.assistant.enabled, held);
