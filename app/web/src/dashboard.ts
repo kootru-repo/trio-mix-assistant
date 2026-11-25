@@ -241,6 +241,9 @@ function renderSettings(s: Snapshot): void {
     row("Venue model", ven ? (ven.shows+" show(s) · "+Math.round((ven.confidence||0)*100)+"% · "+(ven.freqs||[]).length+" known freqs") : "—"));
   renderChecks(s.diagnostics);
   renderVet(s.vet);
+  vetDoneNotice(s.vet);
+  diagDoneNotice(s.diagnostics);
+  diagProgress(s.diagnostics);
 }
 let vetStarted = 0;
 function lockForVet(v: VetT | undefined): void {
@@ -267,7 +270,7 @@ let vetText = "";
 function renderVet(v: VetT | undefined): void {
   const running = !!v && v.status==="running";
   const run = $<HTMLButtonElement>("#vetrun");
-  run.disabled = running || !v || !v.available;
+  run.disabled = running;
   run.textContent = running ? "Testing… about half a minute" : (v && v.status==="done" ? "Run full test again" : "Run full test");
   $("#vetconsole").hidden = !(v && v.console);
   $("#vetopts").hidden = !$<HTMLInputElement>("#vetreal").checked;
@@ -278,7 +281,53 @@ function renderVet(v: VetT | undefined): void {
   $("#vetcopy").hidden = !text;
   $("#vetdownload").hidden = !text;
 }
-function downloadText(name: string, text: string): void {
+let doneAction: (() => void) | null = null;
+function showDone(kind: "ok" | "warn" | "bad", title: string, body: string, file: string, dl: (() => void) | null): void {
+  $("#donecard").className = "donecard" + (kind === "ok" ? "" : " " + kind);
+  $("#doneicon").textContent = kind === "ok" ? "✓" : kind === "warn" ? "!" : "✕";
+  $("#donetitle").textContent = title;
+  $("#donebody").textContent = body;
+  const f = $("#donefile");
+  f.hidden = !file;
+  f.textContent = file;
+  doneAction = dl;
+  $("#donedl").hidden = !dl;
+  $("#donewrap").hidden = false;
+  $("#doneok").focus();
+}
+$("#doneok").onclick = () => { $("#donewrap").hidden = true; };
+$("#donedl").onclick = () => { if(doneAction) doneAction(); };
+const SAVED_HINT = "The file is in your browser's Downloads folder (on a Mac: Finder → Downloads). Chrome, Safari and Firefox also show it under the download arrow in the toolbar.";
+let seenVet: string | null = null, seenDiag: string | null = null, diagStarted = 0;
+function vetDoneNotice(v: VetT | undefined): void {
+  const st = v ? v.status : "idle";
+  if(seenVet !== null && seenVet === "running" && st === "done" && v){
+    const dl = (): void => { const n = downloadText("trio-full-test", $<HTMLTextAreaElement>("#vettext").value); showDone(v.failed ? "bad" : "ok", "Full test finished", "Result: " + v.summary, "Saved as " + n + "\n" + SAVED_HINT, dl); };
+    showDone(v.failed ? "bad" : "ok", v.failed ? "Full test finished with failures" : "Full test passed", "Result: " + v.summary + (v.failed ? "\nThe FAIL lines are in the report below." : ""), "The report is on screen under Full test. Download it to send it.", dl);
+  }
+  seenVet = st;
+}
+function diagDoneNotice(d: DiagnosticsT | undefined): void {
+  const st = d ? d.status : "idle";
+  if(seenDiag !== null && seenDiag === "running" && st === "done" && d && d.report){
+    const rep = d.report, bad = rep.result === "fail", warn = rep.result === "warn";
+    const dl = (): void => { const n = downloadText("trio-checks", $<HTMLTextAreaElement>("#diagtext").value); showDone(bad ? "bad" : warn ? "warn" : "ok", "Checks finished", "Result: " + rep.summary, "Saved as " + n + "\n" + SAVED_HINT, dl); };
+    showDone(bad ? "bad" : warn ? "warn" : "ok", bad ? "Checks found a problem" : warn ? "Checks finished with warnings" : "Checks passed", "Result: " + rep.summary, "The report is on screen under Checks. Download it to send it.", dl);
+  }
+  seenDiag = st;
+}
+function diagProgress(d: DiagnosticsT | undefined): void {
+  const running = !!d && d.status === "running";
+  $("#diagprog").hidden = !running;
+  if(!running){ diagStarted = 0; return; }
+  if(diagStarted === 0) diagStarted = Date.now();
+  const pct = Math.min(95, Math.floor(100 * (Date.now() - diagStarted) / 9000));
+  $("#diagpct").textContent = pct + "%";
+  $("#diagfill").style.width = pct + "%";
+  $("#diagbar").setAttribute("aria-valuenow", String(pct));
+}
+setInterval(() => { if(_lastState) diagProgress(_lastState.diagnostics); }, 250);
+function downloadText(name: string, text: string): string {
   const d = new Date(), two = (n: number): string => String(n).padStart(2, "0");
   const stamp = `${d.getFullYear()}${two(d.getMonth()+1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
   const url = URL.createObjectURL(new Blob([text.replace(/\r?\n/g, "\r\n")], {type: "text/plain;charset=utf-8"}));
@@ -286,6 +335,7 @@ function downloadText(name: string, text: string): void {
   a.href = url; a.download = `${name}-${stamp}.txt`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return a.download;
 }
 let diagText = "";
 function renderChecks(d: DiagnosticsT | undefined): void {
@@ -315,6 +365,9 @@ $("#setcal").onclick = () => action({type:"calibrate"});
 $("#diagrun").onclick = () => action({type:"diagnose", identify: $<HTMLInputElement>("#diagkeep").checked});
 $("#vetreal").onchange = () => { $("#vetopts").hidden = !$<HTMLInputElement>("#vetreal").checked; };
 $("#vetrun").onclick = () => {
+  const vs = _lastState ? _lastState.vet : undefined;
+  if(!vs || !vs.available){ showDone("bad", "The full test is not available", "This copy of the app has no full test ready, or the dashboard is not connected to it. Reload the page (Cmd+Shift+R) and check the app is still running in Terminal. If it still fails, download the newest version.", "", null); return; }
+  if(curStatus !== "live"){ showDone("warn", "The full test cannot start now", "The app is in " + curStatus + " mode. Press RELEASE (top right) so it is live again, then run the test.", "", null); return; }
   const real = $<HTMLInputElement>("#vetreal").checked && !$("#vetconsole").hidden;
   const ch = parseInt($<HTMLInputElement>("#vetch").value, 10);
   const main = real && $<HTMLInputElement>("#vetmain").checked;
@@ -326,10 +379,14 @@ $("#vetrun").onclick = () => {
     const what = (channel !== null ? "channel "+channel+(gain ? " (including its preamp gain)" : "") : "") + (channel !== null && main ? " and " : "") + (main ? "the main bus and FX return" : "");
     if(!confirm("Turn the PA OFF first.\n\nThis changes values on "+what+", reads each back and puts it back. Continue?")) return;
   }
+  setTimeout(() => {
+    const now = _lastState ? _lastState.vet : undefined;
+    if(!now || now.status === "idle") showDone("bad", "The full test did not start", "The app did not begin the test. Reload the page (Cmd+Shift+R) and try again. If it still does nothing, the app in Terminal may have stopped or be an older version.", "", null);
+  }, 4000);
   action({type:"vet", channel, gain, main, identify: $<HTMLInputElement>("#vetkeep").checked});
 };
-$("#vetdownload").onclick = () => downloadText("trio-full-test", $<HTMLTextAreaElement>("#vettext").value);
-$("#diagdownload").onclick = () => downloadText("trio-checks", $<HTMLTextAreaElement>("#diagtext").value);
+$("#vetdownload").onclick = () => { const n = downloadText("trio-full-test", $<HTMLTextAreaElement>("#vettext").value); showDone("ok", "Report downloaded", "", "Saved as " + n + "\n" + SAVED_HINT, null); };
+$("#diagdownload").onclick = () => { const n = downloadText("trio-checks", $<HTMLTextAreaElement>("#diagtext").value); showDone("ok", "Report downloaded", "", "Saved as " + n + "\n" + SAVED_HINT, null); };
 $("#vetcopy").onclick = () => {
   const box = $<HTMLTextAreaElement>("#vettext"), btn = $("#vetcopy");
   box.select();

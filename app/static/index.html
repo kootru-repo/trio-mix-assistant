@@ -446,6 +446,22 @@
   .vetnote{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .vetnote span{opacity:.75}
   .vetnote .btn{cursor:pointer}
+  .diagprog{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:12px}
+  .diagprog[hidden]{display:none}
+  .donewrap{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+  .donewrap[hidden]{display:none}
+  .donecard{width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:var(--panel,#1b1f27);color:inherit;border:2px solid #2fd4a0;border-radius:18px;padding:26px 24px 20px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.65)}
+  .donecard.bad{border-color:#ff5d5d}
+  .donecard.warn{border-color:#f2b84b}
+  .doneicon{width:64px;height:64px;margin:0 auto 12px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;background:#2fd4a0;color:#06251c}
+  .donecard.bad .doneicon{background:#ff5d5d;color:#2b0606}
+  .donecard.warn .doneicon{background:#f2b84b;color:#2b1d02}
+  .donetitle{font-size:22px;font-weight:700;margin-bottom:8px}
+  .donebody{font-size:14px;line-height:1.5;opacity:.9;white-space:pre-wrap}
+  .donefile{margin-top:14px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.07);font-size:13px;line-height:1.5;word-break:break-word;text-align:left}
+  .donefile[hidden]{display:none}
+  .donebtns{display:flex;gap:10px;justify-content:center;margin-top:18px}
+  .donebtns .btn[hidden]{display:none}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -508,6 +524,16 @@
     <div class="vetnow" id="vetnow">Starting</div>
     <div class="vetmeta mono"><span id="vetsteps">0 of 66 steps</span><span id="vetleft"></span></div>
     <div class="vetnote"><span>The controls are locked until it finishes.</span><button class="btn" id="vetstop" title="Stop the test, put back the value being tested and mute the main">Stop the test (TAKEOVER)</button></div>
+  </div>
+</div>
+
+<div class="donewrap" id="donewrap" hidden>
+  <div class="donecard" id="donecard" role="alertdialog" aria-modal="true" aria-labelledby="donetitle" aria-describedby="donebody">
+    <div class="doneicon" id="doneicon" aria-hidden="true"></div>
+    <div class="donetitle" id="donetitle"></div>
+    <div class="donebody" id="donebody"></div>
+    <div class="donefile" id="donefile" hidden></div>
+    <div class="donebtns"><button class="btn" id="donedl" hidden>Download report</button><button class="btn" id="doneok">OK</button></div>
   </div>
 </div>
 
@@ -624,6 +650,11 @@
       <p class="diagnote">Checks that the audio input, the console link and tablet access work. It listens for a few seconds, changes nothing on the console and plays no sound.</p>
       <label class="vetrow"><input type="checkbox" id="diagkeep"> Keep device names and network addresses in the report. Leave this off unless asked; they are replaced by default.</label>
       <div class="diagbtns"><button class="btn" id="diagrun">Run checks</button><button class="btn" id="diagdownload" hidden>Download report</button><button class="btn" id="diagcopy" hidden>Copy report</button></div>
+      <div class="diagprog" id="diagprog" hidden>
+        <div class="vethead"><span class="vettitle">Checking your setup</span><span class="vetpct mono" id="diagpct">0%</span></div>
+        <div class="vetbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Checks progress" id="diagbar"><span class="vetfill" id="diagfill"></span></div>
+        <div class="vetnow" id="diagnow">Listening to the input and asking the console</div>
+      </div>
       <div class="diagsum" id="diagsum"></div>
       <div id="diaglist"></div>
       <textarea id="diagtext" readonly hidden aria-label="Check report, ready to copy"></textarea>
