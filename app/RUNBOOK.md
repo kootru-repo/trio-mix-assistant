@@ -1,4 +1,4 @@
-# Runbook: Acoustic Trio Mix‑Assistant (macOS & Windows)
+# Runbook: Trio Mix‑Assistant (macOS & Windows)
 
 A practical, show‑day operating guide for the FOH laptop. The app is the same on
 both OSes (one downloaded file, nothing to install); only the shell syntax
@@ -34,12 +34,23 @@ where it differs, there's a **macOS** and a **Windows** version side by side.
 Download the app for the laptop from the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest). It carries
 its own runtime and the audio module, so nothing else is installed.
 
-- **macOS:** pick `arm64` (Apple Silicon) or `x64` (Intel), then:
+- **macOS:** under **Assets**, pick `TrioMixAssistant-macos-arm64.tar.gz` (Apple Silicon) or
+  `TrioMixAssistant-macos-x64.tar.gz` (Intel). Apple menu → **About This Mac** shows which you have.
+  Open **Downloads** in Finder. Safari unpacks the download by itself; if you still see the `.tar.gz`
+  file, double-click it. Then double-click **TrioMixAssistant**: a Terminal window opens by itself and
+  the dashboard opens in the browser. No Terminal commands are needed for this.
+
+  The first time, macOS blocks it, because the app is not signed by a registered developer. Click
+  **Done** on the warning (not Move to Trash), go to System Settings → Privacy & Security, click
+  **Open Anyway**, then double-click **TrioMixAssistant** again if it has not started. The
+  [README](../README.md#mac) has a drawing of each prompt.
+
+  The commands in the rest of this runbook are typed in Terminal in the folder that holds the app:
+  `cd ~/Downloads` if you left it there. To keep it in its own folder instead:
   ```bash
   $ mkdir -p ~/TrioMix && cd ~/TrioMix
   $ tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
   ```
-  If macOS refuses to open it: System Settings → Privacy & Security → **Open Anyway**.
 - **Windows:** unzip `TrioMixAssistant-windows-x64.zip` into a folder on the laptop's
   own disk. The first start shows a SmartScreen warning: **More info → Run anyway**.
 
@@ -68,7 +79,8 @@ command exits with 1 if a check failed. Add flags to check something other than
 `--diagnose --hardware --console-ip 192.168.1.50 --audio-device 2` for the full rig.
 
 While the app is running, use **Settings → Run checks** on the dashboard instead (the
-running app already holds the audio input and the console's reply port). The report
+running app already holds the audio input and the console's reply port). A progress bar
+shows while it listens and a popup gives the result. The report
 there has **Copy report** and **Download report** buttons; the same hiding of names and addresses applies as in §1.2.
 
 The checks cover the audio module, the input, the audio flow, the microphone
@@ -77,14 +89,24 @@ not test that fader and EQ commands land correctly; that is §1.2 and §2.4.
 
 ### 1.2 Test everything
 
-On the dashboard, **Settings → Run full test** tries every control, job and dashboard
-address against a built-in test console and on this computer (about half a minute, no
-sound; the automatic jobs pause while it runs and the dashboard greys out and ignores touches, clicks
-and keys, except TAKEOVER, which stops the test after it puts back the value it is testing). A card shows a
-progress bar, the step being checked and a **Stop the test** button that does the same as TAKEOVER.
-Each step is PASS, FAIL or SKIP. **Download report** saves the result as
-`trio-full-test-<date>-<time>.txt` (the browser decides whether you are asked where to save it) and **Copy
-report** copies it. `vet-<date>-<time>.log` (each console command sent and each reply received; meter
+On the dashboard, **Settings → Run full test** is one click. It first runs the checks of §1.1, then
+tries every control, job and dashboard address against a built-in test console and on this computer.
+In simulation it also calibrates the built-in stage before the checks; with a console connected
+(real or emulated) calibration is left out, because calibration plays pink noise and writes main-bus EQ. The whole
+run takes about 45 seconds and plays no sound. The dashboard greys out and ignores touches, clicks
+and keys, except TAKEOVER, and the automatic jobs pause during the last stage. A card names the stage
+and shows a progress bar and a **Stop the test** button, which does the same as TAKEOVER: it cancels
+at any stage, and during the last stage the test first puts back the value it is testing.
+
+The button is greyed out, with the reason shown beside it, while the test cannot run: in takeover,
+during calibration, or while Run checks is running. Run checks is greyed out the same way during the
+full test and calibration.
+
+When it finishes, a popup shows the result. Each step is PASS, FAIL or SKIP. If the test stops on an
+unexpected error, the popup shows the error text; send that text with your report. **Download report**
+saves the result as `trio-full-test-<date>-<time>.txt` and then names the saved file: it is in the
+browser's Downloads folder (on a Mac, Finder → Downloads), unless the browser asked you where to save
+it. **Copy report** copies it. `vet-<date>-<time>.log` (each console command sent and each reply received; meter
 data is not logged) is saved in the settings folder. A pass on the built-in test console does not prove a
 real console.
 

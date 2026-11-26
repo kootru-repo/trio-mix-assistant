@@ -59,22 +59,30 @@ Nothing to install. The app carries everything it needs and starts in **simulati
 1. **Get the latest release.** Open the **[latest release page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest)** and, under **Assets**, pick the file for your Mac: **[Apple Silicon (M1 or later)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest)** is `TrioMixAssistant-macos-arm64.tar.gz`, **[Intel](https://github.com/kootru-repo/trio-mix-assistant/releases/latest)** is `TrioMixAssistant-macos-x64.tar.gz`. Not sure which Mac you have? Apple menu → **About This Mac** tells you.
 
    <img src="docs/screenshots/mac-about-this-mac.svg" width="640" alt="Illustration: About This Mac shows Chip on an Apple Silicon Mac and Processor on an Intel Mac">
-2. Open **Terminal** and run (use the `x64` file name on an Intel Mac):
-   ```bash
-   mkdir -p ~/TrioMix && cd ~/TrioMix
-   tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
-   ./TrioMixAssistant
-   ```
-   If macOS refuses to open it, click **Done** on the warning (not Move to Trash), go to System Settings → Privacy & Security, click **Open Anyway**, and run the last line again.
+2. **Open it. No Terminal commands are needed.** In Finder, open **Downloads**. Safari unpacks the download by itself; if you still see a `.tar.gz` file, double-click it. Then double-click **TrioMixAssistant**. A Terminal window opens by itself and shows what the app is doing.
+
+   The first time, macOS blocks it, because the app is not signed by a registered developer. Click **Done** on the warning (not Move to Trash), go to System Settings → Privacy & Security, click **Open Anyway**, then double-click **TrioMixAssistant** again if it has not started.
 
    <img src="docs/screenshots/mac-blocked-warning.svg" width="640" alt="Illustration: the macOS warning that TrioMixAssistant was not opened, with Done highlighted">
 
    <img src="docs/screenshots/mac-open-anyway.svg" width="640" alt="Illustration: System Settings, Privacy and Security, with the Open Anyway button highlighted">
-3. The dashboard opens in your browser (the address is also printed). Toggle the jobs and watch the behaviour change. Press Ctrl+C in Terminal to stop.
-4. **Test your microphone (optional, 10 seconds).** Run `./TrioMixAssistant --list-devices` and note your microphone's number, then run `./TrioMixAssistant --diagnose --audio-device <number>`. Click **Allow** if macOS asks to let Terminal use the microphone. It listens for eight seconds, plays no sound, and prints what passed. Nobody has confirmed listening on a Mac yet, so please paste the report (from the `=====` line down) into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues), pass or fail.
+3. The dashboard opens in your browser (the address is also shown in the Terminal window). Toggle the jobs and watch the behaviour change. To stop the app, press Ctrl+C in that Terminal window or close it.
+4. **Run the full test (optional, about 45 seconds).** With the app running, open **Settings → Run full test** in the dashboard. One click calibrates the built-in stage, runs the checks, then tries every control against a built-in test console. It plays no sound and touches no real console. A card shows the stage and a progress bar, and a popup tells you when it has finished. Click **Download report** in that popup: the file `trio-full-test-<date>-<time>.txt` is saved in your Downloads folder (Finder → Downloads). Please attach it to an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues) or send it to whoever asked you to test, pass or fail. Device names, network addresses and computer and user names are hidden in the report by default.
+5. **Test your microphone (optional, 10 seconds, uses Terminal).** Open **Terminal** and type `cd ~/Downloads` (or the folder that holds the app). Run `./TrioMixAssistant --list-devices` and note your microphone's number, then run `./TrioMixAssistant --diagnose --audio-device <number>`. Click **Allow** if macOS asks to let Terminal use the microphone. It listens for eight seconds, plays no sound, and prints what passed. Nobody has confirmed listening on a Mac yet, so please paste the report (from the `=====` line down) into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues), pass or fail.
 
    <img src="docs/screenshots/mac-microphone-prompt.svg" width="640" alt="Illustration: the macOS prompt asking to let Terminal use the microphone, with Allow highlighted">
-5. **Run the full test (optional, about 45 seconds, no Terminal needed).** With the app running, open **Settings → Run full test** in the dashboard. One click calibrates the built-in stage, runs the checks, then tries every control against a built-in test console. It plays no sound and touches no real console. A card shows the stage and a progress bar, and a popup tells you when it has finished. Click **Download report** in that popup: the file `trio-full-test-<date>-<time>.txt` is saved in your Downloads folder (Finder → Downloads). Please attach it to an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues) or send it to whoever asked you to test, pass or fail. Device names, network addresses and computer and user names are hidden in the report by default.
+
+<details><summary>Prefer Terminal for the whole install?</summary>
+
+Use the `x64` file name on an Intel Mac. If Safari already unpacked the download, skip the `tar` line and move **TrioMixAssistant** into `~/TrioMix` yourself.
+
+```bash
+mkdir -p ~/TrioMix && cd ~/TrioMix
+tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
+./TrioMixAssistant
+```
+
+</details>
 
 ### Windows
 
@@ -95,7 +103,8 @@ The app runs on the laptop; a phone or tablet on the same WiFi opens its dashboa
 | | Status |
 |---|---|
 | **Simulation and the built-in console emulator** | Tested automatically on macOS, Windows and Linux on every change. |
-| **Listening on a Mac** | **Not tried yet.** Both Mac builds start, serve the dashboard and list devices on test computers with no audio hardware. |
+| **Running on a Mac** | On one Apple Silicon Mac (macOS 26) the downloaded app started by double-click, found the Mac's audio input and passed the full test in simulation (66 of 66 steps). On that Mac, Run full test once did nothing from a fresh start and worked after calibration and Run checks had run; the cause is not known, and since 0.2.9 the full test runs those first. The Intel build has only run on test computers with no audio hardware. |
+| **Listening on a Mac** | **Not tried yet.** No real input has been listened to on a Mac. |
 | **Dashboard on an iPhone or iPad** | **Not tried yet** on a real device. |
 | **Listening on Windows** | Run on real one- and two-channel inputs, including a nine-minute run with no dropped audio. The built-in checks ran there too. |
 | **Console USB audio** (M32 / X32 multichannel feed) | **Not tried yet** on any system. |
@@ -126,7 +135,7 @@ The app has three modes, and each needs different things. Simulation needs only 
 
 ## Set up for a show
 
-These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, type `./TrioMixAssistant` in a Mac Terminal or `.\TrioMixAssistant.exe` in a Windows terminal, opened in the folder that holds the app (on a Mac, `cd ~/TrioMix`).
+These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, type `./TrioMixAssistant` in a Mac Terminal or `.\TrioMixAssistant.exe` in a Windows terminal, opened in the folder that holds the app (on a Mac, `cd ~/Downloads` if you double-clicked the app there, or `cd ~/TrioMix` if you used the Terminal install).
 
 1. **Find your audio input.** Plug in the console's USB cable or your interface, run `TrioMixAssistant --list-devices`, and note the device number. It needs enough inputs at 48000 Hz.
 2. **Open the settings file.** The app creates `show.conf` on its first run and prints the folder at every start:
@@ -143,7 +152,7 @@ These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, typ
 
 The app can check itself. It listens for about eight seconds (a terminal check in simulation with no input chosen skips the wait), **changes nothing on the console and plays no sound**, then lists what passed, what failed and how to fix it.
 
-- **In the dashboard:** Settings → **Run checks**. Use this while the app is running.
+- **In the dashboard:** Settings → **Run checks**. Use this while the app is running. A progress bar shows while it listens and a popup gives the result. The button is greyed out, with the reason, during calibration and the full test.
 - **In a terminal:** `TrioMixAssistant --diagnose` checks the setup in `show.conf` without starting the show. To check just one input, with no console: `TrioMixAssistant --diagnose --audio-device <number>`.
 
 It checks that the audio module loads, the chosen input opens at 48000 Hz, audio arrives without gaps, the signal is not blocked by the system's microphone permission, each channel shows a level, the console answers, and tablet access is protected by a PIN. It cannot prove the console's control formats are right; that is still the [bring-up checklist](app/HARDWARE_BRINGUP.md).
@@ -152,7 +161,11 @@ The report can be copied or downloaded as a text file (**Copy report**, **Downlo
 
 ### Test everything
 
-In the dashboard, open **Settings → Run full test**. It tries every control, job and dashboard address against a built-in test console and on this computer, shows PASS, FAIL or SKIP for each step, and saves a log (`vet-<date>-<time>.log`, with each console command sent and each reply received) in your settings folder. It takes about half a minute, plays no sound, and pauses the automatic jobs while it runs; the dashboard greys out and ignores touches, clicks and keys meanwhile, except TAKEOVER, and a TAKEOVER stops the test after putting back the value it is testing. A card shows a progress bar with the step being checked and a **Stop the test** button that does the same as TAKEOVER. Use **Download report** (a text file, `trio-full-test-<date>-<time>.txt`) or **Copy report** to send the result; whether you are asked where to save the file depends on the browser. The report starts with the run time (UTC), your `show.conf` settings (the PIN shown only as set or empty), the files in the settings folder and the audio devices, and ends with the app state, the last 40 decision-log entries, the latest Run checks report and a SHA-256 checksum of every line above it, which shows whether the file was edited after it was made. For every failed step and every step run on the real console it lists the commands sent to the console and the replies received. In the dashboard reports and the full-test log, audio device names, IP and MAC addresses, the computer and user names, the venue and template names from `show.conf`, the console's own name and the song and scene entries of the full-test decision log are replaced with "hidden" or `x.x.x.x` by default; channel counts, sample rates, firmware and every step result stay. A private word that is not in one of those places is not caught. The **Keep device names, network addresses and show names** box keeps them; tick it only when asked. A pass on the built-in test console proves the app's own logic, not a real console.
+In the dashboard, open **Settings → Run full test**. One click runs the checks above, then tries every control, job and dashboard address against a built-in test console and on this computer. In simulation it also calibrates the built-in stage first; with a console connected (real or emulated) calibration is left out, because it plays pink noise and writes main-bus EQ. The whole run takes about 45 seconds and plays no sound. The dashboard greys out and ignores touches, clicks and keys meanwhile, except TAKEOVER, and the automatic jobs pause during the last stage. A card names the stage and shows a progress bar and a **Stop the test** button, which does the same as TAKEOVER: it cancels at any stage, and during the last stage the test first puts back the value it is testing.
+
+The button is greyed out, with the reason shown beside it, while the test cannot run: in takeover, during calibration, or while Run checks is running.
+
+When it finishes, a popup shows the result; each step is PASS, FAIL or SKIP. If the test stops on an unexpected error, the popup shows the error text: please send that text with your report. The test also saves a log (`vet-<date>-<time>.log`, with each console command sent and each reply received) in your settings folder. Use **Download report** (a text file, `trio-full-test-<date>-<time>.txt`) or **Copy report** to send the result. After a download the dashboard names the saved file: it is in your browser's Downloads folder (on a Mac, Finder → Downloads), unless the browser asked you where to save it. The report starts with the run time (UTC), your `show.conf` settings (the PIN shown only as set or empty), the files in the settings folder and the audio devices, and ends with the app state, the last 40 decision-log entries, the latest Run checks report and a SHA-256 checksum of every line above it, which shows whether the file was edited after it was made. For every failed step and every step run on the real console it lists the commands sent to the console and the replies received. In the dashboard reports and the full-test log, audio device names, IP and MAC addresses, the computer and user names, the venue and template names from `show.conf`, the console's own name and the song and scene entries of the full-test decision log are replaced with "hidden" or `x.x.x.x` by default; channel counts, sample rates, firmware and every step result stay. A private word that is not in one of those places is not caught. The **Keep device names, network addresses and show names** box keeps them; tick it only when asked. A pass on the built-in test console proves the app's own logic, not a real console.
 
 With a console connected (hardware mode), the panel also offers **Also test control on the real console**. Turn the PA off first. Enter a spare channel number (and tick preamp gain or the main bus if you want those too). On that channel the app changes the fader, mute, polarity, EQ and one FX send, reads each value back from the console and puts it back; the main bus option adds the main mute, main fader, one main-bus EQ band and one FX return. Without it, the console is only asked to identify itself and send meters. A value the console does not answer a read for is not written, a step that cannot run safely is skipped and says why, and a scene is never recalled on a real console. A value that reads back correctly shows the console stored what the app sent, not what the console displays, so the [bring-up checklist](app/HARDWARE_BRINGUP.md) still applies.
 

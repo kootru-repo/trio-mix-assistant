@@ -128,7 +128,7 @@ function request(log: VetLog, target: Target, method: string, path: string, opts
       res.on("error", reject);
     };
     const req = target.secure
-      ? https.request({ ...base, ...(target.ca === null ? { rejectUnauthorized: false } : { ca: target.ca }) }, onReply)
+      ? https.request({ ...base, ...(target.ca === null ? {} : { ca: target.ca }) }, onReply)
       : http.request(base, onReply);
     req.on("timeout", () => req.destroy(new Error(`${method} ${path} timed out`)));
     req.on("error", reject);
@@ -507,12 +507,12 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
     await W("tls_self_signed", "HTTPS with the app's own certificate", ["feature:https"], async () => {
       const [certfile, keyfile] = ensureCert(join(dir, "plain"), hosts);
       const tls = { key: readFileSync(keyfile, "utf8"), cert: readFileSync(certfile, "utf8") };
-      return withServer({ engine, staticDir, pin, tls }, true, null, async (t) => {
+      return withServer({ engine, staticDir, pin, tls }, true, tls.cert, async (t) => {
         const login = await request(log, t, "POST", "/api/login", { json: { pin } });
         must(login.status === 200, `sign-in over https answered ${login.status}`);
         const raw = login.headers["set-cookie"];
         must(String(Array.isArray(raw) ? raw[0] : raw).includes("Secure"), "the sign-in cookie is not marked Secure over https");
-        return "a certificate was made, the dashboard answered over https and the cookie is Secure";
+        return "a certificate was made, the dashboard answered over https with that exact certificate and the cookie is Secure";
       });
     });
     await W("tls_trusted", "Trusted HTTPS: the local root signs a certificate that verifies against it", ["feature:trust", "route:/ca.pem", "route:/ca.crt"], async () => {

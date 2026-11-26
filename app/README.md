@@ -90,7 +90,9 @@ and open the dashboard, or pass the same flags as `npm run run --`
   and update subscriptions. The logic is in `ts/src/core/diagnostics.ts`.
 - **It can test itself.** The **Run full test** button on the Settings tab (or `--vet`) runs every console
   command, dashboard control and job against the built-in emulator, checks the
-  result and writes a log; the dashboard locks and shows progress while it runs, and the report can be
+  result and writes a log. From the dashboard one click runs the checks first (and, in simulation,
+  calibration of the built-in stage), then the test; the dashboard locks and shows the stage and
+  progress while it runs, a popup gives the result, and the report can be
   downloaded, with device names and addresses hidden by default. With a real console it can also change the fader, mute,
   polarity, EQ and one FX send on one channel you name and put each value back. The logic is in `ts/src/core/vet.ts`
   and `ts/src/host/vet.ts`.
@@ -125,7 +127,14 @@ need their own build.
 1. Open the [releases page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest) and download
    `TrioMixAssistant-macos-arm64.tar.gz` (Apple Silicon) or
    `TrioMixAssistant-macos-x64.tar.gz` (Intel).
-2. In Terminal:
+2. Open **Downloads** in Finder. Safari unpacks the download by itself; if you still see
+   the `.tar.gz` file, double-click it. Double-click **TrioMixAssistant** to start the
+   simulation: a Terminal window opens by itself and the dashboard opens in the browser.
+   The first time, macOS blocks it: click **Done** on the warning (not Move to Trash), go to
+   System Settings → Privacy & Security, click **Open Anyway**, then double-click it again
+   if it has not started. The [main README](../README.md#mac) has a drawing of each prompt.
+3. For the commands below, open Terminal in the folder that holds the file
+   (`cd ~/Downloads`). To keep it in its own folder instead:
    ```bash
    mkdir -p ~/TrioMix && cd ~/TrioMix
    tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
@@ -134,9 +143,7 @@ need their own build.
 
 **Then run it** from the folder that holds the file:
 
-1. `./TrioMixAssistant --list-devices` prints the audio inputs. If macOS refuses
-   to open a downloaded build, go to System Settings → Privacy & Security, click
-   **Open Anyway**, and run it again.
+1. `./TrioMixAssistant --list-devices` prints the audio inputs.
 2. `./TrioMixAssistant` starts the simulation and prints the dashboard address.
 3. `./TrioMixAssistant --emulate --auto` listens on the best input it finds
    (`--audio-device <number>` picks one yourself, but on its own it needs a

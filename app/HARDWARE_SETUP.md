@@ -132,7 +132,8 @@ round-trip and hardware for no benefit over the desk's own USB, so prefer X-USB.
 The software fully supports the setup above and is hardened against the field failure
 modes (unplug, silence, xrun, busy device, wrong channel count, quiet mic). **But the
 happy path of real multichannel console-USB capture has not yet been run against an
-actual M32C**, and listening on a Mac has not been tried at all. All multichannel
+actual M32C**, and listening on a Mac has not been tried at all (the app itself has started and
+passed its full test in simulation on one Apple Silicon Mac). All multichannel
 testing to date is synthetic/emulated or a one- or two-channel Windows input. Two things need a bench pass with the real desk to call "validated":
 
 1. that the X-USB interface exposes N input channels under Core Audio (or WASAPI), and
