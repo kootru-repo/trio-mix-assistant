@@ -53,7 +53,12 @@ async function wd(method, path, body) {
 }
 const exec = (script) => wd("POST", `/session/${session}/execute/sync`, { script, args: [] });
 async function click(css) {
-  const el = await wd("POST", `/session/${session}/element`, { using: "css selector", value: css });
+  let el = null;
+  for (let i = 0; i < 100 && !(el && el[W3C_ELEMENT]); i++) {
+    el = await wd("POST", `/session/${session}/execute/sync`, { script: "return document.querySelector(arguments[0]);", args: [css] });
+    if (!(el && el[W3C_ELEMENT])) await pause(100);
+  }
+  if (!(el && el[W3C_ELEMENT])) throw new Error(`no element ${css} (got ${JSON.stringify(el)})`);
   await wd("POST", `/session/${session}/element/${el[W3C_ELEMENT]}/click`, {});
 }
 async function shot(name) {
@@ -119,7 +124,7 @@ try {
 
   // The app opened the default browser itself; close that copy so safaridriver owns Safari.
   spawnSync("killall", ["Safari"]);
-  await pause(1000);
+  await pause(3000);
 
   driver = spawn("safaridriver", ["-p", "4444"], { stdio: "ignore" });
   driverBase = "http://127.0.0.1:4444";
@@ -127,7 +132,17 @@ try {
     try { if ((await fetch(driverBase + "/status")).ok) break; } catch { /* starting */ }
     await pause(100);
   }
-  const s = await wd("POST", "/session", { capabilities: { alwaysMatch: { browserName: "safari" } } });
+  let s = null;
+  for (let attempt = 1; !s; attempt++) {
+    try {
+      s = await wd("POST", "/session", { capabilities: { alwaysMatch: { browserName: "safari" } } });
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      log(`Safari session attempt ${attempt} failed, retrying: ${e.message}`);
+      spawnSync("killall", ["Safari"]);
+      await pause(5000);
+    }
+  }
   session = s.sessionId;
   log(`Safari ${s.capabilities.browserVersion} session open`);
 
