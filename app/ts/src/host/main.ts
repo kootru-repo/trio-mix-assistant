@@ -21,7 +21,6 @@ import { defaultTemplate, fromObject } from "../core/template.ts";
 import type { ShowTemplate } from "../core/template.ts";
 import { HELP, UsageError, modeName, parseCliArgs, parseDevice, USAGE } from "./args.ts";
 import type { Args } from "./args.ts";
-import { Advisor } from "./advisor.ts";
 import { bannerLines, emulatorLines } from "./banner.ts";
 import { NativeAudioInputFactory } from "./audiodevice.ts";
 import { AudioProbe, CLI_WINDOW_S, ConsoleProbe, moduleFacts, networkFacts, systemFacts } from "./diagnose.ts";
@@ -316,22 +315,6 @@ function attachVenue(engine: Engine, args: Args, io: Io): void {
   io.out(`  Venue model: ${model.shows} show(s), ${model.feedback_freqs.length} freq(s), confidence ${fixed(model.confidence * 100, 0)}%`);
 }
 
-function attachAdvisor(engine: Engine, args: Args, io: Io): void {
-  if (!args.advisor) return;
-  const adv = new Advisor({
-    getContext: () => engine.advisorContext(),
-    onAdvice: (a) => engine.onAdvice(a),
-    interval: args.advisorInterval,
-    onError: (m) => engine.assistant.emit("system", `advisor unavailable: ${m}`),
-  });
-  if (adv.available) {
-    engine.advisor = adv;
-    io.out("  Claude advisor: ON (advisory notes only)");
-  } else {
-    io.out("  [!] --advisor requested but ANTHROPIC_API_KEY is not set; advisor disabled.");
-  }
-}
-
 function fileStamp(path: string): string {
   try {
     const s = statSync(path);
@@ -555,7 +538,6 @@ async function runChecked(args: Args, io: Io): Promise<number> {
 
     attachSessionLog(engine, args, template.name, io);
     attachVenue(engine, args, io);
-    attachAdvisor(engine, args, io);
 
     const ip = await lanIp();
     if (emu !== null) {

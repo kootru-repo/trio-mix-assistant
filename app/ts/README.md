@@ -8,7 +8,7 @@ The application: Node 22.13 or newer is the only requirement. The runtime has no
 | Folder | Holds | Rule |
 |---|---|---|
 | `src/core` | Signal processing, console protocol, the six jobs, coach mode, calibration, show flow, the engine and its telemetry, the desk emulator, the QR encoder, device-capture logic | No platform APIs. `tsconfig.core.json` compiles it with no DOM and no Node types, so `setTimeout`, `Buffer` or `node:*` fail the build. Time, randomness and networking arrive through `Clock`, `Rng` and `UdpFactory`. |
-| `src/host` | Node bindings: UDP, HTTP/WebSocket server, TLS certificates, SQLite session log, advisor, command line | Everything that touches the operating system |
+| `src/host` | Node bindings: UDP, HTTP/WebSocket server, TLS certificates, SQLite session log, command line | Everything that touches the operating system |
 | `test` | Tests, run directly by Node | |
 | `fixtures` | Recorded reference data the tests compare against | Committed |
 | `tools` | The packager (`package.ts`) | |

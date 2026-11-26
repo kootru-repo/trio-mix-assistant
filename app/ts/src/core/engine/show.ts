@@ -1,5 +1,5 @@
 import { C } from "../config.ts";
-import { percent, roundTo, signed } from "../numfmt.ts";
+import { percent, signed } from "../numfmt.ts";
 import { chan } from "../assistant/base.ts";
 import type { ShowState } from "../showclock.ts";
 import { songByName } from "../template.ts";
@@ -139,40 +139,4 @@ export class EngineShow extends EngineControls {
     }
   }
 
-  advisorContext(): Record<string, unknown> {
-    const recent = this.events.slice(-25).map((e) => ({ kind: e.kind, level: e.level ?? null, msg: e.msg }));
-    const chans: Record<string, unknown>[] = [];
-    for (const [ch, roleName] of C.CHANNELS) {
-      const feat = this.feat.get(ch);
-      chans.push({
-        role: roleName,
-        rms_db: feat ? roundTo(feat.rmsDbfs, 1) : null,
-        notched: Boolean(this.assistant.usedNotchBand.get(ch)),
-      });
-    }
-    const alerts = this.telemetry["alerts"];
-    const lead = this.telemetry["lead"];
-    return {
-      mode: this.sim ? "simulation" : "hardware",
-      show: { ...this.show },
-      alerts: Array.isArray(alerts) ? [...alerts] : [],
-      lead: lead && typeof lead === "object" ? { ...(lead as object) } : {},
-      channels: chans,
-      recent_events: recent,
-    };
-  }
-
-  onAdvice(advice: Record<string, unknown>): void {
-    const prompt = String(advice["performer_prompt"] ?? "").trim().slice(0, 200);
-    let sev = String(advice["severity"] ?? "info").trim().toLowerCase();
-    if (!["info", "notice", "warn"].includes(sev)) sev = "info";
-    this.advisorAdvice = {
-      prompt,
-      assessment: String(advice["room_assessment"] ?? "").trim().slice(0, 240),
-      severity: sev,
-      time: this.clock.hhmmss(),
-    };
-    if (prompt) this.assistant.emit("advisor", prompt);
-    this.rebuildTelemetry();
-  }
 }

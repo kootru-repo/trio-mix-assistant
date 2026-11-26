@@ -79,7 +79,7 @@ test("optional settings are mapped and a relative template resolves against the 
   assert.equal(after(p.argv, "--input-gain"), "20");
   assert.equal(after(p.argv, "--output-device"), "PA");
   assert.equal(after(p.argv, "--ableset-port"), "39051");
-  assert.ok(p.argv.includes("--advisor"));
+  assert.ok(!p.argv.some((a) => a.startsWith("--advisor")));
   assert.equal(p.port, "9000");
 });
 
@@ -167,14 +167,13 @@ test("a bare --vet takes the console and the test options from show.conf", async
   assert.ok(none.vet && !none.vetSound && !none.vetPhone && none.vetChannel === null);
 });
 
-test("SESSION_DB and ADVISOR_INTERVAL reach the command line", async () => {
+test("SESSION_DB reaches the command line and the old advisor keys are ignored", async () => {
   const { parseCliArgs } = await import("../src/host/args.ts");
   const off = parseCliArgs(plan({ MODE: "sim", LAN: "no", SESSION_DB: "OFF", ADVISOR_INTERVAL: "45" }).argv);
   assert.equal(off.sessionDb, "off");
-  assert.equal(off.advisorInterval, 45);
+  assert.ok(!plan({ MODE: "sim", LAN: "no", ADVISOR_INTERVAL: "45" }).argv.some((a) => a.startsWith("--advisor")));
   const rel = parseCliArgs(plan({ MODE: "sim", LAN: "no", SESSION_DB: "logs/show.db" }).argv);
   assert.equal(rel.sessionDb, join(base, "logs/show.db"));
   const none = parseCliArgs(plan({ MODE: "sim", LAN: "no" }).argv);
   assert.equal(none.sessionDb, null);
-  assert.equal(none.advisorInterval, 30);
 });

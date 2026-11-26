@@ -36,13 +36,6 @@ interface ShowT {
 interface AlertT { level: AlertLevel; msg: string; }
 interface SceneT { index: number; name: string; current: boolean; }
 
-interface AdviceT {
-  prompt: string;
-  assessment: string;
-  severity: "info" | "notice" | "warn";
-  time: string;
-}
-
 interface CaptureT {
   kind: "audio" | "simulation" | "none" | string;
   name?: string | null;
@@ -121,8 +114,6 @@ interface Snapshot {
   sends: Record<string, Record<string, number>>;
   fx: { buses: Record<string, string>; wet: Record<string, number> };
   show: ShowT;
-  advisor: AdviceT | null;
-  advisor_on: boolean;
   venue: { name: string; shows: number; confidence: number; freqs: number[] } | null;
   lead: { target: number | null; input: number | null; output: number | null };
   balance_targets: Record<string, number>;

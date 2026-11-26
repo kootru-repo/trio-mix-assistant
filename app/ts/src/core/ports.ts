@@ -7,12 +7,6 @@ export interface SessionLogPort extends VenueLogSource {
   close(): void;
 }
 
-export interface AdvisorPort {
-  readonly available: boolean;
-  start(): boolean;
-  stop(): void;
-}
-
 export const VET_EXPECTED_STEPS = 66;
 export const VET_EXPECTED_STEPS_WITH_CONSOLE = 83;
 

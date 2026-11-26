@@ -11,7 +11,7 @@ import { BlockAnalyser } from "../blockanalysis.ts";
 import type { DiagHost, DiagReport, LevelWindow } from "../diagnostics.ts";
 import type { ChannelFeatures } from "../dsp.ts";
 import { VET_EXPECTED_STEPS, VET_EXPECTED_STEPS_WITH_CONSOLE } from "../ports.ts";
-import type { AdvisorPort, MeterReceiverPort, SessionLogPort, VetHostPort, VetSummary } from "../ports.ts";
+import type { MeterReceiverPort, SessionLogPort, VetHostPort, VetSummary } from "../ports.ts";
 import { roundHalfEven, roundTo } from "../numfmt.ts";
 import { SeededRng } from "../rng.ts";
 import type { Rng } from "../rng.ts";
@@ -50,13 +50,6 @@ export interface LatencyEntry {
   ema: number;
   max: number;
   n: number;
-}
-
-export interface Advice {
-  prompt: string;
-  assessment: string;
-  severity: string;
-  time: string;
 }
 
 export interface EngineOptions {
@@ -99,8 +92,6 @@ export class EngineBase {
   meterRx: MeterReceiverPort | null = null;
   showClock: ShowClockPort | null = null;
   sessionLog: SessionLogPort | null = null;
-  advisor: AdvisorPort | null = null;
-  advisorAdvice: Advice | null = null;
   venue = "";
   venueStore: VenueStore | null = null;
   venueModel: VenueModel | null = null;
@@ -250,7 +241,7 @@ export class EngineBase {
       return msg.includes("deaf") || msg.includes("stopped") ? "critical" : "warn";
     }
     if (kind === "vocal" || kind === "balance") return "info";
-    if (["feedback", "manual", "show", "calibration", "advisor"].includes(kind)) return "notice";
+    if (["feedback", "manual", "show", "calibration"].includes(kind)) return "notice";
     if (kind === "clip") return msg.includes("near clip") ? "warn" : "info";
     return "info";
   }
@@ -495,8 +486,6 @@ export class EngineBase {
         wet: Object.fromEntries([...this.fxWet].map(([k, v]) => [String(k), r1(v)])),
       },
       show: { ...this.show },
-      advisor: this.advisorAdvice ? { ...this.advisorAdvice } : null,
-      advisor_on: this.advisor !== null && this.advisor.available,
       venue: venueModel
         ? {
             name: this.venue,

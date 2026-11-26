@@ -147,8 +147,5 @@ export function buildArgv(
     const off = sessionDb.toLowerCase() === "off";
     argv.push(`--session-db=${off ? "off" : isAbsolute(sessionDb) ? sessionDb : join(baseDir, sessionDb)}`);
   }
-  if (yes(get(cfg, "ADVISOR", "no"), "ADVISOR")) argv.push("--advisor");
-  const advisorInterval = get(cfg, "ADVISOR_INTERVAL", "").trim();
-  if (advisorInterval) argv.push(`--advisor-interval=${advisorInterval}`);
   return { argv, mode, port };
 }

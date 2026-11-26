@@ -6,12 +6,9 @@ Midas M32C (X32/M32 OSC family) within hard guardrails. It ships with a live
 **operator dashboard** and a **closed-loop simulator**, so the whole thing runs
 and is testable without any hardware.
 
-The real-time control path is deterministic, with no ML and no LLM. It uses
+The control path is deterministic, with no ML and no LLM. It uses
 calibration-derived priors, a multi-guard feedback detector, and clamped
-output-levelers. The one exception is an optional, latency-tolerant Claude
-"slow layer" that can suggest plain-language notes for the band/operator. It is
-*advisory only* and **never touches the mix**. That fast/slow split is the core
-safety boundary.
+output-levelers, so the same input always gives the same moves.
 
 Beyond the safety net it implements these show-side features:
 - **AbleSet show clock → automatic scene recall** with per-song reference levels;
@@ -198,15 +195,11 @@ the exact wire layout. **Caveat:** the emulator encodes the same protocol
 *assumptions* the app does, so it proves mechanical correctness, not that the
 formats match your firmware. That last step is `HARDWARE_BRINGUP.md`.
 
-### Show clock, Claude advisor & session log
+### Show clock & session log
 
 ```bash
 # automatic scene recall from AbleSet (per-song scenes + reference levels)
 npm run run -- --hardware --console-ip <ip> --template myset.json --ableset-port 39051
-
-# optional Claude advisory layer (advisory notes only — never controls the mix)
-export ANTHROPIC_API_KEY=sk-...    # PowerShell: $env:ANTHROPIC_API_KEY="sk-..."
-npm run run -- --advisor --venue "The Cellar"
 ```
 
 - **Show template** (`--template file.json`): a validated setlist mapping each song
@@ -214,10 +207,6 @@ npm run run -- --advisor --venue "The Cellar"
   reference levels and an optional `guest` flag. Omit it for the built-in trio set.
   In simulation the clock walks the setlist automatically so you can watch scenes
   recall live; `--no-show-clock` disables that.
-- **Claude advisor** (`--advisor`): a background Claude (Haiku) check that periodically
-  reads recent events and posts a short note ("guitar is masking the vocal, ease
-  off"). It runs entirely off the real-time path and is **advisory only**. With no
-  `ANTHROPIC_API_KEY` it's simply disabled, and everything else still works.
 - **Session log**: the assistant's decisions are written to SQLite (`sessions.db`, off the
   real-time path) tagged with `--venue`, for post-show analysis and venue learning.
   `--session-db off` disables it.
@@ -310,10 +299,10 @@ engine's timer.
 | `blockanalysis.ts`, `capturelink.ts` | Per-block analysis, and the link between the audio thread (`CaptureHost`) and the engine (`RemoteCapture`): open, restart, recording and liveness as messages |
 | `host/audiodevice.ts`, `host/audioworker.ts`, `host/capturethread.ts` | The PortAudio binding (called directly), the audio thread's entry file, and its launcher |
 | `clock.ts`, `rng.ts`, `transport.ts` | Injected time, seeded randomness and UDP, so the engine can be stepped deterministically in tests |
-| `engine/` | Live telemetry and control: `base` (state, events, telemetry), `controls` (operator moves), `show` (scenes, venue, advisor), `calibration`, `core` (`Engine`: lifecycle, loop, command dispatch) |
+| `engine/` | Live telemetry and control: `base` (state, events, telemetry), `controls` (operator moves), `show` (scenes, venue), `calibration`, `core` (`Engine`: lifecycle, loop, command dispatch) |
 | `emulator.ts`, `metersrv.ts` | The desk emulator and the meter / fader receiver |
 | `host/server.ts` | HTTP + Server-Sent Events + WebSocket + control endpoints, PIN limiter, Origin and Host guards |
-| `host/tls.ts`, `host/sessionlog.ts`, `host/advisor.ts` | Certificates, SQLite session log, Claude advisor |
+| `host/tls.ts`, `host/sessionlog.ts` | Certificates, SQLite session log |
 | `app/static/index.html` | The operator dashboard page; its script is `static/dashboard.js`, compiled from TypeScript in `app/web` (see [web/README.md](web/README.md)) |
 
 Transport is a **WebSocket** (`/ws`) for the bidirectional mixing surface
@@ -337,8 +326,7 @@ silent-mic detection, and an injected source driving the
 assistant), the **show side** (template validation, sim + AbleSet show clocks,
 auto scene recall, AUTO/COACH/MANUAL mode, info/notice/warn notification levels, manual
 scene recall), the **performer surface** (EQ/FX/send commands + clamping, detect→actuate latency, room-mic SNR confidence),
-the **advisor/logging layer** (SQLite session log off the real-time path, the advisory
-loop with an injected caller, advisory-only safety, **venue learning** model
+the **logging layer** (SQLite session log off the real-time path, **venue learning** model
 build/save/load + watch-list seeding), the **extensions** (guest mode, stage-mic detection), a **contract** suite that pins the X32/M32 wire
 layout + a full real-socket round-trip against the desk emulator, and a
 **robustness** suite: concurrent-client stress tests,

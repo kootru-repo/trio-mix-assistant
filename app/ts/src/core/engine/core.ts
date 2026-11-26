@@ -83,10 +83,6 @@ export class Engine extends EngineCalibration {
         this.showClock = null;
       }
     }
-    if (this.advisor !== null && this.advisor.start()) {
-      this.assistant.emit("system", "Claude advisor active (advisory notes only)");
-      this.rebuildTelemetry();
-    }
   }
 
   private async renew(gen: number): Promise<void> {
@@ -108,7 +104,6 @@ export class Engine extends EngineCalibration {
     this.vetAbort = true;
     const vetTask = this.vetTask;
     if (vetTask !== null) await Promise.race([vetTask.catch(() => undefined), this.clock.sleep(10)]);
-    if (this.advisor !== null) this.advisor.stop();
     if (this.showClock !== null) this.showClock.stop();
     if (this.meterRx !== null) this.meterRx.stop();
     if (this.source !== null) {

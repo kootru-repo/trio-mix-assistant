@@ -40,8 +40,6 @@ export interface Args {
   noShowClock: boolean;
   venue: string;
   sessionDb: string | null;
-  advisor: boolean;
-  advisorInterval: number;
   help: boolean;
 }
 
@@ -55,7 +53,7 @@ export const USAGE = `usage: TrioMixAssistant [-h] [--host HOST] [--lan] [--port
            [--https] [--pin PIN] [--trust] [--insecure-open] [--template TEMPLATE]
            [--ableset-port ABLESET_PORT] [--ableset-from ADDRESS] [--no-show-clock]
            [--venue VENUE]
-           [--session-db SESSION_DB] [--advisor] [--advisor-interval ADVISOR_INTERVAL]`;
+           [--session-db SESSION_DB]`;
 
 export const HELP = `${USAGE}
 
@@ -136,10 +134,6 @@ options:
   --session-db SESSION_DB
                         SQLite path for session logging (default: sessions.db beside
                         show.conf; use 'off' to disable)
-  --advisor             enable the Claude advisory layer (needs ANTHROPIC_API_KEY; advisory
-                        notes only — never controls the mix)
-  --advisor-interval ADVISOR_INTERVAL
-                        seconds between advisor checks (default 30)
 `;
 
 const OPTIONS = {
@@ -175,8 +169,6 @@ const OPTIONS = {
   "no-show-clock": { type: "boolean" },
   venue: { type: "string" },
   "session-db": { type: "string" },
-  advisor: { type: "boolean" },
-  "advisor-interval": { type: "string" },
 } as const;
 
 function intOption(name: string, raw: string | undefined, fallback: number | null, min: number = -Infinity, max: number = Infinity): number | null {
@@ -235,8 +227,6 @@ export function parseCliArgs(argv: readonly string[]): Args {
     noShowClock: Boolean(values["no-show-clock"]),
     venue: values["venue"] ?? "",
     sessionDb: values["session-db"] ?? null,
-    advisor: Boolean(values["advisor"]),
-    advisorInterval: floatOption("advisor-interval", values["advisor-interval"], 30.0, 5, 3600),
     help: Boolean(values["help"]),
   };
   if (args.ablesetFrom !== null && isIP(args.ablesetFrom) === 0) {

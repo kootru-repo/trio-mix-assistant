@@ -140,15 +140,6 @@
   .scenebtn.current{border-color:#3a2d5e;background:#160f26;box-shadow:0 0 0 1px #3a2d5e inset}
   .scenebtn.current .sc{color:#cbb6ff}
 
-  .aibadge{font-size:9px;font-weight:800;letter-spacing:.1em;color:#7fd1ff;border:1px solid #1d3a59;
-    background:#0d1f30;border-radius:5px;padding:2px 6px;margin-left:8px;vertical-align:middle}
-  .advice{margin-top:12px}
-  .advice .prompt{font-size:14.5px;font-weight:700;color:#eaf2ff;line-height:1.4}
-  .advice .assess{font-size:12px;color:var(--mut);margin-top:7px;line-height:1.4}
-  .advice .ameta{font-size:10.5px;color:var(--dim);margin-top:9px;letter-spacing:.04em}
-  .advice .empty{color:var(--dim);font-size:12.5px}
-  .advice.sev-warn .prompt{color:#ffe2b0}
-  .logrow.advisor{border-left-color:var(--accent)} .logrow.advisor .k{color:#7fd1ff}
 
   .tabs{display:flex;gap:6px;padding:10px 20px 0;border-bottom:1px solid var(--line2);background:var(--bg)}
   .tab{cursor:pointer;font-size:13px;font-weight:700;letter-spacing:.02em;padding:10px 18px;border-radius:11px 11px 0 0;
@@ -576,12 +567,6 @@
         <h3><svg class="hic" style="color:#cbb6ff"><use href="#ic-takeover"/></svg>Scenes</h3>
         <div class="sub">Recall a console scene. Songs recall automatically from the show clock; tap to override.</div>
         <div class="scenes" id="scenes" style="margin-top:12px"></div>
-      </div>
-
-      <div class="panel" id="advisorpanel" hidden>
-        <h3><svg class="hic" style="color:var(--accent)"><use href="#ic-vocal"/></svg>Claude advisor <span class="aibadge">ADVISORY</span></h3>
-        <div class="sub">A slow Claude layer — it never moves the mix; just notes for the band / operator.</div>
-        <div class="advice" id="advice"></div>
       </div>
 
       <div class="panel">

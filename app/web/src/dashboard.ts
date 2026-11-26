@@ -127,22 +127,6 @@ function renderScenes(scenes: SceneT[] | undefined): void {
     b.onclick = () => action({type:"scene", index:+b.dataset.scene!});
   }
 }
-function renderAdvisor(advice: AdviceT | null | undefined, on: boolean | undefined): void {
-  const panel = $("#advisorpanel"), box = $("#advice");
-  if(!on && !advice){ panel.hidden = true; return; }
-  panel.hidden = false;
-  if(!advice || (!advice.prompt && !advice.assessment)){
-    box.className = "advice";
-    setHTML(box, `<span class="empty">Listening… an advisory note will appear here.</span>`);
-    return;
-  }
-  box.className = "advice sev-" + esc(advice.severity||"info");
-  let h = "";
-  if(advice.prompt)     h += `<div class="prompt">${esc(advice.prompt)}</div>`;
-  if(advice.assessment) h += `<div class="assess">${esc(advice.assessment)}</div>`;
-  h += `<div class="ameta">${esc(advice.time||"")} · Claude suggestion — not an automatic action</div>`;
-  setHTML(box, h);
-}
 let _lastState: Snapshot | null = null, activeTab = "mix", eqCh: number | null = null, eqDirty = true, fxDirty = true;
 const TABS = ["mix","eq","fx","settings"];
 function selectTab(name: string | undefined, push: boolean): void {
@@ -487,7 +471,6 @@ function render(s: Snapshot | null | undefined): void {
   renderBanner(s.alerts);
   renderOverlay(s.alerts);
   renderScenes(s.scenes);
-  renderAdvisor(s.advisor, s.advisor_on);
   renderTabPanels(s);
 
   for(const j of JOBS){ jobEls[j.key].classList.toggle("on", !!(s.enabled||{})[j.key]); }

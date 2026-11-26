@@ -16,7 +16,6 @@ import { StepClock } from "./stepclock.ts";
 interface Fx {
   ops: any[];
   snapshots: { label: string; t: any }[];
-  contexts: any[];
   events: any[];
   final: any;
 }
@@ -49,7 +48,6 @@ test("the engine, stepped on a manual clock, publishes the recorded telemetry", 
   const e = new Engine({ clock, sim: true, tick: 0.05 });
   let last = clock.monotonic();
   const snapshots: { label: string; t: any }[] = [];
-  const contexts: any[] = [];
   for (const op of fx.ops) {
     switch (op.op) {
       case "step":
@@ -82,12 +80,6 @@ test("the engine, stepped on a manual clock, publishes the recorded telemetry", 
       case "await_calibration":
         await e.calibrationTask;
         break;
-      case "advice":
-        e.onAdvice(op.d);
-        break;
-      case "context":
-        contexts.push(json(e.advisorContext()));
-        break;
       default:
         throw new Error(op.op);
     }
@@ -97,7 +89,6 @@ test("the engine, stepped on a manual clock, publishes the recorded telemetry", 
     assert.equal(snapshots[i]!.label, s.label);
     sameValue(snapshots[i]!.t, s.t, `snapshot "${s.label}"`);
   });
-  sameValue(contexts, fx.contexts, "advisor context");
   sameValue(json(e.events), fx.events, "events");
   assert.equal(e.status, fx.final.status);
   assert.equal(e.calibStatus, fx.final.calib_status);
@@ -107,7 +98,7 @@ test("the engine, stepped on a manual clock, publishes the recorded telemetry", 
 
 test("the recorded show covers the interesting paths", () => {
   const kinds = new Set(fx.events.map((x) => x.kind));
-  for (const k of ["feedback", "clip", "vocal", "balance", "unmask", "calibration", "coach", "panic", "show", "manual", "advisor"]) {
+  for (const k of ["feedback", "clip", "vocal", "balance", "unmask", "calibration", "coach", "panic", "show", "manual"]) {
     assert.ok(kinds.has(k), `no ${k} events`);
   }
 });

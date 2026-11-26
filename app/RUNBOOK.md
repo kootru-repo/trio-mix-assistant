@@ -22,7 +22,6 @@ where it differs, there's a **macOS** and a **Windows** version side by side.
   measurement mic) and *nudges* the desk within hard guardrails. It never owns the mix.
 - **A human can always take over.** Move a fader on the desk and the app adopts it (vocal ride
   and balance back off that channel); tap **TAKEOVER** and it mutes main + freezes every automatic move.
-- **The Claude advisor (optional) never touches the mix.** It only posts text suggestions.
 - **First time on a given console you must validate the OSC formats** against that
   firmware (see `HARDWARE_BRINGUP.md`). After that passes once, every show is just the
   launch command in §3.
@@ -229,13 +228,10 @@ PS> .\TrioMixAssistant.exe --hardware `
 
 Use a PIN of your own, six or more characters: the app refuses to serve the
 network without one unless you give `--insecure-open` (`ALLOW_OPEN=yes` in `show.conf`), which is not recommended. The same settings can be saved in `show.conf` (`MODE`,
-`CONSOLE_IP`, `AUDIO_DEVICE`, `OUTPUT_DEVICE`, `TEMPLATE`, `VENUE`, `LAN`, `HTTPS`, `PIN`, `SESSION_DB`, `ADVISOR_INTERVAL`); then start the app with no flags.
+`CONSOLE_IP`, `AUDIO_DEVICE`, `OUTPUT_DEVICE`, `TEMPLATE`, `VENUE`, `LAN`, `HTTPS`, `PIN`, `SESSION_DB`); then start the app with no flags.
 
 Optional add‑ons (either OS):
 - `--ableset-port 39051`: AbleSet drives automatic scene recall.
-- `--advisor`: the Claude advisory layer. Set the key first:
-  - macOS: `$ export ANTHROPIC_API_KEY=sk-...`
-  - Windows: `PS> $env:ANTHROPIC_API_KEY="sk-..."`
 - Drop `--audio-device` to run **manual mixing + scene recall only** (assistant idle).
 - Without `--lan` (laptop only), `--https` and `--pin` can be dropped: plain http is fine on the laptop itself.
 
@@ -321,8 +317,6 @@ Launched with `--lan` (and ideally `--https`):
   see what it *would* do before trusting a job.
 - **TAKEOVER** = panic: mutes main, freezes all automatic jobs + scene recall +
   calibration. Tap again to release.
-- **Claude advisor** (if enabled) posts short suggestions in its card. They are *advice*,
-  never actions.
 
 ---
 
@@ -379,8 +373,6 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--no-show-clock` | disable the simulated show clock (simulation and `--emulate`) |
 | `--venue "<name>"` | tag the session log **and load/learn this venue's model** (recurring feedback freqs pre‑seed the watch‑list; the model updates after each run with that venue name, simulation and rehearse runs included) |
 | `--session-db <path｜off>` | session‑log location, or disable |
-| `--advisor` | enable the Claude advisory layer (needs `ANTHROPIC_API_KEY`) |
-| `--advisor-interval <s>` | seconds between advisor checks (default 30) |
 | `--lan` | bind to the LAN so tablets can connect |
 | `--https` | serve TLS (self‑signed) for PWA install + Wake Lock |
 | `--pin "<code>"` | require this PIN (at least 6 characters) to open the dashboard + control the console; pair with `--https`. Required with `--lan` unless `--insecure-open` is given. `PIN=` in `show.conf` |
