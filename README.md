@@ -323,7 +323,6 @@ trio-mix-assistant/
 │   └── HARDWARE_BRINGUP.md   ← one-time OSC validation against the real desk
 └── docs/
     ├── screenshots/          ← the images above
-    ├── feedback-board.html   ← open in a browser to see musicians' feedback
     ├── ux-design.md          ← operator and performer experience design
     └── mix-assistant-design.html  ← design infographic
 ```
@@ -358,13 +357,13 @@ Trio Mix-Assistant does not collect data about you, your devices or your shows. 
 - **Audio stays on this computer.** The microphones are analysed live and are not recorded, saved or uploaded.
 - **What is kept, on this computer only,** in the settings folder: `show.conf` (including the PIN, in plain text), the session log `sessions.db` (the assistant's decisions, tagged with the venue name), what the app has learned about each venue, the certificate it made for the dashboard, and any test logs and reports you create. Set `SESSION_DB=off` in `show.conf` to keep no session log. Delete the folder to remove everything.
 - **Reports leave only when you send them.** Run checks and Run full test reports are made on screen; nothing uploads them. Before you paste or send one, the audio device names, IP and MAC addresses, computer and user names, venue and template names, the console's name and the song entries are hidden by default (details under [Check your setup](#setup)). A private word outside those places is not caught, so read a report before you post it.
-- **Downloading and feedback go through GitHub,** which has its own privacy terms and sees your address when you download a release or open an issue. The feedback board page in `docs/` asks GitHub for the public issues of the repository you type in, from your browser; it sends nothing else.
+- **Downloading and feedback go through GitHub,** which has its own privacy terms and sees your address when you download a release or open an issue.
 
 If you find the app sending anything else, please report it as an issue (see [SECURITY.md](SECURITY.md)).
 
 ## Contributing
 
-This is a community project and musicians' feedback is as welcome as code. See **[CONTRIBUTING.md](CONTRIBUTING.md)**, or open an issue and pick *Preference*, *Flow* or *UI suggestion*. Download **[docs/feedback-board.html](docs/feedback-board.html)**, open it in a browser, type `kootru-repo/trio-mix-assistant` in the box and press **Load**. It shows the open feedback in those three columns (under **Show**, choose *All* to include finished items).
+This is a community project and musicians' feedback is as welcome as code. See **[CONTRIBUTING.md](CONTRIBUTING.md)**, or open an issue and pick *Preference*, *Flow* or *UI suggestion*. A Discord channel for feedback is planned; until it opens, issues are the place.
 
 ## License & disclaimer
 

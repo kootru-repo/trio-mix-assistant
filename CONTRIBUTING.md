@@ -17,12 +17,10 @@ You do not need a console to take part. The downloaded app starts in simulation
 the real stack against a built-in desk emulator (see the [README](README.md#run-it)).
 Working from source, use `npm run run --` in `app/ts` with the same flags.
 
-## Seeing the feedback
+## Giving feedback
 
-Open `docs/feedback-board.html` in a browser and enter this repository as
-`owner/name`. It reads the public issues and shows three columns (Preferences,
-Flow, UI suggestions), with filters for who said it, where, and on what device.
-A thumbs-up on an issue moves it up its column.
+A Discord channel for feedback is planned. Until it opens, open an issue and pick
+*Preference*, *Flow* or *UI suggestion*.
 
 If you are logging feedback for a musician who does not use GitHub, open the
 issue yourself and put their name in *Whose feedback is this?*.
