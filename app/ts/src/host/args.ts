@@ -59,10 +59,13 @@ export const USAGE = `usage: TrioMixAssistant [-h] [--host HOST] [--lan] [--port
 
 export const HELP = `${USAGE}
 
-Acoustic Trio Mix-Assistant
+Trio Mix-Assistant
 
 options:
   -h, --help            show this help message and exit
+  --rehearse            use it on its own: run the full app against the built-in
+                        emulator, with the other settings from show.conf (no console
+                        needed)
   --host HOST
   --lan                 bind to the LAN so tablets can connect (shorthand for --host 0.0.0.0)
   --port PORT

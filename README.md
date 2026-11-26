@@ -8,7 +8,7 @@ It *listens* to the band and the room, and gently *nudges* the console within ha
 
 **[Download for Mac (Apple Silicon)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-arm64.tar.gz)** · **[Mac (Intel)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-x64.tar.gz)** · **[Windows](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-windows-x64.zip)** · [All versions](https://github.com/kootru-repo/trio-mix-assistant/releases)
 
-[Run it in a minute](#run-it) · [What has been tested](#tested) · [Set up for a show](#setup) · [Operating it](#operating-it) · [Mixing Station](#mixing-station) · [How it works](#how-it-works)
+[Run it in a minute](#run-it) · [What has been tested](#tested) · [Set up for a show](#setup) · [Operating it](#operating-it) · [Mixing Station](#mixing-station) · [How it works](#how-it-works) · [Privacy](#privacy)
 
 ![Trio Mix-Assistant dashboard](docs/screenshots/dashboard.png)
 
@@ -347,6 +347,21 @@ CI (`.github/workflows/ci.yml`) runs the same two commands, and builds the dashb
 - **Programming:** Andrew Craton.
 
 See **[AUTHORS.md](AUTHORS.md)**. To cite the project, use **[CITATION.cff](CITATION.cff)** (GitHub shows it as *Cite this repository*).
+
+<a id="privacy"></a>
+
+## Privacy
+
+Trio Mix-Assistant does not collect data about you, your devices or your shows. There are no accounts, no analytics, no usage statistics, no crash reports and no check for updates, and the author runs no server that the app talks to.
+
+- **Nothing is sent by default.** The app talks only to your console and other equipment on your own network, and to the phones and tablets you let into the dashboard. The dashboard page loads no scripts, fonts or images from the internet. To work out which of this computer's network addresses to print in the connect QR code, the app asks the operating system which one it would use to reach the internet; no data is sent.
+- **Audio stays on this computer.** The microphones are analysed live and are not recorded, saved or uploaded.
+- **What is kept, on this computer only,** in the settings folder: `show.conf` (including the PIN, in plain text), the session log `sessions.db` (the assistant's decisions, tagged with the venue name), what the app has learned about each venue, the certificate it made for the dashboard, and any test logs and reports you create. Set `SESSION_DB=off` in `show.conf` to keep no session log. Delete the folder to remove everything.
+- **The one optional exception is the Claude advisor.** It is off unless you turn it on (`ADVISOR=yes` and your own `ANTHROPIC_API_KEY`). While on, it sends a short text summary to `api.anthropic.com` at the interval you set; [SECURITY.md](SECURITY.md#data-that-leaves-the-computer) lists exactly what the summary holds, which can include the audio device name and the console's IP address, and never the PIN, audio or the venue name. What Anthropic does with it is governed by Anthropic's terms and your own account.
+- **Reports leave only when you send them.** Run checks and Run full test reports are made on screen; nothing uploads them. Before you paste or send one, the audio device names, IP and MAC addresses, computer and user names, venue and template names, the console's name and the song entries are hidden by default (details under [Check your setup](#setup)). A private word outside those places is not caught, so read a report before you post it.
+- **Downloading and feedback go through GitHub,** which has its own privacy terms and sees your address when you download a release or open an issue. The feedback board page in `docs/` asks GitHub for the public issues of the repository you type in, from your browser; it sends nothing else.
+
+If you find the app sending anything else, please report it as an issue (see [SECURITY.md](SECURITY.md)).
 
 ## Contributing
 

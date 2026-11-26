@@ -30,7 +30,7 @@ npm run package    # build dist/package/TrioMixAssistant.zip
 
 ## How behaviour is checked
 
-Tests compare against recorded reference data in `fixtures/` rather than hand-written expectations:
+Tests compare against stored reference data in `fixtures/` rather than hand-written expectations:
 
 - Signal processing, scaling tables and OSC datagrams are compared number for number and byte for byte.
 - `SeededRng` is a PCG64 generator with a published seeding and ziggurat scheme, so a fixed seed gives

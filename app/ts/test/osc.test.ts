@@ -60,7 +60,7 @@ function script(c: ConsoleBase): void {
   c.setEqNotch(1, 4, 900.0);
 }
 
-test("scaling helpers match the recorded reference", () => {
+test("scaling helpers match the stored reference", () => {
   const t = fx.tables;
   t.dbs.forEach((d: number, i: number) => close(dbToFader(d), t.db_to_fader[i], 1e-12, 1e-12, `db ${d}`));
   t.fs.forEach((f: number, i: number) => close(faderToDb(f), t.fader_to_db[i], 1e-12, 1e-9, `fader ${f}`));

@@ -474,3 +474,81 @@ test("skipped frames and native xruns raise different alerts", () => {
   e.step(100.05, 100);
   assert.match(msgs()[0]!, /xruns/);
 });
+
+class StatusSource extends CaptureSourceBase {
+  status_: CaptureStatus = { kind: "audio" };
+  override block(): Frame {
+    return new Map();
+  }
+  override dead(): boolean {
+    return Boolean(this.status_["dead"]);
+  }
+  override status(): CaptureStatus {
+    return this.status_;
+  }
+}
+
+const alertView = (e: Engine): { level: string; msg: string }[] => e.snapshot()["alerts"] as { level: string; msg: string }[];
+
+test("a warning puts the engine in ALERT mode and clearing it returns to auto", () => {
+  const src = new StatusSource();
+  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000), source: src });
+  e.step(100, 99.95);
+  assert.equal(e.snapshot()["op_mode"], "auto");
+  src.status_ = { kind: "audio", overload: true };
+  e.step(100.05, 100);
+  assert.equal(e.snapshot()["op_mode"], "alert");
+  src.status_ = { kind: "audio" };
+  e.step(100.1, 100.05);
+  assert.equal(e.snapshot()["op_mode"], "auto");
+});
+
+test("a dead capture is a warning at first and critical after 1.5 seconds", () => {
+  const src = new StatusSource();
+  src.status_ = { kind: "audio", dead: true };
+  const clock = new ManualClock(100, 1_700_000_000);
+  const e = new Engine({ clock, source: src });
+  const stepBy = (s: number): void => {
+    clock.advance(s);
+    e.step(clock.monotonic(), clock.monotonic() - s);
+  };
+  stepBy(0.05);
+  assert.deepEqual(alertView(e).map((a) => a.level), ["warn"]);
+  stepBy(1.4);
+  assert.deepEqual(alertView(e).map((a) => a.level), ["warn"]);
+  stepBy(0.2);
+  assert.deepEqual(alertView(e).map((a) => a.level), ["critical"]);
+  assert.equal(e.snapshot()["op_mode"], "alert");
+});
+
+test("the engine event for a stopped or deaf capture is critical and a failure is a warning", () => {
+  const level = (msg: string): string => Engine.levelFor({ kind: "system", msg } as Parameters<typeof Engine.levelFor>[0]);
+  assert.equal(level("audio capture stopped"), "critical");
+  assert.equal(level("the assistant is deaf"), "critical");
+  assert.equal(level("console ramp failed: x"), "warn");
+  assert.equal(level("calibration aborted"), "warn");
+});
+
+test("the first 8 bars of a song hide warnings but not critical alerts", () => {
+  const src = new StatusSource();
+  const clock = new ManualClock(100, 1_700_000_000);
+  const e = new Engine({ clock, source: src });
+  e.onSongChange({ songIndex: 0, songName: "Opener", nextSong: "", section: "Song", bpm: 120, playing: true });
+  src.status_ = { kind: "audio", overload: true };
+  e.step(clock.monotonic(), clock.monotonic() - 0.05);
+  assert.deepEqual(alertView(e), []);
+  assert.equal(e.snapshot()["op_mode"], "auto");
+  clock.advance(15.9);
+  e.step(clock.monotonic(), clock.monotonic() - 0.05);
+  assert.deepEqual(alertView(e), []);
+  clock.advance(0.2);
+  e.step(clock.monotonic(), clock.monotonic() - 0.05);
+  assert.equal(alertView(e).length, 1);
+  assert.equal(e.snapshot()["op_mode"], "alert");
+  src.status_ = { kind: "audio", dead: true };
+  e.onSongChange({ songIndex: 1, songName: "Second", nextSong: "", section: "Song", bpm: 120, playing: true });
+  clock.advance(1.6);
+  e.step(clock.monotonic(), clock.monotonic() - 0.05);
+  e.step(clock.monotonic() + 0.05, clock.monotonic());
+  assert.deepEqual(alertView(e).map((a) => a.level), ["critical"]);
+});

@@ -229,7 +229,7 @@ PS> .\TrioMixAssistant.exe --hardware `
 
 Use a PIN of your own, six or more characters: the app refuses to serve the
 network without one unless you give `--insecure-open` (`ALLOW_OPEN=yes` in `show.conf`), which is not recommended. The same settings can be saved in `show.conf` (`MODE`,
-`CONSOLE_IP`, `AUDIO_DEVICE`, `OUTPUT_DEVICE`, `TEMPLATE`, `VENUE`, `LAN`, `HTTPS`, `PIN`); then start the app with no flags.
+`CONSOLE_IP`, `AUDIO_DEVICE`, `OUTPUT_DEVICE`, `TEMPLATE`, `VENUE`, `LAN`, `HTTPS`, `PIN`, `SESSION_DB`, `ADVISOR_INTERVAL`); then start the app with no flags.
 
 Optional add‑ons (either OS):
 - `--ableset-port 39051`: AbleSet drives automatic scene recall.

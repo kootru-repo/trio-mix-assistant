@@ -15,7 +15,7 @@ import { close, closeArray, f32, f64, fixture } from "./helpers.ts";
 
 const fx = fixture("dsp");
 
-test("analyseBlock matches the recorded reference", () => {
+test("analyseBlock matches the stored reference", () => {
   for (const c of fx.analyse) {
     const f = analyseBlock(f32(c.input));
     close(f.rmsDbfs, c.rms_dbfs, 1e-5, 1e-4, `${c.name} rms`);
@@ -35,7 +35,7 @@ test("the ring cases are actually detected", () => {
   assert.ok(byName.harmonic_rich.harmonicity > 0.3);
 });
 
-test("RollingRingDetector matches the recorded reference block by block", () => {
+test("RollingRingDetector matches the stored reference block by block", () => {
   const all = f32(fx.rolling.blocks);
   const det = new RollingRingDetector();
   const len = fx.rolling.block_len;
@@ -46,7 +46,7 @@ test("RollingRingDetector matches the recorded reference block by block", () => 
   });
 });
 
-test("phaseRelation matches the recorded reference", () => {
+test("phaseRelation matches the stored reference", () => {
   for (const c of fx.phase) {
     const r = phaseRelation(f32(c.a), f32(c.b));
     close(r.zeroCorr, c.zero_corr, 1e-4, 1e-5, `${c.name} zero`);
@@ -56,7 +56,7 @@ test("phaseRelation matches the recorded reference", () => {
   }
 });
 
-test("octave bands and resonant peaks match the recorded reference on a non-power-of-two input", () => {
+test("octave bands and resonant peaks match the stored reference on a non-power-of-two input", () => {
   const captured = f32(fx.bands.captured);
   assert.equal(captured.length, 49152);
   const bands = octaveBandLevels(captured);
@@ -75,7 +75,7 @@ test("octave bands and resonant peaks match the recorded reference on a non-powe
   assert.ok(corrections.length >= 1, "the 250 Hz room mode is found");
 });
 
-test("a flat pink signal yields the same (empty or not) result as the recorded reference", () => {
+test("a flat pink signal yields the same (empty or not) result as the stored reference", () => {
   const rng = new SeededRng(30);
   const pink = generatePinkNoise(49152 / C.SAMPLE_RATE, rng);
   const { corrections } = findResonantPeaks(pink);

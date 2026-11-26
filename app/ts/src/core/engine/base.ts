@@ -245,7 +245,7 @@ export class EngineBase {
   static levelFor(ev: AssistantEvent): string {
     const kind = ev.kind;
     const msg = ev.msg.toLowerCase();
-    const words = ["failed", "unavailable", "stopped", "deaf", "near-silence", "lost", "aborted", "could not restart"];
+    const words = ["failed", "unavailable", "stopped", "deaf", "lost", "aborted", "could not restart"];
     if (words.some((w) => msg.includes(w))) {
       return msg.includes("deaf") || msg.includes("stopped") ? "critical" : "warn";
     }

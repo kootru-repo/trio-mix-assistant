@@ -166,3 +166,15 @@ test("a bare --vet takes the console and the test options from show.conf", async
   const none = parseCliArgs(vetArgv(shipped, plan(shipped), () => undefined));
   assert.ok(none.vet && !none.vetSound && !none.vetPhone && none.vetChannel === null);
 });
+
+test("SESSION_DB and ADVISOR_INTERVAL reach the command line", async () => {
+  const { parseCliArgs } = await import("../src/host/args.ts");
+  const off = parseCliArgs(plan({ MODE: "sim", LAN: "no", SESSION_DB: "OFF", ADVISOR_INTERVAL: "45" }).argv);
+  assert.equal(off.sessionDb, "off");
+  assert.equal(off.advisorInterval, 45);
+  const rel = parseCliArgs(plan({ MODE: "sim", LAN: "no", SESSION_DB: "logs/show.db" }).argv);
+  assert.equal(rel.sessionDb, join(base, "logs/show.db"));
+  const none = parseCliArgs(plan({ MODE: "sim", LAN: "no" }).argv);
+  assert.equal(none.sessionDb, null);
+  assert.equal(none.advisorInterval, 30);
+});

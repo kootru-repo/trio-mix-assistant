@@ -176,7 +176,7 @@ class Replay {
 }
 
 for (const sc of scenarios) {
-  test(`assistant scenario "${sc.name}" makes the same decisions as the recorded reference`, () => {
+  test(`assistant scenario "${sc.name}" makes the same decisions as the stored reference`, () => {
     const r = new Replay(sc.config);
     try {
       for (const op of sc.ops) {
