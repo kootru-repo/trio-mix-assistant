@@ -1,4 +1,4 @@
-# Acoustic Trio Mix-Assistant
+# Trio Mix-Assistant
 
 A deliberately small **safety-net** for a small acoustic-trio gig with no sound
 engineer. It *listens* to the channels + a FOH measurement mic and *nudges* a

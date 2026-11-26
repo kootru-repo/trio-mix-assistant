@@ -365,7 +365,7 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--vet-keep-names` | with `--vet`: keep audio device names, IP addresses and show names in the report and log (they are replaced by default) |
 | `--vet-sound` | with `--vet --audio-device`: play pink noise for 10 seconds and check the measurement input hears it |
 | `--vet-phone` | with `--vet --lan --pin`: wait up to two minutes for a phone or tablet to sign in |
-| `--rehearse` | on its own or with `--diagnose`: use `show.conf` in emulate mode whatever `MODE` says (the emulated console, with its built-in audio feed unless `AUTO=yes`; the hardware-only keys such as `AUDIO_DEVICE` are not used) |
+| `--rehearse` | on its own, or with `--diagnose` or `--vet`: use `show.conf` in emulate mode whatever `MODE` says (the emulated console, with its built-in audio feed unless `AUTO=yes`; the hardware-only keys such as `AUDIO_DEVICE` are not used) |
 | `--trace-osc` | with `--emulate`, print every OSC address a mixer app asks the emulated desk for |
 | `--template <file.json>` | per‑song scenes + reference levels, **and an optional channel map** (e.g. `pilot_13_input.json`, a 13-input rig plus a measurement mic and a stage mic, so a 15-input device, in the `templates` folder beside `show.conf`; give the full path); else the built‑in 8‑ch trio |
 | `--ableset-port <p>` | listen for AbleSet song/section OSC → auto scene recall |

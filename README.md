@@ -204,7 +204,7 @@ Open **http://127.0.0.1:8770/**.
 
 The commands below are for the downloaded app on a Mac. On Windows, type `.\TrioMixAssistant.exe` in place of `./TrioMixAssistant`.
 
-Started with no flags, the app uses `show.conf` (simulation until you change it). Started with flags, it ignores `show.conf`, so put everything on the command line; `--diagnose` and `--vet` (each on its own) and `--rehearse` (your `show.conf` in emulate mode, on its own or with `--diagnose`) are the exceptions and still read `show.conf`. Add any other flag to `--diagnose` and `show.conf` is ignored; `--rehearse` cannot be combined with other flags (use `--emulate` with flags instead). From source, in the **`app/ts`** folder, `npm start` is the no-flag form (`npm start -- --diagnose`, `npm start -- --rehearse`) and `npm run run --` takes any other flags.
+Started with no flags, the app uses `show.conf` (simulation until you change it). Started with flags, it ignores `show.conf`, so put everything on the command line; `--diagnose` and `--vet` (each on its own) and `--rehearse` (your `show.conf` in emulate mode, on its own or with `--diagnose` or `--vet`) are the exceptions and still read `show.conf`. Add any other flag to `--diagnose` and `show.conf` is ignored; `--rehearse` cannot be combined with other flags (use `--emulate` with flags instead). From source, in the **`app/ts`** folder, `npm start` is the no-flag form (`npm start -- --diagnose`, `npm start -- --rehearse`) and `npm run run --` takes any other flags.
 
 ### Run modes
 

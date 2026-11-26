@@ -2,5 +2,5 @@
 # and collapse in diffs. Edit the .ts source, then run `npm run build`.
 app/static/*.js linguist-generated=true
 
-# Design notes and the feedback board are documentation, not application code.
+# Design notes are documentation, not application code.
 docs/** linguist-documentation
