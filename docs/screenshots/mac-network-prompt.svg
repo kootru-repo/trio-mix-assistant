@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 430" width="860" height="430" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">The incoming network connections prompt on a Mac</title>
+  <desc id="d">Illustration of a macOS dialog asking whether TrioMixAssistant may accept incoming network connections, with the buttons Deny and Allow. Allow is highlighted.</desc>
+  <defs><filter id="sh" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity=".22"/></filter></defs>
+  <rect width="860" height="430" fill="#e9ebef"/>
+  <g filter="url(#sh)"><rect x="290" y="30" width="280" height="300" rx="18" fill="#f6f6f7"/></g>
+  <rect x="290.5" y="30.5" width="279" height="299" rx="18" fill="none" stroke="#c9c9ce"/>
+  <rect x="402" y="52" width="56" height="56" rx="13" fill="#f59e0b"/>
+  <g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round">
+    <path d="M414 78 a22 22 0 0 1 32 0"/><path d="M420 86 a14 14 0 0 1 20 0"/>
+  </g>
+  <circle cx="430" cy="94" r="3.5" fill="#fff"/>
+  <g font-size="14" font-weight="700" fill="#1d1d1f" text-anchor="middle">
+    <text x="430" y="136">Do you want the application</text>
+    <text x="430" y="155">“TrioMixAssistant” to accept</text>
+    <text x="430" y="174">incoming network connections?</text>
+  </g>
+  <rect x="312" y="216" width="236" height="32" rx="8" fill="#e3e3e8"/>
+  <text x="430" y="237" font-size="13.5" fill="#1d1d1f" text-anchor="middle">Deny</text>
+  <rect x="312" y="258" width="236" height="32" rx="8" fill="#2f6fe4"/>
+  <text x="430" y="279" font-size="13.5" font-weight="600" fill="#fff" text-anchor="middle">Allow</text>
+  <rect x="304" y="251" width="252" height="46" rx="13" fill="none" stroke="#f59e0b" stroke-width="3"/>
+
+  <line x1="562" y1="274" x2="622" y2="274" stroke="#f59e0b" stroke-width="2"/>
+  <text x="630" y="270" font-size="13.5" font-weight="700" fill="#1d1d1f">Click Allow.</text>
+  <text x="630" y="288" font-size="12.5" fill="#6b6b73">Otherwise a phone or</text>
+  <text x="630" y="304" font-size="12.5" fill="#6b6b73">tablet cannot connect.</text>
+
+  <text x="430" y="368" font-size="14" fill="#1d1d1f" text-anchor="middle">You only see this with <tspan font-weight="700">LAN=yes</tspan> and the Mac's firewall switched on.</text>
+  <text x="430" y="404" font-size="11.5" fill="#6b6b73" text-anchor="middle">Illustration, not a screenshot. Your Mac's wording and layout may differ slightly.</text>
+</svg>

@@ -57,15 +57,23 @@ Nothing to install. The app carries everything it needs and starts in **simulati
 ### Mac
 
 1. Download the build for your Mac: **[Apple Silicon (M1 or later)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-arm64.tar.gz)** or **[Intel](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-x64.tar.gz)**. Apple menu → **About This Mac** shows which you have.
+
+   <img src="docs/screenshots/mac-about-this-mac.svg" width="640" alt="Illustration: About This Mac shows Chip on an Apple Silicon Mac and Processor on an Intel Mac">
 2. Open **Terminal** and run (use the `x64` file name on an Intel Mac):
    ```bash
    mkdir -p ~/TrioMix && cd ~/TrioMix
    tar -xzf ~/Downloads/TrioMixAssistant-macos-arm64.tar.gz
    ./TrioMixAssistant
    ```
-   If macOS refuses to open it, go to System Settings → Privacy & Security, click **Open Anyway**, and run the last line again.
+   If macOS refuses to open it, click **Done** on the warning (not Move to Trash), go to System Settings → Privacy & Security, click **Open Anyway**, and run the last line again.
+
+   <img src="docs/screenshots/mac-blocked-warning.svg" width="640" alt="Illustration: the macOS warning that TrioMixAssistant was not opened, with Done highlighted">
+
+   <img src="docs/screenshots/mac-open-anyway.svg" width="640" alt="Illustration: System Settings, Privacy and Security, with the Open Anyway button highlighted">
 3. The dashboard opens in your browser (the address is also printed). Toggle the jobs and watch the behaviour change. Press Ctrl+C in Terminal to stop.
 4. **Test your microphone (optional, 10 seconds).** Run `./TrioMixAssistant --list-devices` and note your microphone's number, then run `./TrioMixAssistant --diagnose --audio-device <number>`. Click **Allow** if macOS asks to let Terminal use the microphone. It listens for eight seconds, plays no sound, and prints what passed. Nobody has confirmed listening on a Mac yet, so please paste the report (from the `=====` line down) into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues), pass or fail.
+
+   <img src="docs/screenshots/mac-microphone-prompt.svg" width="640" alt="Illustration: the macOS prompt asking to let Terminal use the microphone, with Allow highlighted">
 
 ### Windows
 
@@ -125,6 +133,10 @@ These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, typ
    - Windows: `%LOCALAPPDATA%\TrioMixAssistant\show.conf`
 3. **Set** `MODE=hardware`, `CONSOLE_IP` and `AUDIO_DEVICE` (the number from step 1). With a small interface or a single USB mic, `AUTO=yes` picks the input for you instead; leave it off with the console's 32-input USB feed, where it would pick the wrong channel for the measurement mic. For a phone or tablet, set `LAN=yes` and a `PIN` of six or more characters.
 4. **Start the app** the same way as before. On a Mac, click **Allow** when macOS asks to let Terminal use the microphone and the network, or the app hears silence.
+
+   <img src="docs/screenshots/mac-network-prompt.svg" width="640" alt="Illustration: the macOS prompt asking whether TrioMixAssistant may accept incoming network connections, with Allow highlighted">
+
+   The pictures in these Mac steps are drawings, not screenshots, so the wording on your Mac may differ slightly.
 
 ### Check your setup
 

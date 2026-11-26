@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 500" width="860" height="500" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">How to tell an Apple Silicon Mac from an Intel Mac</title>
+  <desc id="d">Illustration of two About This Mac windows. One has a line that starts with Chip, meaning Apple Silicon. The other has a line that starts with Processor, meaning Intel.</desc>
+  <defs><filter id="sh" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity=".18"/></filter></defs>
+  <rect width="860" height="500" fill="#e9ebef"/>
+
+  <g filter="url(#sh)"><rect x="40" y="30" width="370" height="380" rx="14" fill="#f6f6f7"/></g>
+  <rect x="40.5" y="30.5" width="369" height="379" rx="14" fill="none" stroke="#c9c9ce"/>
+  <circle cx="62" cy="52" r="6" fill="#ff5f57"/><circle cx="82" cy="52" r="6" fill="#febc2e"/><circle cx="102" cy="52" r="6" fill="#28c840"/>
+  <rect x="165" y="76" width="120" height="76" rx="6" fill="#2b2b30"/><rect x="171" y="82" width="108" height="62" rx="2" fill="#5b8def"/><rect x="150" y="152" width="150" height="7" rx="3.5" fill="#c3c3c9"/>
+  <text x="225" y="192" font-size="19" font-weight="700" fill="#1d1d1f" text-anchor="middle">MacBook Pro</text>
+  <g font-size="13.5">
+    <rect x="70" y="212" width="310" height="30" rx="8" fill="#fff5dc" stroke="#f59e0b" stroke-width="2.5"/>
+    <text x="210" y="232" fill="#6b6b73" text-anchor="end">Chip</text><text x="222" y="232" fill="#1d1d1f" font-weight="700">Apple M2</text>
+    <text x="210" y="264" fill="#6b6b73" text-anchor="end">Memory</text><text x="222" y="264" fill="#1d1d1f">16 GB</text>
+    <text x="210" y="290" fill="#6b6b73" text-anchor="end">macOS</text><text x="222" y="290" fill="#1d1d1f">your version</text>
+  </g>
+  <rect x="180" y="316" width="90" height="26" rx="7" fill="#fff" stroke="#c7c7cd"/><text x="225" y="334" font-size="13" fill="#1d1d1f" text-anchor="middle">More Info…</text>
+  <rect x="70" y="362" width="310" height="30" rx="8" fill="#1f9d6b"/>
+  <text x="225" y="382" font-size="13.5" font-weight="700" fill="#fff" text-anchor="middle">“Chip” → download Apple Silicon (arm64)</text>
+
+  <g filter="url(#sh)"><rect x="450" y="30" width="370" height="380" rx="14" fill="#f6f6f7"/></g>
+  <rect x="450.5" y="30.5" width="369" height="379" rx="14" fill="none" stroke="#c9c9ce"/>
+  <circle cx="472" cy="52" r="6" fill="#ff5f57"/><circle cx="492" cy="52" r="6" fill="#febc2e"/><circle cx="512" cy="52" r="6" fill="#28c840"/>
+  <rect x="575" y="76" width="120" height="76" rx="6" fill="#2b2b30"/><rect x="581" y="82" width="108" height="62" rx="2" fill="#8e8e93"/><rect x="560" y="152" width="150" height="7" rx="3.5" fill="#c3c3c9"/>
+  <text x="635" y="192" font-size="19" font-weight="700" fill="#1d1d1f" text-anchor="middle">MacBook Pro</text>
+  <g font-size="13.5">
+    <rect x="480" y="212" width="310" height="30" rx="8" fill="#fff5dc" stroke="#f59e0b" stroke-width="2.5"/>
+    <text x="580" y="232" fill="#6b6b73" text-anchor="end">Processor</text><text x="592" y="232" fill="#1d1d1f" font-weight="700">Intel Core i5</text>
+    <text x="580" y="264" fill="#6b6b73" text-anchor="end">Memory</text><text x="592" y="264" fill="#1d1d1f">16 GB</text>
+    <text x="580" y="290" fill="#6b6b73" text-anchor="end">macOS</text><text x="592" y="290" fill="#1d1d1f">your version</text>
+  </g>
+  <rect x="590" y="316" width="90" height="26" rx="7" fill="#fff" stroke="#c7c7cd"/><text x="635" y="334" font-size="13" fill="#1d1d1f" text-anchor="middle">More Info…</text>
+  <rect x="480" y="362" width="310" height="30" rx="8" fill="#2f6fe4"/>
+  <text x="635" y="382" font-size="13.5" font-weight="700" fill="#fff" text-anchor="middle">“Processor … Intel” → download Intel (x64)</text>
+
+  <text x="430" y="446" font-size="14" fill="#1d1d1f" text-anchor="middle">Apple menu  → <tspan font-weight="700">About This Mac</tspan>, then read the highlighted line.</text>
+  <text x="430" y="478" font-size="11.5" fill="#6b6b73" text-anchor="middle">Illustration, not a screenshot. Your Mac's wording and layout may differ slightly.</text>
+</svg>

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 400" width="860" height="400" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">The microphone permission prompt on a Mac</title>
+  <desc id="d">Illustration of a macOS dialog saying Terminal would like to access the microphone, with the buttons Don't Allow and Allow. Allow is highlighted.</desc>
+  <defs><filter id="sh" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity=".22"/></filter></defs>
+  <rect width="860" height="400" fill="#e9ebef"/>
+  <g filter="url(#sh)"><rect x="290" y="30" width="280" height="270" rx="18" fill="#f6f6f7"/></g>
+  <rect x="290.5" y="30.5" width="279" height="269" rx="18" fill="none" stroke="#c9c9ce"/>
+  <rect x="402" y="52" width="56" height="56" rx="13" fill="#1d1d1f"/>
+  <text x="414" y="88" font-size="20" font-weight="700" fill="#fff" font-family="Menlo, Consolas, monospace">&gt;_</text>
+  <text x="430" y="138" font-size="14.5" font-weight="700" fill="#1d1d1f" text-anchor="middle">“Terminal” would like to</text>
+  <text x="430" y="158" font-size="14.5" font-weight="700" fill="#1d1d1f" text-anchor="middle">access the microphone.</text>
+  <rect x="312" y="186" width="236" height="32" rx="8" fill="#e3e3e8"/>
+  <text x="430" y="207" font-size="13.5" fill="#1d1d1f" text-anchor="middle">Don’t Allow</text>
+  <rect x="312" y="228" width="236" height="32" rx="8" fill="#2f6fe4"/>
+  <text x="430" y="249" font-size="13.5" font-weight="600" fill="#fff" text-anchor="middle">Allow</text>
+  <rect x="304" y="221" width="252" height="46" rx="13" fill="none" stroke="#f59e0b" stroke-width="3"/>
+
+  <line x1="562" y1="244" x2="622" y2="244" stroke="#f59e0b" stroke-width="2"/>
+  <text x="630" y="240" font-size="13.5" font-weight="700" fill="#1d1d1f">Click Allow.</text>
+  <text x="630" y="258" font-size="12.5" fill="#6b6b73">Otherwise the app</text>
+  <text x="630" y="274" font-size="12.5" fill="#6b6b73">hears only silence.</text>
+
+  <text x="430" y="338" font-size="14" fill="#1d1d1f" text-anchor="middle">Clicked Don’t Allow? System Settings → Privacy &amp; Security → <tspan font-weight="700">Microphone</tspan> → switch on <tspan font-weight="700">Terminal</tspan>.</text>
+  <text x="430" y="374" font-size="11.5" fill="#6b6b73" text-anchor="middle">Illustration, not a screenshot. Your Mac's wording and layout may differ slightly.</text>
+</svg>
