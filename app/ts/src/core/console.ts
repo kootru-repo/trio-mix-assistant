@@ -3,6 +3,8 @@ import { C } from "./config.ts";
 import { encodeMessage, oscFloat, oscInt, oscStr } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
 import { clamp, zeroPad } from "./util.ts";
+import { WriteGovernor } from "./writegov.ts";
+import type { Lane } from "./writegov.ts";
 
 export function dbToFader(db: number): number {
   if (db <= -90) return 0;
@@ -61,6 +63,8 @@ interface RampJob {
   steps: number;
   gen: number;
   epoch: number;
+  created: number | null;
+  lane: Lane;
 }
 
 export interface ConsoleOptions {
@@ -75,8 +79,13 @@ export abstract class ConsoleBase {
   private rampGen = new Map<number, number>();
   private rampEpoch = 0;
   private closed = false;
+  private written = new Map<number, number>();
+  private eqGain = new Map<string, number>();
   lastRampError: unknown = null;
   onError: ((exc: unknown) => void) | null = null;
+  onRampAbort: ((ch: number, lastDb: number | null, startDb: number) => void) | null = null;
+  onFaderWrite: ((ch: number, db: number) => void) | null = null;
+  protected lane: Lane = "manual";
 
   constructor(opts: ConsoleOptions = {}) {
     this.rampClock = opts.clock ?? null;
@@ -101,15 +110,43 @@ export abstract class ConsoleBase {
     this.rampEpoch += 1;
   }
 
+  cancelRamp(ch: number): void {
+    this.bumpRamp(ch);
+  }
+
+  lastWritten(ch: number): number | null {
+    return this.written.get(ch) ?? null;
+  }
+
+  withLane<T>(lane: Lane, fn: () => T): T {
+    const prev = this.lane;
+    this.lane = lane;
+    try {
+      return fn();
+    } finally {
+      this.lane = prev;
+    }
+  }
+
+  pump(_now: number): void {}
+
+  storming(_now: number): boolean {
+    return false;
+  }
+
+  clearRepeats(): void {}
+
   query(addr: string): void {
-    this.send(addr);
+    this.withLane("safety", () => this.send(addr));
   }
 
   private writeFader(ch: number, db: number, lo: number, hi: number): number {
     finite(db);
     const v = clamp(db, lo, hi);
     this.send(`/ch/${zeroPad(ch, 2)}/mix/fader`, oscFloat(dbToFader(v)));
+    this.written.set(ch, v);
     this.record({ kind: "fader", ch, db: v });
+    if (this.onFaderWrite !== null) this.onFaderWrite(ch, v);
     return v;
   }
 
@@ -122,7 +159,7 @@ export abstract class ConsoleBase {
   rampFaderDb(ch: number, startDb: number, endDb: number, ms: number = C.ride.rampMs, steps: number = 12): number {
     finite(startDb, endDb, ms, steps);
     const end = clamp(endDb, C.limits.faderMinDb, C.limits.faderMaxDb);
-    const job: RampJob = { ch, startDb, endDb: end, ms, steps, gen: this.bumpRamp(ch), epoch: this.rampEpoch };
+    const job: RampJob = { ch, startDb, endDb: end, ms, steps, gen: this.bumpRamp(ch), epoch: this.rampEpoch, created: this.rampClock ? this.rampClock.monotonic() : null, lane: this.lane };
     this.rampChain = this.rampChain.then(() => this.runRamp(job)).catch((exc: unknown) => {
       this.lastRampError = exc;
       if (this.onError !== null) {
@@ -140,11 +177,32 @@ export abstract class ConsoleBase {
     return this.rampChain;
   }
 
+  private live(job: RampJob): boolean {
+    return !this.closed && job.epoch === this.rampEpoch && job.gen === this.rampGen.get(job.ch);
+  }
+
+  private abortRamp(job: RampJob): void {
+    if (this.onRampAbort !== null) this.onRampAbort(job.ch, this.lastWritten(job.ch), job.startDb);
+  }
+
   private async runRamp(job: RampJob): Promise<void> {
+    const clock = this.rampClock;
+    if (!this.live(job)) return;
+    if (clock && job.created !== null && clock.monotonic() - job.created > job.ms / 1000 + C.safety.rampLateS) {
+      this.abortRamp(job);
+      return;
+    }
+    const stepS = job.ms / 1000 / job.steps;
     for (let i = 1; i <= job.steps; i++) {
-      if (this.closed || job.epoch !== this.rampEpoch || job.gen !== this.rampGen.get(job.ch)) return;
-      this.writeFader(job.ch, job.startDb + (job.endDb - job.startDb) * (i / job.steps), C.limits.faderMinDb, C.limits.faderMaxDb);
-      if (this.rampClock) await this.rampClock.sleep(job.ms / 1000 / job.steps);
+      if (!this.live(job)) return;
+      this.withLane(job.lane, () => this.writeFader(job.ch, job.startDb + (job.endDb - job.startDb) * (i / job.steps), C.limits.faderMinDb, C.limits.faderMaxDb));
+      if (!clock) continue;
+      const before = clock.monotonic();
+      await clock.sleep(stepS);
+      if (i < job.steps && clock.monotonic() - before - stepS > C.safety.rampOverrunS) {
+        if (this.live(job)) this.abortRamp(job);
+        return;
+      }
     }
   }
 
@@ -158,10 +216,16 @@ export abstract class ConsoleBase {
 
   private eqBand(base: string, hz: number, gainDb: number, q: number): void {
     finite(hz, gainDb, q);
+    const g = clamp((gainDb + 15) / 30, 0, 1);
+    const old = this.eqGain.get(base);
+    const gainFirst = old === undefined || g <= old;
+    this.eqGain.delete(base);
+    if (gainFirst) this.send(`${base}/g`, oscFloat(g));
     this.send(`${base}/type`, oscInt(2));
     this.send(`${base}/f`, oscFloat(freqToEqParam(hz)));
-    this.send(`${base}/g`, oscFloat(clamp((gainDb + 15) / 30, 0, 1)));
     this.send(`${base}/q`, oscFloat(qToParam(q)));
+    if (!gainFirst) this.send(`${base}/g`, oscFloat(g));
+    this.eqGain.set(base, g);
   }
 
   setEqNotch(
@@ -204,11 +268,12 @@ export abstract class ConsoleBase {
   recallScene(index: number): void {
     if (!Number.isInteger(index) || index < 0 || index > 99) throw new RangeError("scene index must be an integer from 0 to 99");
     this.send("/-action/goscene", oscInt(index));
+    this.eqGain.clear();
     this.record({ kind: "scene", index });
   }
 
   setMainMute(muted: boolean): void {
-    this.send(`/${C.MAIN_BUS}/mix/on`, oscInt(muted ? 0 : 1));
+    this.withLane("safety", () => this.send(`/${C.MAIN_BUS}/mix/on`, oscInt(muted ? 0 : 1)));
     this.record({ kind: "main_mute", muted });
   }
 
@@ -242,16 +307,24 @@ export abstract class ConsoleBase {
   }
 
   subscribeMeters(): void {
-    this.send(
-      "/batchsubscribe",
-      oscStr("/meters"),
-      oscStr("/meters/1"),
-      oscInt(0),
-      oscInt(0),
-      oscInt(10),
-    );
-    this.send("/xremote");
+    this.withLane("safety", () => {
+      this.send("/batchsubscribe", oscStr("/meters"), oscStr("/meters/1"), oscInt(0), oscInt(0), oscInt(10));
+      this.send("/xremote");
+    });
   }
+}
+
+export function autoLane(con: ConsoleBase) {
+  const auto = <T>(fn: () => T): T => con.withLane("auto", fn);
+  return {
+    setEqNotch: (ch: number, band: number, hz: number): void => auto(() => con.setEqNotch(ch, band, hz)),
+    setBusEq: (band: number, hz: number, gainDb: number, q: number): void => auto(() => con.setBusEq(band, hz, gainDb, q)),
+    setEqBand: (ch: number, band: number, hz: number, gainDb: number, q: number, on: boolean): void => auto(() => con.setEqBand(ch, band, hz, gainDb, q, on)),
+    rampFaderDb: (ch: number, startDb: number, endDb: number): number => auto(() => con.rampFaderDb(ch, startDb, endDb)),
+    nudgeGainDb: (ch: number, currentDb: number, deltaDb: number): number => auto(() => con.nudgeGainDb(ch, currentDb, deltaDb)),
+    setPolarity: (ch: number, inverted: boolean): void => auto(() => con.setPolarity(ch, inverted)),
+    clearChannelEq: (ch: number): void => auto(() => con.clearChannelEq(ch)),
+  };
 }
 
 export interface DatagramSink {
@@ -262,10 +335,31 @@ export interface DatagramSink {
 
 export class OscConsole extends ConsoleBase {
   private readonly sink: DatagramSink;
+  readonly governor: WriteGovernor | null;
 
   constructor(sink: DatagramSink, opts: ConsoleOptions = {}) {
     super(opts);
     this.sink = sink;
+    const s = C.safety;
+    this.governor =
+      opts.clock === null || opts.clock === undefined
+        ? null
+        : new WriteGovernor(
+            { manualPerS: s.manualPerS, manualBurst: s.manualBurst, autoPerS: s.autoPerS, autoBurst: s.autoBurst, totalPerS: s.totalPerS, repeatS: s.repeatS, stormS: s.stormS },
+            (addr, args) => this.sink.send(encodeMessage(addr, [...args])),
+          );
+  }
+
+  override pump(now: number): void {
+    if (this.governor !== null) this.governor.pump(now);
+  }
+
+  override storming(now: number): boolean {
+    return this.governor !== null && this.governor.storming(now);
+  }
+
+  override clearRepeats(): void {
+    if (this.governor !== null) this.governor.clearRepeats();
   }
 
   get sendFailures(): number | null {
@@ -273,7 +367,9 @@ export class OscConsole extends ConsoleBase {
   }
 
   protected override send(addr: string, ...args: OscArg[]): void {
-    this.sink.send(encodeMessage(addr, args));
+    const clock = this.rampClock;
+    if (this.governor !== null && clock !== null) this.governor.submit(this.lane, addr, args, clock.monotonic());
+    else this.sink.send(encodeMessage(addr, args));
   }
 
   override close(): void {

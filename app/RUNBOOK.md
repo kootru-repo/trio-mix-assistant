@@ -322,6 +322,15 @@ Launched with `--lan` (and ideally `--https`):
   quiet for 1.5 s, and re-arm only after the link is steady and the desk has been read again
   (also after every scene recall). Nothing is muted; manual controls keep working; the
   dashboard alert says why. The timings are tunable (`TUNE.link.*`, see `--list-tuning`).
+  The same hold follows a laptop sleep (the desk is read again on wake).
+- **Hand moves win:** a move on the desk or from another editor cancels the app's ramp on that
+  channel and pauses its rides there for ~5 s; three moves within 60 s lock the channel out
+  of the automatic jobs until TAKEOVER is pressed and released.
+- **Write budget:** console writes are capped (manual 100/s, automatic 150/s, 250/s in all;
+  repeats merged so the last value lands). Automatic writes backed up for 2 s, or an
+  unexpected app error, hold the jobs until TAKEOVER is pressed and released. Dashboard
+  commands are capped at 100/s across all devices (TAKEOVER always passes). A second
+  Ctrl+C quits immediately. Tunable via `TUNE.safety.*`.
 
 ---
 

@@ -14,7 +14,7 @@ import { ensureCert } from "../src/host/tls.ts";
 import { createServer } from "../src/host/server.ts";
 import { hostAllowed, originAllowed } from "../src/host/server/guards.ts";
 import { jsonForHtml, jsonText, strictLoads } from "../src/host/server/json.ts";
-import { LoginLimiter } from "../src/host/server/limiter.ts";
+import { CommandBudget, LoginLimiter } from "../src/host/server/limiter.ts";
 import type { DashboardServer } from "../src/host/server.ts";
 import { appVersion } from "../src/host/version.ts";
 
@@ -30,12 +30,13 @@ const request = (
   port: number,
   method: string,
   path: string,
-  opts: { body?: string | Buffer; headers?: Record<string, string> } = {},
+  opts: { body?: string | Buffer; headers?: Record<string, string>; localAddress?: string } = {},
 ): Promise<Reply> =>
   new Promise((resolve, reject) => {
     const headers: Record<string, string> = { ...(opts.headers ?? {}) };
     if (opts.body !== undefined) headers["Content-Length"] = String(Buffer.byteLength(opts.body));
-    const req = http.request({ host: "127.0.0.1", port, method, path, headers, agent: false, timeout: 5000 }, (res) => {
+    const local = opts.localAddress !== undefined ? { localAddress: opts.localAddress } : {};
+    const req = http.request({ host: "127.0.0.1", port, method, path, headers, agent: false, timeout: 5000, ...local }, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));
       res.on("end", () =>
@@ -64,7 +65,15 @@ class TestEngine extends Engine {
 }
 
 const rig = async (
-  opts: { pin?: string | null; caPem?: string | null; limiter?: LoginLimiter; tls?: { key: string; cert: string } } = {},
+  opts: {
+    pin?: string | null;
+    caPem?: string | null;
+    limiter?: LoginLimiter;
+    tls?: { key: string; cert: string };
+    commandBudget?: CommandBudget;
+    globalBudget?: CommandBudget;
+    limitLoopback?: boolean;
+  } = {},
 ): Promise<Rig> => {
   const engine = new TestEngine({ clock: new ManualClock(100, 1_700_000_000), sim: true });
   const srv = createServer({
@@ -74,6 +83,9 @@ const rig = async (
     caPem: opts.caPem ?? null,
     ...(opts.limiter !== undefined ? { limiter: opts.limiter } : {}),
     ...(opts.tls !== undefined ? { tls: opts.tls } : {}),
+    ...(opts.commandBudget !== undefined ? { commandBudget: opts.commandBudget } : {}),
+    ...(opts.globalBudget !== undefined ? { globalBudget: opts.globalBudget } : {}),
+    ...(opts.limitLoopback !== undefined ? { limitLoopback: opts.limitLoopback } : {}),
   });
   const { port } = await srv.start(0, "127.0.0.1");
   return {
@@ -1256,4 +1268,87 @@ test("the shipped dashboard reloads on an expired session, reports bad frames an
   assert.match(norm, /console\.warn\("dashboard: dropped an unreadable telemetry frame"/);
   assert.match(norm, /catch \(e\) \{ badFrame\(e\)/);
   assert.ok(!/esc\(String\(cap\.name\)/.test(js));
+});
+
+const fader = (r: Rig, db: number, localAddress?: string): Promise<number> =>
+  request(r.port, "POST", "/api/command", {
+    body: JSON.stringify({ type: "fader", ch: 2, db }),
+    headers: { "Content-Type": "application/json" },
+    ...(localAddress !== undefined ? { localAddress } : {}),
+  }).then((reply) => reply.status);
+
+test("loopback commands past the global burst are refused with 429 and counted", async () => {
+  const now = 0;
+  const r = await rig({ globalBudget: new CommandBudget(100, 4, () => now) });
+  try {
+    const codes: number[] = [];
+    for (let i = 0; i < 6; i++) codes.push(await fader(r, -1 - i));
+    assert.deepEqual(codes, [200, 200, 200, 200, 429, 429]);
+    assert.equal(r.engine.assistant.faderDb.get(2), -4);
+    assert.equal(r.srv.globalBudget.dropped, 2);
+    assert.equal(r.srv.commandBudget.dropped, 0);
+  } finally {
+    await r.close();
+  }
+});
+
+const hasSecondLoopback = process.platform !== "darwin";
+
+if (hasSecondLoopback) test("the global command budget is shared by two client addresses (127.0.0.2 exists on Windows and Linux, not on macOS)", async () => {
+  const now = 0;
+  const r = await rig({ limitLoopback: true, globalBudget: new CommandBudget(100, 3, () => now) });
+  try {
+    assert.equal(await fader(r, -1, "127.0.0.1"), 200);
+    assert.equal(await fader(r, -2, "127.0.0.1"), 200);
+    assert.equal(await fader(r, -3, "127.0.0.2"), 200);
+    assert.equal(await fader(r, -4, "127.0.0.2"), 429);
+    assert.equal(await fader(r, -5, "127.0.0.1"), 429);
+    assert.equal(r.srv.globalBudget.dropped, 2);
+    assert.equal(r.srv.commandBudget.dropped, 0);
+  } finally {
+    await r.close();
+  }
+});
+
+test("takeover is accepted over HTTP and the WebSocket when the global budget is spent", async () => {
+  const now = 0;
+  const r = await rig({ globalBudget: new CommandBudget(100, 1, () => now) });
+  try {
+    assert.equal(await fader(r, -1), 200);
+    assert.equal(await fader(r, -2), 429);
+    assert.equal((await post(r, "/api/command", { type: "panic", on: true })).status, 200);
+    assert.equal(r.engine.status, "takeover");
+    assert.equal((await post(r, "/api/panic", { on: false })).status, 200);
+    assert.equal(r.engine.status, "live");
+    const { client, head } = await WsClient.connect(r.port);
+    try {
+      assert.ok(head.startsWith("HTTP/1.1 101"), head);
+      client.sendText(JSON.stringify({ type: "fader", ch: 2, db: -9 }));
+      client.sendText(JSON.stringify({ type: "panic", on: true }));
+      const deadline = Date.now() + 2000;
+      while (r.engine.status !== "takeover" && Date.now() < deadline) await sleep(20);
+      assert.equal(r.engine.status, "takeover");
+      assert.equal(r.engine.assistant.faderDb.get(2), -1);
+      assert.equal(r.srv.globalBudget.dropped, 2);
+    } finally {
+      client.socket.destroy();
+    }
+  } finally {
+    await r.close();
+  }
+});
+
+test("commands are accepted again once the global budget refills", async () => {
+  let now = 0;
+  const r = await rig({ globalBudget: new CommandBudget(100, 2, () => now) });
+  try {
+    assert.deepEqual([await fader(r, -1), await fader(r, -2), await fader(r, -3)], [200, 200, 429]);
+    now = 0.01;
+    assert.deepEqual([await fader(r, -4), await fader(r, -5)], [200, 429]);
+    now = 1;
+    assert.deepEqual([await fader(r, -6), await fader(r, -7), await fader(r, -8)], [200, 200, 429]);
+    assert.equal(r.engine.assistant.faderDb.get(2), -7);
+  } finally {
+    await r.close();
+  }
 });

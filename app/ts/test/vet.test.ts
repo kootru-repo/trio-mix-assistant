@@ -110,7 +110,7 @@ test("every console method, engine command and job has a row", async () => {
     r.close();
   }
   const covered = new Set(rows.filter((x) => x.status === "pass").flatMap((x) => x.covers));
-  const lifecycle = new Set(["constructor", "close", "cancelRamps", "flushRamps", "record", "send", "bumpRamp", "writeFader", "runRamp", "eqBand"]);
+  const lifecycle = new Set(["constructor", "close", "cancelRamps", "flushRamps", "record", "send", "bumpRamp", "writeFader", "runRamp", "eqBand", "withLane", "pump", "storming", "clearRepeats", "cancelRamp", "lastWritten", "live", "abortRamp"]);
   const methods = Object.getOwnPropertyNames(ConsoleBase.prototype).filter((m) => !lifecycle.has(m));
   assert.ok(methods.length >= 15, methods.join(","));
   for (const m of methods) assert.ok(covered.has(`console:${m}`), `no passing row covers the console method ${m}`);

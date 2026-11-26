@@ -13,7 +13,7 @@ import { hostAllowed, isLoopbackHost, originAllowed, safeEqual } from "./server/
 import { Hub } from "./server/hub.ts";
 import type { Sink } from "./server/hub.ts";
 import { BadMessage, decodeUtf8, jsonForHtml, jsonText, strOf, strictLoads } from "./server/json.ts";
-import { AddressCounter, CommandBudget, LoginLimiter, limiterKey } from "./server/limiter.ts";
+import { AddressCounter, CommandBudget, GLOBAL_COMMAND_KEY, LoginLimiter, globalCommandBudget, limiterKey } from "./server/limiter.ts";
 import {
   CLOSE_INTERNAL,
   WsAssembler,
@@ -66,6 +66,7 @@ export interface ServerOptions {
   maxStreamsPerAddress?: number;
   limitLoopback?: boolean;
   commandBudget?: CommandBudget;
+  globalBudget?: CommandBudget;
   onLogin?: ((address: string) => void) | null;
 }
 
@@ -74,6 +75,7 @@ export interface DashboardServer {
   stop(): Promise<void>;
   readonly limiter: LoginLimiter;
   readonly commandBudget: CommandBudget;
+  readonly globalBudget: CommandBudget;
   readonly streamsInUse: number;
 }
 
@@ -189,6 +191,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
   const caPem = opts.caPem ?? null;
   const limiter = opts.limiter ?? new LoginLimiter();
   const commandBudget = opts.commandBudget ?? new CommandBudget();
+  const globalBudget = opts.globalBudget ?? globalCommandBudget();
   const limitLoopback = opts.limitLoopback ?? false;
   const connCounts = new AddressCounter(opts.maxPerAddress ?? MAX_PER_ADDRESS);
   const streamCounts = new AddressCounter(opts.maxStreamsPerAddress ?? MAX_STREAMS_PER_ADDRESS);
@@ -201,7 +204,8 @@ export function createServer(opts: ServerOptions): DashboardServer {
 
   const commandAllowed = (socket: Socket): boolean => {
     const key = limitKey(socket);
-    return key === null || commandBudget.allow(key);
+    if (key !== null && !commandBudget.allow(key)) return false;
+    return globalBudget.allow(GLOBAL_COMMAND_KEY);
   };
   let streams = 0;
   let lastLog = 0;
@@ -574,6 +578,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
   return {
     limiter,
     commandBudget,
+    globalBudget,
     get streamsInUse(): number {
       return streams;
     },

@@ -193,8 +193,9 @@ export class EngineControls extends EngineHold {
     const now = this.clock.monotonic();
     this.lastRxT = now;
     if (this.syncing) return;
-    if (now - (this.assistant.lastMoveT.get(ch) ?? -1e9) < C.manual.echoS) return;
+    if (this.outside.classify(ch, db, now) === "echo") return;
     if (Math.abs(db - (this.assistant.faderDb.get(ch) ?? 0)) < C.manual.minDb) return;
+    this.outsideMove(ch, now);
     this.assistant.faderDb.set(ch, db);
     this.assistant.noteManual(ch, now);
     if (now - (this.lastReconcileLog.get(ch) ?? -1e9) > C.manual.logIntervalS) {
@@ -227,6 +228,7 @@ export class EngineControls extends EngineHold {
       this.status = "live";
       this.takeoverEpoch += 1;
       this.assistant.emit("panic", "takeover released — back to live");
+      this.clearOperatorHolds();
     }
     this.rebuildTelemetry();
   }

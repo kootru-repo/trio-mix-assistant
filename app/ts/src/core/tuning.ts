@@ -104,6 +104,13 @@ export const TUNABLE: readonly Tunable[] = [
   { path: "link.syncRetryS", min: 0.1, max: 5 },
   { path: "link.syncTries", min: 1, max: 10, int: true },
   { path: "link.resyncS", min: 1, max: 60 },
+  { path: "safety.manualPerS", min: 20, max: 500, int: true },
+  { path: "safety.autoPerS", min: 20, max: 500, int: true },
+  { path: "safety.totalPerS", min: 50, max: 1000, int: true },
+  { path: "safety.echoTolDb", min: 0.05, max: 2 },
+  { path: "safety.lockMoves", min: 2, max: 20, int: true },
+  { path: "safety.lockWindowS", min: 5, max: 600 },
+  { path: "safety.commandPerS", min: 20, max: 1000, int: true },
 ];
 
 function tunable(path: string): Tunable {

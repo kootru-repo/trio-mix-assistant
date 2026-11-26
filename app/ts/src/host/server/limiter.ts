@@ -1,4 +1,5 @@
 import { isIPv6 } from "node:net";
+import { C } from "../../core/config.ts";
 import { ipBytes } from "../tls/x509.ts";
 
 export type LimiterClock = () => number;
@@ -172,8 +173,8 @@ export class CommandBudget {
       b = { tokens: this.burst, t: now };
       this.buckets.set(key, b);
     }
-    b.tokens = Math.min(this.burst, b.tokens + (now - b.t) * this.rate);
-    b.t = now;
+    b.tokens = Math.min(this.burst, b.tokens + Math.max(0, now - b.t) * this.rate);
+    b.t = Math.max(b.t, now);
     if (b.tokens < 1) {
       this.dropped += 1;
       return false;
@@ -182,3 +183,8 @@ export class CommandBudget {
     return true;
   }
 }
+
+export const GLOBAL_COMMAND_KEY = "*";
+
+export const globalCommandBudget = (clock: LimiterClock = () => performance.now() / 1000): CommandBudget =>
+  new CommandBudget(C.safety.commandPerS, C.safety.commandBurst, clock);

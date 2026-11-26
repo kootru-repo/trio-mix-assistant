@@ -161,6 +161,11 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
   −10 dB and its preamp at 35 dB; the log should say the desk was read and the first ride or
   trim must start from those values. Pull the network cable for a few seconds: the jobs go
   on hold, and after you plug it back they re-arm only after the desk has been read again.
+- **Check hand moves and the speed limit on the real desk:** with the vocal ride on, grab the
+  lead fader while the app is moving it: the app must stop on that channel at once. Move it
+  three times within a minute: the log should say the channel is left alone until TAKEOVER is
+  pressed and released. Watch the console for dropped changes during a busy song; the app
+  limits itself to 250 changes a second, but the desk's real limit has not been measured yet.
 
 The app detects and surfaces the rest (denied mic permission, a mid-show
 unplug + auto-recovery, xruns, a busy/late device that recovers without a relaunch,

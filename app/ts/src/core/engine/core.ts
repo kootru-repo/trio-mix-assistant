@@ -5,6 +5,7 @@ import type { AnalysedBlock } from "../blockanalysis.ts";
 import { LevelWindow, audioFacts, buildReport } from "../diagnostics.ts";
 import type { AudioFacts, ConsoleFacts } from "../diagnostics.ts";
 import type { VetRequest } from "../ports.ts";
+import { TickScheduler, WallWatch } from "../scheduler.ts";
 import { asBool, intOf, numOf } from "./base.ts";
 import { EngineCalibration } from "./calibration.ts";
 
@@ -120,14 +121,18 @@ export class Engine extends EngineCalibration {
   }
 
   private async run(gen: number): Promise<void> {
-    let nextT = this.clock.monotonic();
+    const sched = new TickScheduler({ tick: this.tick, maxLagS: C.safety.maxLagS });
+    const wall = new WallWatch({ jumpS: C.safety.wallJumpS });
+    sched.start(this.clock.monotonic());
     let lastNow = this.clock.monotonic();
     while (!this.stopped && gen === this.loopGen) {
       const now = this.clock.monotonic();
+      const gap = now - lastNow;
+      const jump = wall.observe(now, this.clock.time());
+      if (gap > this.tick + C.safety.maxLagS || jump !== null) this.onResume(now, gap > this.tick + C.safety.maxLagS ? gap : (jump ?? 0));
       this.step(now, lastNow);
       lastNow = now;
-      nextT += this.tick;
-      await this.clock.sleep(Math.max(0, nextT - this.clock.monotonic()));
+      await this.clock.sleep(sched.plan(this.clock.monotonic()).sleepS);
     }
   }
 
@@ -139,6 +144,7 @@ export class Engine extends EngineCalibration {
         const wantPhases = Boolean(this.assistant.enabled["phase"]);
         this.consume(this.analyser.analyse(frame, currentAnalysisConfig(), (exc) => this.noteError(exc), wantPhases), now);
       }
+      this.tickSafety(now);
       this.tickHold(now);
       this.notePerf(now, lastNow);
       this.rebuildTelemetry();
@@ -154,7 +160,7 @@ export class Engine extends EngineCalibration {
       if (!C.CHANNELS.has(ch)) continue;
       try {
         this.feat.set(ch, feat);
-        if (!this.held) this.assistant.onFeatures(ch, feat, now);
+        if (!this.held && !this.channelLocked(ch)) this.assistant.onFeatures(ch, feat, now);
       } catch (exc) {
         this.noteError(exc);
       }

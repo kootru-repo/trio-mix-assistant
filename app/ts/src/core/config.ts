@@ -145,6 +145,26 @@ export type LinkConfig = {
   resyncS: number;
 };
 
+export type SafetyConfig = {
+  manualPerS: number;
+  manualBurst: number;
+  autoPerS: number;
+  autoBurst: number;
+  totalPerS: number;
+  repeatS: number;
+  stormS: number;
+  echoTolDb: number;
+  echoWindowS: number;
+  lockMoves: number;
+  lockWindowS: number;
+  maxLagS: number;
+  wallJumpS: number;
+  rampLateS: number;
+  rampOverrunS: number;
+  commandPerS: number;
+  commandBurst: number;
+};
+
 export type Tuning = {
   ride: Readonly<RideConfig>;
   limits: Readonly<LimitsConfig>;
@@ -160,6 +180,7 @@ export type Tuning = {
   show: Readonly<ShowConfig>;
   engine: Readonly<EngineConfig>;
   link: Readonly<LinkConfig>;
+  safety: Readonly<SafetyConfig>;
 };
 
 export interface Config extends Tuning {
@@ -315,6 +336,25 @@ export function defaultTuning(): Tuning {
       syncRetryS: 0.5,
       syncTries: 3,
       resyncS: 5.0,
+    }),
+    safety: Object.freeze({
+      manualPerS: 100,
+      manualBurst: 50,
+      autoPerS: 150,
+      autoBurst: 75,
+      totalPerS: 250,
+      repeatS: 1.0,
+      stormS: 2.0,
+      echoTolDb: 0.3,
+      echoWindowS: 2.0,
+      lockMoves: 3,
+      lockWindowS: 60.0,
+      maxLagS: 1.0,
+      wallJumpS: 2.0,
+      rampLateS: 0.5,
+      rampOverrunS: 0.25,
+      commandPerS: 100,
+      commandBurst: 200,
     }),
   };
 }

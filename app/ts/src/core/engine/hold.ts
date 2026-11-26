@@ -1,16 +1,22 @@
 import { C } from "../config.ts";
 import { ConsoleSync } from "../consolesync.ts";
 import { LinkWatch } from "../linkwatch.ts";
+import { OutsideEdits } from "../outsideedits.ts";
 import type { OscArg } from "../oscwire.ts";
 import { EngineBase } from "./base.ts";
-import type { Alert } from "./base.ts";
+import type { Alert, EngineOptions } from "./base.ts";
 
-export type HoldReason = "unsynced" | "link" | "no-feedback";
+export type HoldReason = "unsynced" | "link" | "no-feedback" | "resume" | "write-storm" | "internal-error";
+
+const OPERATOR_REARM: readonly HoldReason[] = ["write-storm", "internal-error"];
 
 const HOLD_TEXT: Record<HoldReason, string> = {
   unsynced: "reading the desk's faders, preamp gains and polarity before the automatic jobs start",
   link: "the console link went quiet; the automatic jobs are paused until it is back and the desk has been read again",
   "no-feedback": "the console's reply port could not be opened, so the app cannot read the desk; the automatic jobs stay off (manual controls still work)",
+  resume: "the computer was asleep or the app stalled; the desk is read again before the automatic jobs continue",
+  "write-storm": "the app tried to send more changes to the console than it safely can; press TAKEOVER and release it to re-arm",
+  "internal-error": "the app hit an unexpected error; manual controls still work; press TAKEOVER and release it to re-arm",
 };
 
 export class EngineHold extends EngineBase {
@@ -22,6 +28,39 @@ export class EngineHold extends EngineBase {
   protected adopted = false;
   protected syncFailures = 0;
   private reflatten = new Set<number>();
+  protected outside = new OutsideEdits({
+    echoTolDb: C.safety.echoTolDb,
+    echoWindowS: C.safety.echoWindowS,
+    lockMoves: C.safety.lockMoves,
+    lockWindowS: C.safety.lockWindowS,
+  });
+
+  constructor(opts: EngineOptions) {
+    super(opts);
+    this.con.onFaderWrite = (ch, db) => this.outside.noteWrite(ch, db, this.clock.monotonic());
+    this.con.onRampAbort = (ch, lastDb, startDb) => {
+      if (this.assistant.faderDb.has(ch)) this.assistant.faderDb.set(ch, lastDb ?? startDb);
+    };
+  }
+
+  channelLocked(ch: number): boolean {
+    return this.outside.locked(ch);
+  }
+
+  protected tickSafety(now: number): void {
+    this.con.pump(now);
+    if (this.con.storming(now) && !this.holdReasons.has("write-storm")) {
+      this.assistant.emit("system", "the console could not take changes as fast as the app sent them for 2 s");
+      this.enterHold("write-storm");
+    }
+  }
+
+  protected outsideMove(ch: number, now: number): void {
+    this.con.cancelRamp(ch);
+    if (this.outside.noteOutside(ch, now)) {
+      this.assistant.emit("system", `ch${ch} moved by hand ${C.safety.lockMoves} times in ${C.safety.lockWindowS} s: the automatic jobs leave it alone until TAKEOVER is pressed and released`, ch);
+    }
+  }
 
   get held(): boolean {
     return this.holdReasons !== undefined && this.holdReasons.size > 0;
@@ -29,6 +68,10 @@ export class EngineHold extends EngineBase {
 
   protected override holdSnapshot(): { held: boolean; reasons: string[] } {
     return { held: this.held, reasons: this.held ? [...this.holdReasons] : [] };
+  }
+
+  protected override lockedSnapshot(): number[] {
+    return this.outside === undefined ? [] : this.outside.lockedChannels();
   }
 
   protected enterHold(reason: HoldReason): void {
@@ -110,7 +153,10 @@ export class EngineHold extends EngineBase {
       }
     }
     if (this.link.state === "up") {
-      if (this.adopted) this.exitHold("unsynced");
+      if (this.adopted) {
+        this.exitHold("unsynced");
+        this.exitHold("resume");
+      }
       if (!this.holdReasons.has("unsynced")) this.exitHold("link");
     }
   }
@@ -128,14 +174,43 @@ export class EngineHold extends EngineBase {
     }
     this.syncedOnce = true;
     this.adopted = true;
+    this.con.clearRepeats();
     this.syncFailures = 0;
     this.assistant.emit("system", "read the desk: faders, preamp gains and polarity adopted");
   }
 
+  protected onResume(now: number, gapS: number): void {
+    this.assistant.emit("system", `the engine was paused for about ${Math.round(Math.abs(gapS))} s (computer asleep or stalled)`);
+    if (this.link === null || this.sync === null) return;
+    this.enterHold("resume");
+    this.link.reset();
+    this.con.subscribeMeters();
+    this.beginSync(now);
+    this.rebuildTelemetry();
+  }
+
+  fault(detail: string): void {
+    this.assistant.emit("system", `unexpected error: ${detail}`);
+    this.enterHold("internal-error");
+    this.rebuildTelemetry();
+  }
+
+  protected clearOperatorHolds(): void {
+    for (const r of OPERATOR_REARM) this.exitHold(r);
+    const locked = this.outside.lockedChannels();
+    for (const ch of locked) this.outside.unlock(ch);
+    if (locked.length) this.assistant.emit("system", `automatic jobs may move ch${locked.join(", ch")} again`);
+  }
+
   protected override alertsAndMode(now: number, connected: boolean): [Alert[], string] {
-    const [alerts, mode] = super.alertsAndMode(now, connected);
+    const [base, mode] = super.alertsAndMode(now, connected);
+    const locked = this.outside === undefined ? [] : this.outside.lockedChannels();
+    const alerts: Alert[] = locked.length
+      ? [{ level: "warn", msg: `automatic jobs leave ch${locked.join(", ch")} alone after repeated hand moves; press TAKEOVER and release it to hand ${locked.length === 1 ? "it" : "them"} back` }, ...base]
+      : base;
     if (!this.held) return [alerts, mode];
-    const hold: Alert[] = [...this.holdReasons].map((r) => ({ level: r === "no-feedback" ? "critical" : "warn", msg: `jobs on hold — ${HOLD_TEXT[r]}` }));
+    const critical = (r: HoldReason): boolean => r === "no-feedback" || OPERATOR_REARM.includes(r);
+    const hold: Alert[] = [...this.holdReasons].map((r) => ({ level: critical(r) ? "critical" : "warn", msg: `jobs on hold — ${HOLD_TEXT[r]}` }));
     return [[...hold, ...alerts], mode === "auto" || mode === "coach" ? "alert" : mode];
   }
 }

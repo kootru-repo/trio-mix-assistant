@@ -6,7 +6,7 @@ import type { CaptureSource } from "../capture.ts";
 import { SimCapture } from "../capture.ts";
 import type { Clock } from "../clock.ts";
 import { C } from "../config.ts";
-import { ConsoleBase, OscConsole, SimConsole } from "../console.ts";
+import { ConsoleBase, OscConsole, SimConsole, autoLane } from "../console.ts";
 import { BlockAnalyser } from "../blockanalysis.ts";
 import type { DiagHost, DiagReport, LevelWindow } from "../diagnostics.ts";
 import type { ChannelFeatures } from "../dsp.ts";
@@ -145,7 +145,7 @@ export class EngineBase {
     if (opts.source) this.source = opts.source;
     else if (this.con instanceof SimConsole) this.source = new SimCapture(this.con);
     else this.source = null;
-    this.assistant = new MixAssistant(this.con, this.clock, {
+    this.assistant = new MixAssistant(autoLane(this.con), this.clock, {
       onEvent: (ev) => this.onEventHandler(ev),
       onLatency: (kind, seconds) => this.noteLatencyEv(kind, seconds),
     });
@@ -321,6 +321,10 @@ export class EngineBase {
     return { held: false, reasons: [] };
   }
 
+  protected lockedSnapshot(): number[] {
+    return [];
+  }
+
   protected alertsAndMode(now: number, connected: boolean): [Alert[], string] {
     let alerts: Alert[] = [];
     const cap = this.source ? this.source.status() : { kind: "none" };
@@ -456,6 +460,7 @@ export class EngineBase {
       status: this.status,
       op_mode: opMode,
       hold: this.holdSnapshot(),
+      locked_channels: this.lockedSnapshot(),
       alerts,
       scenes: this.sceneList(),
       mode: this.sim ? "simulation" : "live-hardware",

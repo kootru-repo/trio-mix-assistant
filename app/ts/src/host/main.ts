@@ -607,6 +607,8 @@ async function runChecked(args: Args, io: Io): Promise<number> {
       );
     }
     await engine.start();
+    const faulted = engine;
+    setFaultSink((detail) => faulted.fault(detail));
     const scheme = plan.tls ? "https" : "http";
     const usesEmulatedFeed = args.emulate && auto === null && args.audioDevice === null;
     const mapped = args.auto || chanMap === null ? null : [...chanMap.keys()];
@@ -645,6 +647,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     io.out("\nShutting down...");
     return 0;
   } finally {
+    setFaultSink(null);
     await attempt(async () => {
       if (server !== null) await server.stop();
     });
@@ -658,9 +661,20 @@ async function runChecked(args: Args, io: Io): Promise<number> {
   }
 }
 
+let faultSink: ((detail: string) => void) | null = null;
+
+export function setFaultSink(sink: ((detail: string) => void) | null): void {
+  faultSink = sink;
+}
+
 export function installProcessHandlers(): void {
   const report = (label: string) => (err: unknown): void => {
     console.error(`  [!] ${label}: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+    try {
+      if (faultSink !== null) faultSink(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
+    } catch {
+      return;
+    }
   };
   process.on("uncaughtException", report("unexpected error (continuing)"));
   process.on("unhandledRejection", report("unexpected rejection (continuing)"));
@@ -669,7 +683,13 @@ export function installProcessHandlers(): void {
 export function defaultIo(): Io {
   installProcessHandlers();
   const stopper = new Promise<void>((resolve) => {
-    process.once("SIGINT", () => resolve());
+    process.once("SIGINT", () => {
+      process.once("SIGINT", () => {
+        console.error("  [!] second Ctrl+C: stopping now without waiting");
+        process.exit(130);
+      });
+      resolve();
+    });
     process.once("SIGTERM", () => resolve());
   });
   return {

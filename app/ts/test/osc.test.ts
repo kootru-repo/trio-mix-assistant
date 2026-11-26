@@ -19,7 +19,7 @@ import {
 import type { OscArg } from "../src/core/oscwire.ts";
 import { AbleSetReceiver } from "../src/core/showclock.ts";
 import type { UdpEndpoint } from "../src/core/transport.ts";
-import { close, fixture } from "./helpers.ts";
+import { close, fixture, recording, saveFixture } from "./helpers.ts";
 
 const fx = fixture("osc");
 const hex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
@@ -74,6 +74,10 @@ test("scaling helpers match the stored reference", () => {
 test("every console call puts the recorded bytes on the wire", () => {
   const c = new Capture();
   script(c);
+  if (recording) {
+    fx.wire = c.sent.map((m) => ({ addr: m.addr, args: m.args.map((a) => ({ t: a.t, v: a.v })), hex: hex(encodeMessage(m.addr, m.args)) }));
+    saveFixture("osc", fx);
+  }
   assert.equal(c.sent.length, fx.wire.length);
   c.sent.forEach((m, i) => {
     const ref = fx.wire[i];
@@ -314,8 +318,8 @@ test("the console never sends a non-finite number and leaves no trace when it re
 test("switching one EQ band off zeroes its gain and leaves the channel EQ switch alone", () => {
   const c = new Capture();
   c.setEqBand(4, 2, 1000, 6, 2, false);
-  assert.deepEqual(c.sent.map((m) => m.addr), ["/ch/04/eq/2/type", "/ch/04/eq/2/f", "/ch/04/eq/2/g", "/ch/04/eq/2/q"]);
-  close(c.sent[2]!.args[0]!.v as number, 0.5, 0, 1e-12);
+  assert.deepEqual(c.sent.map((m) => m.addr), ["/ch/04/eq/2/g", "/ch/04/eq/2/type", "/ch/04/eq/2/f", "/ch/04/eq/2/q"]);
+  close(c.sent[0]!.args[0]!.v as number, 0.5, 0, 1e-12);
   const s = new SimConsole();
   s.setEqBand(4, 2, 1000, 6, 2, false);
   assert.deepEqual(s.eqBands.get(4)!.get(2), { hz: 1000, gainDb: 0, q: 2, on: false });
