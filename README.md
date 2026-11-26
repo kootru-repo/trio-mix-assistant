@@ -335,6 +335,7 @@ trio-mix-assistant/
 cd app/ts
 npm install
 npm run check      # type-check; src/core must stay free of platform APIs
+npm run lint       # Biome lint plus the project rules (no comments, no casts through unknown, no skipped tests)
 npm test           # run directly by Node
 ```
 

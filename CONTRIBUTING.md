@@ -28,7 +28,7 @@ issue yourself and put their name in *Whose feedback is this?*.
 ## Pull requests
 
 1. Work from `main` on a branch of your own.
-2. From `app/ts/`, run `npm install` once, then `npm run check` and `npm test`.
+2. From `app/ts/`, run `npm install` once, then `npm run check`, `npm run lint` and `npm test`. CI runs the same three, and `main` accepts a change only when they all pass.
 3. If you change `app/web/src`, rebuild in `app/web` (`npm ci` the first
    time, then `npm run build`) and
    commit the generated JavaScript with it.

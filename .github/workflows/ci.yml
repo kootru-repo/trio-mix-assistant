@@ -36,6 +36,24 @@ jobs:
           test -z "$(git ls-files --others --exclude-standard -- ../static)"
         shell: bash
 
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: app/ts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/ts/package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Lint and project rules
+        run: npm run lint
+
   typescript:
     name: typescript (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
@@ -84,7 +102,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [dashboard, typescript]
+    needs: [lint, dashboard, typescript]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

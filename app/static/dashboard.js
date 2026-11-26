@@ -565,7 +565,7 @@ $("#vetcopy").onclick = () => {
         try {
             done(document.execCommand("copy"));
         }
-        catch (e) {
+        catch {
             done(false);
         }
     }
@@ -582,7 +582,7 @@ $("#diagcopy").onclick = () => {
         try {
             ok = document.execCommand("copy");
         }
-        catch (e) { }
+        catch { }
         done(ok);
     }
 };
@@ -748,7 +748,7 @@ async function post(path, body) {
         if (r.ok)
             render(await r.json());
     }
-    catch (e) { }
+    catch { }
 }
 let ws = null, wsReady = false, es = null, retryT = null;
 function setConn(ok, txt) {
@@ -795,7 +795,7 @@ function action(obj) {
             ws.send(JSON.stringify(obj));
             return;
         }
-        catch (e) { }
+        catch { }
     }
     post("/api/command", obj);
 }
@@ -909,14 +909,14 @@ function closeWS() { if (ws) {
     try {
         ws.close();
     }
-    catch (e) { }
+    catch { }
     ws = null;
 } wsReady = false; }
 function closeSSE() { if (es) {
     try {
         es.close();
     }
-    catch (e) { }
+    catch { }
     es = null;
 } }
 function useSSE() {
@@ -936,7 +936,7 @@ function connectWS() {
     try {
         sock = ws = new WebSocket((location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/ws");
     }
-    catch (e) {
+    catch {
         useSSE();
         return;
     }
@@ -966,7 +966,7 @@ async function keepAwake() {
         wakeLock = await navigator.wakeLock.request("screen");
         wakeLock.addEventListener("release", () => { wakeLock = null; });
     }
-    catch (e) {
+    catch {
         wakeLock = null;
     }
 }

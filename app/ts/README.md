@@ -21,6 +21,7 @@ Capacitor shell, with a new host in place of `src/host`.
 ```
 npm install
 npm run check      # type-check core, then everything
+npm run lint       # Biome lint plus the project rules
 npm test           # all tests
 npm run build      # emit JavaScript to dist/js
 npm run start      # reads show.conf, like start.bat

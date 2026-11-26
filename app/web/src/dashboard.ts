@@ -430,14 +430,14 @@ $("#vetcopy").onclick = () => {
   box.select();
   const done = (ok: boolean): void => { btn.textContent = ok ? "Copied" : "Press Ctrl+C to copy"; setTimeout(() => { btn.textContent = "Copy report"; }, 2000); };
   if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(box.value).then(() => done(true), () => done(false)); }
-  else { try{ done(document.execCommand("copy")); }catch(e){ done(false); } }
+  else { try{ done(document.execCommand("copy")); }catch{ done(false); } }
 };
 $("#diagcopy").onclick = () => {
   const box = $<HTMLTextAreaElement>("#diagtext"), btn = $("#diagcopy");
   const done = (ok: boolean): void => { btn.textContent = ok ? "Copied" : "Select the text below and copy it"; setTimeout(() => { btn.textContent = "Copy report"; }, 2500); };
   box.focus(); box.select();
   if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(box.value).then(() => done(true), () => done(false));
-  else { let ok = false; try{ ok = document.execCommand("copy"); }catch(e){} done(ok); }
+  else { let ok = false; try{ ok = document.execCommand("copy"); }catch{} done(ok); }
 };
 function render(s: Snapshot | null | undefined): void {
   if(!s) return;
@@ -568,7 +568,7 @@ function renderCoach(coach: Snapshot["coach"] | undefined): void {
 }
 
 async function post(path: string, body: Command): Promise<void> {
-  try{ const r = await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})}); if(r.ok) render(await r.json()); }catch(e){}
+  try{ const r = await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})}); if(r.ok) render(await r.json()); }catch{}
 }
 let ws: WebSocket | null = null, wsReady = false, es: EventSource | null = null, retryT: ReturnType<typeof setTimeout> | null = null;
 function setConn(ok: boolean, txt: string): void {
@@ -593,7 +593,7 @@ function checkSession(): void {
   fetch("/state").then(r => { if(r.status === 401) location.reload(); }).catch(() => {}).finally(() => { sessionCheck = false; });
 }
 function action(obj: Command): void {
-  if(wsReady && ws){ try{ ws.send(JSON.stringify(obj)); return; }catch(e){} }
+  if(wsReady && ws){ try{ ws.send(JSON.stringify(obj)); return; }catch{} }
   post("/api/command", obj);
 }
 $("#takeover").onclick = () => action({type:"panic", on: curStatus !== "takeover"});
@@ -670,8 +670,8 @@ function buildMixer(chs: ChannelT[]): void {
   masterEl = makeStrip("master", "MAIN", true); root.appendChild(masterEl.el);
 }
 
-function closeWS(): void { if(ws){ ws.onopen=ws.onmessage=ws.onerror=ws.onclose=null; try{ws.close()}catch(e){} ws=null; } wsReady=false; }
-function closeSSE(): void { if(es){ try{es.close()}catch(e){} es=null; } }
+function closeWS(): void { if(ws){ ws.onopen=ws.onmessage=ws.onerror=ws.onclose=null; try{ws.close()}catch{} ws=null; } wsReady=false; }
+function closeSSE(): void { if(es){ try{es.close()}catch{} es=null; } }
 function useSSE(): void {
   closeWS();
   if(es) return;
@@ -685,7 +685,7 @@ function connectWS(): void {
   let opened = false;
   let sock: WebSocket;
   try{ sock = ws = new WebSocket((location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws"); }
-  catch(e){ useSSE(); return; }
+  catch{ useSSE(); return; }
   sock.onopen = () => { opened = true; wsReady = true; setConn(true, "connected"); };
   sock.onmessage = ev => onFrame(ev.data);
   sock.onerror = () => {};
@@ -702,7 +702,7 @@ async function keepAwake(): Promise<void> {
   try{
     wakeLock = await navigator.wakeLock.request("screen");
     wakeLock.addEventListener("release", () => { wakeLock = null; });
-  }catch(e){ wakeLock = null; }
+  }catch{ wakeLock = null; }
 }
 document.addEventListener("visibilitychange", () => {
   if(document.visibilityState === "visible") keepAwake();
