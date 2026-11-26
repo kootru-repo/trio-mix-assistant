@@ -38,7 +38,7 @@ function terminalFirst() {
   log(`  exit ${diag.status}`);
 }
 
-const W3C_ELEMENT = "element-6066-11e4-a07c-4ec5ad8c2ef0";
+const W3C_ELEMENT = "element-6066-11e4-a52e-4f735466cecf";
 let driverBase = "";
 let session = "";
 async function wd(method, path, body) {
