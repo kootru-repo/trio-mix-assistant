@@ -265,9 +265,9 @@
       <h3>Bounded · smoothed · logged · reversible by hand</h3>
       <span style="color:var(--mut);font-size:13.5px">The policies only <i>propose</i>; this layer <i>disposes</i>. No fader ride can exceed a hard fader range, oversize a single step, or move audibly fast (the clip trim is a fixed 2 dB preamp step), and every fader ride, notch, preamp trim and polarity flip is timestamped and logged.</span>
       <div class="chips">
-        <span class="chip">FADER_MIN_DB / FADER_MAX_DB = −12 … +6 dB</span>
-        <span class="chip">MAX_STEP_DB = 1 dB per fader ride step</span>
-        <span class="chip">RAMP_MS = 350 ms (no jumps)</span>
+        <span class="chip">limits.faderMinDb / faderMaxDb = −12 … +6 dB</span>
+        <span class="chip">ride.maxStepDb = 1 dB per fader ride step</span>
+        <span class="chip">ride.rampMs = 350 ms (no jumps)</span>
         <span class="chip">notch ≤ −9 dB, narrow Q</span>
         <span class="chip">rides, notches, trims, flips → decision log</span>
         <span class="chip">a human fader move pauses rides</span>
