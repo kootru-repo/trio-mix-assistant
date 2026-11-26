@@ -246,22 +246,64 @@ function renderSettings(s: Snapshot): void {
   diagProgress(s.diagnostics);
 }
 let vetStarted = 0;
+let chain: { stage: "cal" | "checks" | "vet"; t0: number; saw: boolean } | null = null, chainReq: Command | null = null, chainLen = 0, chainHasCal = false;
+const CHAIN_VET_BASE = 30, CHAIN_CAL_SHARE = 8;
+function chainStart(stage: "cal" | "checks" | "vet"): void {
+  chain = { stage, t0: Date.now(), saw: false };
+  if(stage === "cal") action({type:"calibrate"});
+  else if(stage === "checks") action({type:"diagnose", identify: $<HTMLInputElement>("#vetkeep").checked});
+  else if(chainReq) action(chainReq);
+}
+function chainStep(s: Snapshot): void {
+  if(chain === null) return;
+  const el = Date.now() - chain.t0;
+  if(s.status === "takeover"){ chain = null; chainLen = 0; return; }
+  if(chain.stage === "cal"){
+    const run = s.status === "calibrating";
+    if(run) chain.saw = true;
+    if((chain.saw && !run) || (!chain.saw && el > 4000) || el > 40000) chainStart("checks");
+  } else if(chain.stage === "checks"){
+    const run = !!s.diagnostics && s.diagnostics.status === "running";
+    if(run) chain.saw = true;
+    if((chain.saw && !run) || (!chain.saw && el > 4000) || el > 30000) chainStart("vet");
+  } else if(s.vet && s.vet.status === "running") chain = null;
+  else if(el > 5000){
+    chain = null; chainLen = 0;
+    showDone("bad", "The full test did not start", (s.vet && s.vet.blocked) || "The app did not begin the test. Reload the page (Cmd+Shift+R) and try again. If it still does nothing, check the app is still running in Terminal.", "", null);
+  }
+}
 function lockForVet(v: VetT | undefined): void {
-  const running = !!v && v.status==="running";
+  const vetRun = !!v && v.status==="running";
+  const running = vetRun || chain !== null;
   document.body.classList.toggle("vetrun", running);
   $("#vetshield").hidden = !running;
   $("#coach").toggleAttribute("inert", running);
-  if(running && v){
+  if(running){
     if(vetStarted === 0) vetStarted = Date.now();
-    const total = Math.max(v.expected || 1, v.done + 1), pct = Math.min(99, Math.floor(100 * v.done / total));
+    const calBase = chainHasCal ? CHAIN_CAL_SHARE : 0;
+    let pct = 0, now = "Starting", steps = "", left = "", stage = "Full test running";
+    if(chain !== null){
+      const el = (Date.now() - chain.t0) / 1000;
+      if(chain.stage === "cal"){ pct = Math.min(calBase, Math.floor(el / 3 * calBase)); now = "Calibrating the built-in stage (no sound is played)"; stage = "Full test: step 1 of " + chainLen + ", calibration"; }
+      else if(chain.stage === "checks"){ pct = calBase + Math.min(CHAIN_VET_BASE - calBase, Math.floor(el / 9 * (CHAIN_VET_BASE - calBase))); now = "Checking the setup: listening to the input and asking the console"; stage = "Full test: step " + (chainLen - 1) + " of " + chainLen + ", checks"; }
+      else { pct = CHAIN_VET_BASE; now = "Starting the full test"; stage = "Full test: step " + chainLen + " of " + chainLen + ", every control"; }
+    } else if(v){
+      const total = Math.max(v.expected || 1, v.done + 1), base = chainLen > 0 ? CHAIN_VET_BASE : 0;
+      pct = Math.min(99, base + Math.floor((100 - base) * v.done / total));
+      now = v.title || "Starting";
+      steps = "Step " + Math.min(v.done + 1, total) + " of about " + total;
+      const secs = (Date.now() - vetStarted) / 1000;
+      left = v.done >= 3 ? "about " + Math.max(1, Math.round(secs / v.done * (total - v.done))) + " s left" : "";
+      if(chainLen > 0) stage = "Full test: step " + chainLen + " of " + chainLen + ", every control";
+    }
+    $("#vetstage").textContent = stage;
     $("#vetpct").textContent = pct + "%";
     $("#vetfill").style.width = pct + "%";
     $("#vetbar").setAttribute("aria-valuenow", String(pct));
-    $("#vetnow").textContent = v.title || "Starting";
-    $("#vetsteps").textContent = "Step " + Math.min(v.done + 1, total) + " of about " + total;
-    const secs = (Date.now() - vetStarted) / 1000;
-    $("#vetleft").textContent = v.done >= 3 ? "about " + Math.max(1, Math.round(secs / v.done * (total - v.done))) + " s left" : "";
-  } else vetStarted = 0;
+    $("#vetnow").textContent = now;
+    $("#vetsteps").textContent = steps;
+    $("#vetleft").textContent = left;
+  } else { vetStarted = 0; chainLen = 0; }
   for(const el of Array.from(document.body.children)){
     if(el instanceof HTMLElement && el.tagName !== "HEADER" && el.tagName !== "SCRIPT" && el.id !== "vetshield") el.toggleAttribute("inert", running);
   }
@@ -270,8 +312,8 @@ let vetText = "";
 function renderVet(v: VetT | undefined): void {
   const running = !!v && v.status==="running";
   const run = $<HTMLButtonElement>("#vetrun");
-  const why = !v ? "Waiting for the app." : running ? "" : (v.blocked || "");
-  run.disabled = running || why !== "";
+  const why = !v ? "Waiting for the app." : running || chain !== null ? "" : (v.blocked || "");
+  run.disabled = running || chain !== null || why !== "";
   const wy = $("#vetwhy");
   wy.hidden = why === "";
   wy.textContent = why ? "Run full test is greyed out: " + why : "";
@@ -317,7 +359,7 @@ function vetDoneNotice(v: VetT | undefined): void {
 }
 function diagDoneNotice(d: DiagnosticsT | undefined): void {
   const st = d ? d.status : "idle";
-  if(seenDiag !== null && seenDiag === "running" && st === "done" && d && d.report){
+  if(seenDiag !== null && seenDiag === "running" && st === "done" && d && d.report && chainLen === 0){
     const rep = d.report, bad = rep.result === "fail", warn = rep.result === "warn";
     const dl = (): void => { const n = downloadText("trio-checks", $<HTMLTextAreaElement>("#diagtext").value); showDone(bad ? "bad" : warn ? "warn" : "ok", "Checks finished", "Result: " + rep.summary, "Saved as " + n + "\n" + SAVED_HINT, dl); };
     showDone(bad ? "bad" : warn ? "warn" : "ok", bad ? "Checks found a problem" : warn ? "Checks finished with warnings" : "Checks passed", "Result: " + rep.summary, "The report is on screen under Checks. Download it to send it.", dl);
@@ -334,7 +376,7 @@ function diagProgress(d: DiagnosticsT | undefined): void {
   $("#diagfill").style.width = pct + "%";
   $("#diagbar").setAttribute("aria-valuenow", String(pct));
 }
-setInterval(() => { if(_lastState) diagProgress(_lastState.diagnostics); }, 250);
+setInterval(() => { if(_lastState){ diagProgress(_lastState.diagnostics); if(chain !== null){ chainStep(_lastState); lockForVet(_lastState.vet); } } }, 250);
 function downloadText(name: string, text: string): string {
   const d = new Date(), two = (n: number): string => String(n).padStart(2, "0");
   const stamp = `${d.getFullYear()}${two(d.getMonth()+1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
@@ -391,11 +433,11 @@ $("#vetrun").onclick = () => {
     const what = (channel !== null ? "channel "+channel+(gain ? " (including its preamp gain)" : "") : "") + (channel !== null && main ? " and " : "") + (main ? "the main bus and FX return" : "");
     if(!confirm("Turn the PA OFF first.\n\nThis changes values on "+what+", reads each back and puts it back. Continue?")) return;
   }
-  setTimeout(() => {
-    const now = _lastState ? _lastState.vet : undefined;
-    if(!now || now.status === "idle") showDone("bad", "The full test did not start", "The app did not begin the test. Reload the page (Cmd+Shift+R) and try again. If it still does nothing, the app in Terminal may have stopped or be an older version.", "", null);
-  }, 4000);
-  action({type:"vet", channel, gain, main, identify: $<HTMLInputElement>("#vetkeep").checked});
+  chainReq = {type:"vet", channel, gain, main, identify: $<HTMLInputElement>("#vetkeep").checked};
+  chainHasCal = !!_lastState && _lastState.mode === "simulation";
+  chainLen = chainHasCal ? 3 : 2;
+  chainStart(chainHasCal ? "cal" : "checks");
+  lockForVet(vs);
 };
 $("#vetdownload").onclick = () => { const n = downloadText("trio-full-test", $<HTMLTextAreaElement>("#vettext").value); showDone("ok", "Report downloaded", "", "Saved as " + n + "\n" + SAVED_HINT, null); };
 $("#diagdownload").onclick = () => { const n = downloadText("trio-checks", $<HTMLTextAreaElement>("#diagtext").value); showDone("ok", "Report downloaded", "", "Saved as " + n + "\n" + SAVED_HINT, null); };
@@ -418,6 +460,7 @@ function render(s: Snapshot | null | undefined): void {
   _lastState = s;
   if(!built){ buildChannels(s.channels); buildMixer(s.channels); built = true; }
 
+  chainStep(s);
   lockForVet(s.vet);
   curStatus = s.status || "live";
   const op = s.op_mode || "auto";

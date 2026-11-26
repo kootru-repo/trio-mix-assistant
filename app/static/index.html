@@ -522,7 +522,7 @@
 
 <div class="vetshield" id="vetshield" hidden>
   <div class="vetcard" role="status" aria-live="polite">
-    <div class="vethead"><span class="vettitle">Full test running</span><span class="vetpct mono" id="vetpct">0%</span></div>
+    <div class="vethead"><span class="vettitle" id="vetstage">Full test running</span><span class="vetpct mono" id="vetpct">0%</span></div>
     <div class="vetbar" id="vetbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Full test progress"><span class="vetfill" id="vetfill"></span></div>
     <div class="vetnow" id="vetnow">Starting</div>
     <div class="vetmeta mono"><span id="vetsteps">0 of 66 steps</span><span id="vetleft"></span></div>
@@ -664,7 +664,7 @@
       <textarea id="diagtext" readonly hidden aria-label="Check report, ready to copy"></textarea>
     </div>
     <div class="panel diagpanel"><h3>Full test</h3>
-      <p class="diagnote">Tries every control, job and dashboard address against a built-in test console and on this computer, and saves a log in the settings folder. With a real console connected it also asks that console for its identity and meters, changing nothing unless you tick the box below. It takes about half a minute and plays no sound. The automatic jobs pause and the other controls are ignored while it runs; only TAKEOVER still works.</p>
+      <p class="diagnote">Tries every control, job and dashboard address against a built-in test console and on this computer, and saves a log in the settings folder. With a real console connected it also asks that console for its identity and meters, changing nothing unless you tick the box below. It first runs the checks above (and, in simulation, calibration of the built-in stage), then the test itself: about 45 seconds in all, with no sound. The automatic jobs pause and the other controls are ignored while it runs; only TAKEOVER still works.</p>
       <div id="vetconsole" hidden>
         <label class="vetrow"><input type="checkbox" id="vetreal"> Also test control on the real console. Turn the PA <b>OFF</b> first: each value is changed, read back and put back.</label>
         <div class="vetrow" id="vetopts" hidden>
