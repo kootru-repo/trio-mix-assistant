@@ -56,7 +56,7 @@ Nothing to install. The app carries everything it needs and starts in **simulati
 
 ### Mac
 
-1. Download the build for your Mac: **[Apple Silicon (M1 or later)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-arm64.tar.gz)** or **[Intel](https://github.com/kootru-repo/trio-mix-assistant/releases/latest/download/TrioMixAssistant-macos-x64.tar.gz)**. Apple menu → **About This Mac** shows which you have.
+1. **Get the latest release.** Open the **[latest release page](https://github.com/kootru-repo/trio-mix-assistant/releases/latest)** and, under **Assets**, pick the file for your Mac: **[Apple Silicon (M1 or later)](https://github.com/kootru-repo/trio-mix-assistant/releases/latest)** is `TrioMixAssistant-macos-arm64.tar.gz`, **[Intel](https://github.com/kootru-repo/trio-mix-assistant/releases/latest)** is `TrioMixAssistant-macos-x64.tar.gz`. Not sure which Mac you have? Apple menu → **About This Mac** tells you.
 
    <img src="docs/screenshots/mac-about-this-mac.svg" width="640" alt="Illustration: About This Mac shows Chip on an Apple Silicon Mac and Processor on an Intel Mac">
 2. Open **Terminal** and run (use the `x64` file name on an Intel Mac):
@@ -74,6 +74,7 @@ Nothing to install. The app carries everything it needs and starts in **simulati
 4. **Test your microphone (optional, 10 seconds).** Run `./TrioMixAssistant --list-devices` and note your microphone's number, then run `./TrioMixAssistant --diagnose --audio-device <number>`. Click **Allow** if macOS asks to let Terminal use the microphone. It listens for eight seconds, plays no sound, and prints what passed. Nobody has confirmed listening on a Mac yet, so please paste the report (from the `=====` line down) into an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues), pass or fail.
 
    <img src="docs/screenshots/mac-microphone-prompt.svg" width="640" alt="Illustration: the macOS prompt asking to let Terminal use the microphone, with Allow highlighted">
+5. **Run the full test (optional, about 45 seconds, no Terminal needed).** With the app running, open **Settings → Run full test** in the dashboard. One click calibrates the built-in stage, runs the checks, then tries every control against a built-in test console. It plays no sound and touches no real console. A card shows the stage and a progress bar, and a popup tells you when it has finished. Click **Download report** in that popup: the file `trio-full-test-<date>-<time>.txt` is saved in your Downloads folder (Finder → Downloads). Please attach it to an [issue](https://github.com/kootru-repo/trio-mix-assistant/issues) or send it to whoever asked you to test, pass or fail. Device names, network addresses and computer and user names are hidden in the report by default.
 
 ### Windows
 
