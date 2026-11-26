@@ -12,6 +12,11 @@ export class EngineCalibration extends EngineShow {
   runCalibration(): void {
     if (this.vetBusy("calibration")) return;
     if (this.calibStatus === "running" || this.status === "takeover") return;
+    if (this.held) {
+      this.assistant.emit("calibration", "calibration waits: the automatic jobs are on hold until the desk has been read and the console link is steady");
+      this.rebuildTelemetry();
+      return;
+    }
     this.calibStatus = "running";
     this.status = "calibrating";
     this.assistant.emit("calibration", "pink-noise sweep — emitting & capturing…");

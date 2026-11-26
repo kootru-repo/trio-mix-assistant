@@ -97,6 +97,13 @@ export const TUNABLE: readonly Tunable[] = [
   { path: "engine.latencyEma", min: 0.01, max: 1 },
   { path: "engine.perfEma", min: 0.01, max: 1 },
   { path: "engine.perfMaxDecay", min: 0.9, max: 1 },
+  { path: "link.probeS", min: 0.25, max: 5 },
+  { path: "link.staleS", min: 0.5, max: 10 },
+  { path: "link.downS", min: 2, max: 30 },
+  { path: "link.steadyS", min: 0.25, max: 10 },
+  { path: "link.syncRetryS", min: 0.1, max: 5 },
+  { path: "link.syncTries", min: 1, max: 10, int: true },
+  { path: "link.resyncS", min: 1, max: 60 },
 ];
 
 function tunable(path: string): Tunable {

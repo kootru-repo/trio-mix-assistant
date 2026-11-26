@@ -43,9 +43,11 @@ export class Engine extends EngineCalibration {
         );
         this.rebuildTelemetry();
         this.meterRx = null;
+        this.enterHold("no-feedback");
       }
     }
     this.con.subscribeMeters();
+    if (this.meterRx !== null) this.startLink(this.clock.monotonic());
     if (this.source !== null) {
       if (this.source.subscribe) {
         this.pushed = true;
@@ -137,6 +139,7 @@ export class Engine extends EngineCalibration {
         const wantPhases = Boolean(this.assistant.enabled["phase"]);
         this.consume(this.analyser.analyse(frame, currentAnalysisConfig(), (exc) => this.noteError(exc), wantPhases), now);
       }
+      this.tickHold(now);
       this.notePerf(now, lastNow);
       this.rebuildTelemetry();
       void this.recoverAudio(now);
@@ -151,12 +154,12 @@ export class Engine extends EngineCalibration {
       if (!C.CHANNELS.has(ch)) continue;
       try {
         this.feat.set(ch, feat);
-        this.assistant.onFeatures(ch, feat, now);
+        if (!this.held) this.assistant.onFeatures(ch, feat, now);
       } catch (exc) {
         this.noteError(exc);
       }
     }
-    if (!this.assistant.enabled["phase"]) return;
+    if (!this.assistant.enabled["phase"] || this.held) return;
     for (const p of block.phases) this.assistant.handlePhase(p.a, p.b, p.relation, now);
   }
 
@@ -319,6 +322,7 @@ export class Engine extends EngineCalibration {
         if (this.currentStatus() === "takeover") this.enabledBackup = { ...held };
         else Object.assign(this.assistant.enabled, held);
         this.vetStatus = this.vetOutcome !== null ? "done" : "idle";
+        if (this.link !== null && !this.stopped) this.beginSync(this.clock.monotonic());
         this.vetTitle = "";
         this.telemetryFrozen = false;
         const song = this.pendingSong;

@@ -29,6 +29,8 @@ export interface MeterReceiverOptions {
 export class MeterReceiver {
   onFader: ((ch: number, db: number) => void) | null;
   onMeters: ((values: number[]) => void) | null;
+  onHeard: (() => void) | null = null;
+  onParam: ((address: string, args: readonly OscArg[]) => void) | null = null;
   onMessage: ((address: string, args: readonly OscArg[]) => void) | null;
   ip: string;
   port: number;
@@ -75,9 +77,17 @@ export class MeterReceiver {
       this.rejected += 1;
       return;
     }
+    if (this.onHeard !== null && this.running) {
+      try {
+        this.onHeard();
+      } catch (e) {
+        this.lastError = e;
+      }
+    }
     for (const m of decodePacket(data)) {
       try {
         if (this.onMessage !== null && this.running) this.onMessage(m.address, m.args);
+        if (this.onParam !== null && this.running && !m.address.startsWith("/meters")) this.onParam(m.address, m.args);
         if (m.address.startsWith("/meters")) this.handleMeters(m.args);
         else if (chFromFaderAddr(m.address) !== null) this.handleFader(m.address, m.args);
       } catch (e) {

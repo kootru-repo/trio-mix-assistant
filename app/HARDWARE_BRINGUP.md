@@ -157,6 +157,10 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
   and freezes all automatic jobs + scene recall + calibration; the manual surface
   (faders, mutes, EQ, FX, sends from the dashboard on the laptop, iPhone or iPad) stays live so you can fix
   things by hand. Quitting the app leaves the console untouched.
+- **Check the automatic hold on the real desk:** start the app with a channel fader at
+  −10 dB and its preamp at 35 dB; the log should say the desk was read and the first ride or
+  trim must start from those values. Pull the network cable for a few seconds: the jobs go
+  on hold, and after you plug it back they re-arm only after the desk has been read again.
 
 The app detects and surfaces the rest (denied mic permission, a mid-show
 unplug + auto-recovery, xruns, a busy/late device that recovers without a relaunch,

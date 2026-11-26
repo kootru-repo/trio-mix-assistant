@@ -224,6 +224,7 @@ Helpful flags: `--list-devices` (find audio inputs), `--lan` (serve to tablets +
 - **Scenes**: recall console scenes; each song in the setlist recalls its scene automatically (on a real console this also needs AbleSet, `--ableset-port`).
 - **COACH**: flips the assistant from *acting* to *advising*. It stops making new changes on the console and lists every move it would make (feedback notch, clip trim, vocal ride, calibration, even scene recall) as a plain manual instruction in a **COACH — MANUAL MOVES** panel + the log, for you to dial in by hand. Only your own manual moves act.
 - **TAKEOVER**: mutes the main and holds all jobs so a human always wins.
+- **Automatic hold** (no button): with a console connected, the jobs start on hold while the app reads every fader, preamp gain and polarity from the desk, so its first move starts from what is really there. If the console link goes quiet for 1.5 seconds (Wi-Fi drop, console reboot) the jobs pause, nothing is muted, and when the link is back and steady the app reads the desk again before the jobs re-arm. A scene recall also triggers a fresh read. The dashboard shows the reason as an alert, manual controls keep working, and calibration waits.
 - **Deep links**: `…:8770/#eq`, `#fx`, `#settings` open straight to a tab (handy on a tablet).
 
 <a id="phone"></a>

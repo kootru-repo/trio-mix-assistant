@@ -135,6 +135,16 @@ export type EngineConfig = {
   perfMaxDecay: number;
 };
 
+export type LinkConfig = {
+  probeS: number;
+  staleS: number;
+  downS: number;
+  steadyS: number;
+  syncRetryS: number;
+  syncTries: number;
+  resyncS: number;
+};
+
 export type Tuning = {
   ride: Readonly<RideConfig>;
   limits: Readonly<LimitsConfig>;
@@ -149,6 +159,7 @@ export type Tuning = {
   coach: Readonly<CoachConfig>;
   show: Readonly<ShowConfig>;
   engine: Readonly<EngineConfig>;
+  link: Readonly<LinkConfig>;
 };
 
 export interface Config extends Tuning {
@@ -295,6 +306,15 @@ export function defaultTuning(): Tuning {
       latencyEma: 0.2,
       perfEma: 0.1,
       perfMaxDecay: 0.999,
+    }),
+    link: Object.freeze({
+      probeS: 0.75,
+      staleS: 1.5,
+      downS: 5.0,
+      steadyS: 1.0,
+      syncRetryS: 0.5,
+      syncTries: 3,
+      resyncS: 5.0,
     }),
   };
 }

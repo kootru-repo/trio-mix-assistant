@@ -317,6 +317,11 @@ Launched with `--lan` (and ideally `--https`):
   see what it *would* do before trusting a job.
 - **TAKEOVER** = panic: mutes main, freezes all automatic jobs + scene recall +
   calibration. Tap again to release.
+- **Automatic hold** (no button, console connected): the jobs wait until the app has read
+  every fader, preamp gain and polarity from the desk; they pause when the console link is
+  quiet for 1.5 s, and re-arm only after the link is steady and the desk has been read again
+  (also after every scene recall). Nothing is muted; manual controls keep working; the
+  dashboard alert says why. The timings are tunable (`TUNE.link.*`, see `--list-tuning`).
 
 ---
 

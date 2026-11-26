@@ -205,9 +205,10 @@ export class Desk {
     return ok;
   }
 
-  async ask(addr: string): Promise<OscArg[] | null> {
+  async ask(addr: string, throughConsole: boolean = false): Promise<OscArg[] | null> {
     this.seen.delete(addr);
-    if (!this.send(addr)) return null;
+    if (throughConsole) this.con.query(addr);
+    else if (!this.send(addr)) return null;
     const t0 = this.clock.monotonic();
     for (;;) {
       const got = this.seen.get(addr);
@@ -550,8 +551,8 @@ const GROUP_OFF: Record<WriteCase["group"], string> = {
 export async function vetConsole(rows: VetRow[], desk: Desk, area: string, opts: ConsoleVetOptions): Promise<void> {
   const emulated = desk.proof === "emulator";
   let alive = false;
-  await step(rows, desk.log, { id: "con_identity", area, title: "Console answers", proof: desk.proof, covers: ["feature:console-reply"] }, async () => {
-    const got = await desk.ask("/xinfo");
+  await step(rows, desk.log, { id: "con_identity", area, title: "Console answers", proof: desk.proof, covers: ["feature:console-reply", "console:query"] }, async () => {
+    const got = await desk.ask("/xinfo", true);
     if (got === null) throw new VetFailure("no answer to an identity request; check the address, the cable or Wi-Fi, and that no firewall blocks UDP");
     alive = true;
     return `answered: ${argsText(got)}`;

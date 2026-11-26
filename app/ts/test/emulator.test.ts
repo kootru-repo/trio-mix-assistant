@@ -320,6 +320,73 @@ test("unknown GET is answered with a typed default and stays consistent", async 
   }
 });
 
+async function readBack(r: { ed: Peerbox; net: MemNetwork }, addr: string): Promise<OscArg[]> {
+  r.ed.inbox.length = 0;
+  r.ed.send(addr);
+  await r.net.settle();
+  const m = r.ed.inbox.find((x) => x.address === addr);
+  assert.ok(m, `no reply for ${addr}`);
+  return m.args;
+}
+
+test("a read of preamp gain on channels 1 and 32 returns 20 dB", async () => {
+  const r = await memRig();
+  try {
+    for (const addr of ["/headamp/000/gain", "/headamp/031/gain"]) {
+      assert.deepEqual(await readBack(r, addr), [oscFloat(Math.fround((20 + 12) / 72))], addr);
+    }
+  } finally {
+    r.stop();
+  }
+});
+
+test("a read of polarity on channels 1 and 32 returns normal", async () => {
+  const r = await memRig();
+  try {
+    for (const addr of ["/ch/01/preamp/invert", "/ch/32/preamp/invert"]) {
+      assert.deepEqual(await readBack(r, addr), [oscInt(0)], addr);
+    }
+  } finally {
+    r.stop();
+  }
+});
+
+test("a written preamp gain and polarity read back as written", async () => {
+  const r = await memRig();
+  try {
+    r.ed.send("/headamp/004/gain", oscFloat(0.25));
+    r.ed.send("/ch/05/preamp/invert", oscInt(1));
+    await r.net.settle();
+    assert.deepEqual(await readBack(r, "/headamp/004/gain"), [oscFloat(0.25)]);
+    assert.deepEqual(await readBack(r, "/ch/05/preamp/invert"), [oscInt(1)]);
+  } finally {
+    r.stop();
+  }
+});
+
+test("a read of a fader returns 0 dB at start and its current position after a move", async () => {
+  const r = await memRig();
+  try {
+    assert.deepEqual(await readBack(r, "/ch/07/mix/fader"), [oscFloat(Math.fround(dbToFader(0.0)))]);
+    r.ed.send("/ch/07/mix/fader", oscFloat(0.4));
+    await r.net.settle();
+    assert.deepEqual(await readBack(r, "/ch/07/mix/fader"), [oscFloat(Math.fround(0.4))]);
+    r.desk.moveFaderExternally(7, -10.0);
+    await r.net.settle();
+    assert.deepEqual(await readBack(r, "/ch/07/mix/fader"), [oscFloat(Math.fround(dbToFader(-10.0)))]);
+  } finally {
+    r.stop();
+  }
+});
+
+test("preamp gain and polarity are seeded for channels 1 to 32 only", () => {
+  const { desk } = bareDesk();
+  assert.deepEqual(desk.params.get("/headamp/015/gain"), [oscFloat(Math.fround((20 + 12) / 72))]);
+  assert.deepEqual(desk.params.get("/ch/16/preamp/invert"), [oscInt(0)]);
+  assert.equal(desk.params.has("/headamp/032/gain"), false);
+  assert.equal(desk.params.has("/ch/33/preamp/invert"), false);
+});
+
 test("node containers answer in desk format with minimum token counts", async () => {
   const r = await memRig();
   try {

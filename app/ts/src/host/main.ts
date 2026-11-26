@@ -227,6 +227,8 @@ function consoleLink(io: Io, consoleIp: string, listenIp: string, allowFrom: str
 function wireMeters(engine: Engine, rx: MeterReceiver): void {
   rx.onFader = (ch, db) => engine.reconcileFader(ch, db);
   rx.onMeters = (vals) => engine.setConsoleMeters(vals);
+  rx.onHeard = () => engine.consoleHeard();
+  rx.onParam = (address, args) => engine.consoleParam(address, args);
   engine.meterRx = rx;
 }
 

@@ -317,6 +317,10 @@ export class EngineBase {
     return now - this.songStartT < C.show.openingFallbackS;
   }
 
+  protected holdSnapshot(): { held: boolean; reasons: string[] } {
+    return { held: false, reasons: [] };
+  }
+
   protected alertsAndMode(now: number, connected: boolean): [Alert[], string] {
     let alerts: Alert[] = [];
     const cap = this.source ? this.source.status() : { kind: "none" };
@@ -451,6 +455,7 @@ export class EngineBase {
     this.telemetry = {
       status: this.status,
       op_mode: opMode,
+      hold: this.holdSnapshot(),
       alerts,
       scenes: this.sceneList(),
       mode: this.sim ? "simulation" : "live-hardware",

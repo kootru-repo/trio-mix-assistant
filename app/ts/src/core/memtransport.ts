@@ -36,6 +36,7 @@ export class MemNetwork implements UdpFactory {
   private readonly endpoints = new Map<number, MemEndpoint>();
   private nextPort = 49152;
   private pending = 0;
+  filter: ((from: Peer, to: Peer, data: Uint8Array) => boolean) | null = null;
 
   bind(port: number, _host: string): Promise<UdpEndpoint> {
     let p = port;
@@ -51,6 +52,7 @@ export class MemNetwork implements UdpFactory {
   }
 
   deliver(data: Uint8Array, from: Peer, to: Peer): void {
+    if (this.filter !== null && !this.filter(from, to, data)) return;
     const copy = data.slice();
     this.pending++;
     void Promise.resolve().then(() => {

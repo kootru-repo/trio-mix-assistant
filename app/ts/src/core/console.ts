@@ -101,6 +101,10 @@ export abstract class ConsoleBase {
     this.rampEpoch += 1;
   }
 
+  query(addr: string): void {
+    this.send(addr);
+  }
+
   private writeFader(ch: number, db: number, lo: number, hi: number): number {
     finite(db);
     const v = clamp(db, lo, hi);

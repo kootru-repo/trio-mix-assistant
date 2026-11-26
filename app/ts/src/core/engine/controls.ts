@@ -2,9 +2,10 @@ import { C } from "../config.ts";
 import { fixed, signed } from "../numfmt.ts";
 import { chan } from "../assistant/base.ts";
 import { clamp } from "../util.ts";
-import { asBool, EngineBase, numOf } from "./base.ts";
+import { asBool, numOf } from "./base.ts";
+import { EngineHold } from "./hold.ts";
 
-export class EngineControls extends EngineBase {
+export class EngineControls extends EngineHold {
   setEnabled(job: string, on: boolean): void {
     if (this.vetBusy("job switch")) return;
     if (!Object.hasOwn(this.assistant.enabled, job)) return;
@@ -191,6 +192,7 @@ export class EngineControls extends EngineBase {
     if (!C.CHANNELS.has(ch) || !Number.isFinite(db)) return;
     const now = this.clock.monotonic();
     this.lastRxT = now;
+    if (this.syncing) return;
     if (now - (this.assistant.lastMoveT.get(ch) ?? -1e9) < C.manual.echoS) return;
     if (Math.abs(db - (this.assistant.faderDb.get(ch) ?? 0)) < C.manual.minDb) return;
     this.assistant.faderDb.set(ch, db);

@@ -106,6 +106,7 @@ export class EngineShow extends EngineControls {
   protected safeRecall(idx: number): boolean {
     try {
       this.con.recallScene(idx);
+      this.beginSync(this.clock.monotonic());
       return true;
     } catch {
       return false;

@@ -346,6 +346,8 @@ export class EmulatedDesk {
       this.params.set(`${p}/config/icon`, [oscInt(1)]);
       this.params.set(`${p}/mix/fader`, [oscFloat(dbToFader(0.0))]);
       this.params.set(`${p}/mix/on`, [oscInt(1)]);
+      this.params.set(`${p}/preamp/invert`, [oscInt(0)]);
+      this.params.set(`/headamp/${zeroPad(ch - 1, 3)}/gain`, [oscFloat(Math.fround((20 + 12) / 72))]);
     }
     this.params.set("/main/st/mix/fader", [oscFloat(dbToFader(0.0))]);
     this.params.set("/main/st/mix/on", [oscInt(1)]);
