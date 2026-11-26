@@ -21,6 +21,7 @@ import { defaultTemplate, fromObject } from "../core/template.ts";
 import type { ShowTemplate } from "../core/template.ts";
 import { TuningError, setTuning, tuningLines, tuningTable } from "../core/tuning.ts";
 import type { TuningOverride } from "../core/tuning.ts";
+import { appVersion } from "./version.ts";
 import { HELP, UsageError, modeName, parseCliArgs, parseDevice, USAGE } from "./args.ts";
 import type { Args } from "./args.ts";
 import { bannerLines, emulatorLines } from "./banner.ts";
@@ -388,6 +389,10 @@ export async function run(argv: readonly string[], io: Io): Promise<number> {
     io.out(HELP);
     return 0;
   }
+  if (args.version) {
+    io.out(`TrioMixAssistant ${appVersion().label}`);
+    return 0;
+  }
   try {
     return await runChecked(args, io);
   } catch (exc) {
@@ -629,6 +634,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
       altIps: allLanIps(ip).filter((a) => !args.trust || hostPermittedByCa(a)),
       caPath: join(io.layout.appDir, ".certs", "ca.pem"),
       qr,
+      version: appVersion().label,
     })) {
       io.out(l);
     }

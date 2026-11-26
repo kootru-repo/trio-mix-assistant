@@ -8,6 +8,7 @@ import type { ConsoleBase } from "../core/console.ts";
 import type { AudioInputFactory } from "../core/devicecapture.ts";
 import type { MeterReceiver } from "../core/metersrv.ts";
 import type { Args } from "./args.ts";
+import { appVersion } from "./version.ts";
 
 export const BUILD_ENV = "TRIO_MIX_BUILD";
 export const CLI_WINDOW_S = 8.0;
@@ -21,7 +22,7 @@ export function systemFacts(): { app: string; system: string; platform: string; 
   const build = process.env[BUILD_ENV];
   const p = platform();
   return {
-    app: `${build ? `single-file app, build ${build}` : "running from source"}, Node.js ${process.versions.node}`,
+    app: `${appVersion().label}, ${build ? `single-file app, build ${build}` : "running from source"}, Node.js ${process.versions.node}`,
     system: `${SYSTEM_NAMES[p] ?? p} ${release()} ${arch()}`,
     platform: p,
     home: homedir() || null,

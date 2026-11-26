@@ -44,6 +44,7 @@ export interface Args {
   sessionDb: string | null;
   tune: TuningOverride[];
   listTuning: boolean;
+  version: boolean;
   help: boolean;
 }
 
@@ -57,7 +58,7 @@ export const USAGE = `usage: TrioMixAssistant [-h] [--host HOST] [--lan] [--port
            [--https] [--pin PIN] [--trust] [--insecure-open] [--template TEMPLATE]
            [--ableset-port ABLESET_PORT] [--ableset-from ADDRESS] [--no-show-clock]
            [--venue VENUE]
-           [--session-db SESSION_DB] [--tune SECTION.NAME=VALUE ...] [--list-tuning]`;
+           [--session-db SESSION_DB] [--tune SECTION.NAME=VALUE ...] [--list-tuning] [--version]`;
 
 export const HELP = `${USAGE}
 
@@ -144,6 +145,7 @@ options:
                         --tune feedback.ringDb=10; repeat for more. Overrides the
                         template's "tuning" block. In show.conf write TUNE.SECTION.NAME = VALUE
   --list-tuning         list every tuning setting with its default and allowed range, and exit
+  --version             print the app's version and build, and exit
 `;
 
 const OPTIONS = {
@@ -181,6 +183,7 @@ const OPTIONS = {
   "session-db": { type: "string" },
   tune: { type: "string", multiple: true },
   "list-tuning": { type: "boolean" },
+  version: { type: "boolean" },
 } as const;
 
 function intOption(name: string, raw: string | undefined, fallback: number | null, min: number = -Infinity, max: number = Infinity): number | null {
@@ -250,6 +253,7 @@ export function parseCliArgs(argv: readonly string[]): Args {
     sessionDb: values["session-db"] ?? null,
     tune: tuneOption(values["tune"]),
     listTuning: Boolean(values["list-tuning"]),
+    version: Boolean(values["version"]),
     help: Boolean(values["help"]),
   };
   if (args.ablesetFrom !== null && isIP(args.ablesetFrom) === 0) {

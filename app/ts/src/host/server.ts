@@ -25,6 +25,7 @@ import {
   wsKeyValid,
 } from "./server/ws.ts";
 import type { WsFrame } from "./server/ws.ts";
+import { appVersion } from "./version.ts";
 
 const MAX_BODY = 1 << 16;
 const MAX_DRAIN = 1 << 18;
@@ -425,7 +426,9 @@ export function createServer(opts: ServerOptions): DashboardServer {
         .split("__NONCE__")
         .join(nonce)
         .split("__INITIAL_STATE__")
-        .join(jsonForHtml(engine.snapshot()));
+        .join(jsonForHtml(engine.snapshot()))
+        .split("__APP_VERSION__")
+        .join(appVersion().label.replace(/[^0-9A-Za-z .()_+-]/g, ""));
       sendText(res, html, "text/html; charset=utf-8");
     } else if (path === "/state") {
       if (!authed(req)) return sendError(res, 401);

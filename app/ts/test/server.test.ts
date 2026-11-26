@@ -16,6 +16,7 @@ import { hostAllowed, originAllowed } from "../src/host/server/guards.ts";
 import { jsonForHtml, jsonText, strictLoads } from "../src/host/server/json.ts";
 import { LoginLimiter } from "../src/host/server/limiter.ts";
 import type { DashboardServer } from "../src/host/server.ts";
+import { appVersion } from "../src/host/version.ts";
 
 const staticDir = join(import.meta.dirname, "..", "..", "static");
 
@@ -242,6 +243,8 @@ test("index page seeds the initial state", async () => {
     assert.ok(res.body.includes("Mix-Assistant"));
     assert.ok(res.body.includes("window.__INITIAL__"));
     assert.ok(!res.body.includes("__INITIAL_STATE__"));
+    assert.ok(!res.body.includes("__APP_VERSION__"));
+    assert.ok(res.body.includes(`<span class="appver mono" title="Version and build">${appVersion().label}</span>`), "the header shows the version");
     assert.ok(res.body.includes('<script src="/dashboard.js">'));
   } finally {
     await r.close();

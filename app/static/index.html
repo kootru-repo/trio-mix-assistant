@@ -39,6 +39,7 @@
   .brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:17px;white-space:nowrap}
   .brand .logo{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
     background:linear-gradient(135deg,var(--reflex),var(--advisory));color:#0a0e14;font-size:15px}
+  .brand .appver{font-size:11px;font-weight:600;color:var(--mut);letter-spacing:.02em}
   .brand .accent{background:linear-gradient(90deg,var(--reflex),var(--advisory));
     -webkit-background-clip:text;background-clip:text;color:transparent}
   .modebadge{font-size:10.5px;font-weight:800;letter-spacing:.12em;color:var(--human);
@@ -473,7 +474,7 @@
   <symbol id="ic-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
 </svg>
 <header>
-  <div class="brand"><span class="logo">▚</span><span>Trio <span class="accent">Mix-Assistant</span></span></div>
+  <div class="brand"><span class="logo">▚</span><span>Trio <span class="accent">Mix-Assistant</span></span><span class="appver mono" title="Version and build">__APP_VERSION__</span></div>
   <span class="modebadge" id="modebadge">SIM</span>
   <div class="statuswrap">
     <span class="status live" id="status"><span class="dot"></span><span id="statustext">LIVE</span></span>

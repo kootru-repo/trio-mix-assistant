@@ -121,6 +121,15 @@ export interface PackageResult {
   files: number;
 }
 
+export function buildCommit(): string | null {
+  const given = process.env["TRIO_MIX_COMMIT"];
+  if (given) return given.slice(0, 12);
+  const head = spawnSync("git", ["rev-parse", "--short=12", "HEAD"], { cwd: tsDir, encoding: "utf8" });
+  if (head.status !== 0 || !head.stdout.trim()) return null;
+  const dirty = spawnSync("git", ["status", "--porcelain"], { cwd: tsDir, encoding: "utf8" });
+  return head.stdout.trim() + (dirty.status === 0 && dirty.stdout.trim() ? ".dirty" : "");
+}
+
 export function buildPackage(outDir: string): PackageResult {
   const dest = join(outDir, NAME);
   mkdirSync(outDir, { recursive: true });
@@ -131,7 +140,12 @@ export function buildPackage(outDir: string): PackageResult {
     encoding: "utf8",
   });
   if (build.status !== 0) throw new Error("build failed:\n" + build.stdout + build.stderr);
-  writeFileSync(join(dest, "package.json"), '{\n  "name": "trio-mix-assistant",\n  "private": true,\n  "type": "module"\n}\n');
+  const own: unknown = JSON.parse(readFileSync(join(tsDir, "package.json"), "utf8"));
+  const version = typeof own === "object" && own !== null ? String(Reflect.get(own, "version") ?? "unknown") : "unknown";
+  writeFileSync(
+    join(dest, "package.json"),
+    JSON.stringify({ name: "trio-mix-assistant", private: true, type: "module", version, commit: buildCommit() }, null, 2) + "\n",
+  );
   cpSync(join(appDir, "static"), join(dest, "static"), { recursive: true });
   cpSync(join(appDir, "x32_default_nodes.scn"), join(dest, "x32_default_nodes.scn"));
   if (existsSync(join(appDir, "templates"))) cpSync(join(appDir, "templates"), join(dest, "templates"), { recursive: true });

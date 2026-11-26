@@ -29,6 +29,7 @@ export interface BannerInput {
   altIps: readonly string[];
   caPath: string;
   qr: readonly string[] | null;
+  version?: string;
 }
 
 export function bannerLines(input: BannerInput): string[] {
@@ -36,7 +37,7 @@ export function bannerLines(input: BannerInput): string[] {
   const lines: string[] = [];
   const mode = args.emulate ? "EMULATED-HARDWARE" : args.hardware ? "HARDWARE" : "SIMULATION";
   const open = WILDCARD_HOSTS.includes(args.host);
-  lines.push(`Trio Mix-Assistant [${mode}] -> ${scheme}://${open ? "127.0.0.1" : args.host}:${args.port}/`);
+  lines.push(`Trio Mix-Assistant${input.version ? ` ${input.version}` : ""} [${mode}] -> ${scheme}://${open ? "127.0.0.1" : args.host}:${args.port}/`);
   if (args.pin) {
     lines.push("  PIN auth: ON — the dashboard asks for the PIN before it opens.");
     if (scheme !== "https" && !LOOPBACK_HOSTS.includes(args.host)) lines.push("  [!] PIN over plain http is sniffable on the LAN — add --https.");

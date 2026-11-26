@@ -262,7 +262,17 @@ registerIf(process.platform === "win32" || process.platform === "darwin", "the b
       const checked = spawnSync(exe, ["--diagnose"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
       const checkedText = checked.stdout + checked.stderr;
       assert.ok(checked.status === 0 || checked.status === 1, checkedText);
-      assert.ok(checkedText.includes(`App: single-file app, build ${built.id}`), checkedText);
+      const version = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
+      const label = /^[0-9a-f]{12}(\.dirty)?$/;
+      const appLine = checkedText.split(/\r?\n/).find((l) => l.includes("App: ")) ?? "";
+      const appMatch = /App: (\S+) \(([^)]+)\), single-file app, build (\S+),/.exec(appLine);
+      assert.ok(appMatch, appLine);
+      assert.equal(appMatch[1], version);
+      assert.match(appMatch[2] ?? "", label);
+      assert.equal(appMatch[3], built.id);
+      const shown = spawnSync(exe, ["--version"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
+      assert.equal(shown.status, 0, shown.stdout + shown.stderr);
+      assert.equal(shown.stdout.trim(), `TrioMixAssistant ${version} (${appMatch[2]})`);
       assert.ok(/\[(PASS|FAIL)\] Audio module loads: loaded/.test(checkedText), checkedText);
       assert.ok(/Result: \d+ failed/.test(checkedText), checkedText);
       await withEmulatorPorts(async () => {
