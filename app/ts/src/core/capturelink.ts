@@ -5,6 +5,8 @@ import type { BlockHandler, CaptureStatus, Frame } from "./capture.ts";
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
 import { DeviceCapture } from "./devicecapture.ts";
+import { activeTuning } from "./tuning.ts";
+import type { TuningOverride } from "./tuning.ts";
 import type { AudioDeviceId, AudioInputFactory } from "./devicecapture.ts";
 
 export interface CaptureConfig {
@@ -16,6 +18,7 @@ export interface CaptureConfig {
   sampleRate: number;
   block: number;
   analysis: AnalysisConfig;
+  tuning: TuningOverride[];
 }
 
 export type CaptureCall =
@@ -235,6 +238,7 @@ export class RemoteCapture extends CaptureSourceBase {
       sampleRate: this.opts.sampleRate ?? C.SAMPLE_RATE,
       block: this.opts.block ?? C.BLOCK,
       analysis: currentAnalysisConfig(),
+      tuning: [...activeTuning()],
     };
   }
 

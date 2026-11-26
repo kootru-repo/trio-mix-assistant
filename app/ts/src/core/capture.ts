@@ -70,7 +70,7 @@ export abstract class CaptureSourceBase implements CaptureSource {
 }
 
 export function simRoomCapture(rng: Rng): Float64Array {
-  const noise = generatePinkNoise(C.CAL_DURATION_S, rng);
+  const noise = generatePinkNoise(C.calibration.durationS, rng);
   const out = new Float64Array(noise.length);
   for (let i = 0; i < noise.length; i++) {
     const t = i / C.SAMPLE_RATE;

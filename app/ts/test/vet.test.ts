@@ -16,6 +16,7 @@ import { MeterReceiver } from "../src/core/metersrv.ts";
 import { decodePacket } from "../src/core/oscwire.ts";
 import { Desk, VetLog, measureSound, soundVerdict, summaryLines, tableLines, traceLines, vetConsole, vetSequence } from "../src/core/vet.ts";
 import type { VetRow } from "../src/core/vet.ts";
+import { activeTuning, parseOverride, setTuning } from "../src/core/tuning.ts";
 import { parseCliArgs } from "../src/host/args.ts";
 import { NativeAudioInputFactory } from "../src/host/audiodevice.ts";
 import { captureThread } from "../src/host/capturethread.ts";
@@ -81,6 +82,22 @@ test("the full sequence passes against the emulator and leaves the channel map a
   assert.deepEqual(rows.filter((x) => x.status === "skip").map((x) => x.id), []);
   assert.ok(rows.every((x) => x.proof === "emulator"));
   assert.deepEqual(channelMapState(), before);
+});
+
+test("the job steps run with the default tuning even when the app is tuned, and the tuning is put back", async () => {
+  const r = await rig();
+  const tuned = ["feedback.ringDb=30", "feedback.sustainBlocks=20", "clip.peakDbfs=0", "ride.toleranceDb=6", "unmask.voxGateDb=-10", "manual.holdS=60"];
+  setTuning(tuned.map((t) => parseOverride(t, "test")));
+  const rows: VetRow[] = [];
+  try {
+    await vetSequence(rows, r.desk, { externalMove: (ch, db) => r.emu.moveFaderExternally(ch, db) });
+    assert.equal(failed(rows), "");
+    assert.equal(C.feedback.ringDb, 30);
+    assert.equal(activeTuning().length, tuned.length);
+  } finally {
+    r.close();
+    setTuning([]);
+  }
 });
 
 test("every console method, engine command and job has a row", async () => {
@@ -436,6 +453,36 @@ test("the dashboard command runs the full test, pauses the jobs while it runs an
   e.command({ type: "vet", channel: null, gain: false, main: false });
   assert.ok(e.events.some((ev) => ev.msg.includes("Press RELEASE")));
 });
+
+test("the dashboard test gives the same result with harsh tuning and lists the tuning in its report", () =>
+  withEmulatorPorts(async () => {
+    const home = mkdtempSync(join(tmpdir(), "vet-home-"));
+    writeFileSync(join(home, "show.conf"), ["MODE=sim", "LAN=no", ""].join("\n"));
+    const udp = new RealUdp();
+    const clock = new SystemClock();
+    const emu = new EmulatedDesk(udp, clock, { listenPort: 0, listenHost: "127.0.0.1", appPort: C.LOCAL_PORT });
+    await emu.start();
+    const rx = new MeterReceiver(udp, { ip: "127.0.0.1", port: C.LOCAL_PORT, allowFrom: "127.0.0.1" });
+    await rx.start();
+    const harsh = ["feedback.ringDb=30", "feedback.sustainBlocks=20", "clip.peakDbfs=0", "ride.toleranceDb=6", "calibration.peakThreshDb=12", "calibration.predipCount=0", "phase.corrMin=0.9", "phase.sustain=50", "unmask.voxGateDb=-10", "manual.holdS=60"];
+    try {
+      const io: Io = { ...vetIo([], home), clock };
+      io.factory = await io.audio();
+      const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null));
+      const plain = await host.run({ channel: null, gain: false, main: false, identify: false }, idle);
+      assert.match(plain.text, /Tuning: all defaults/);
+      setTuning(harsh.map((t) => parseOverride(t, "show.conf")));
+      const tuned = await host.run({ channel: null, gain: false, main: false, identify: false }, idle);
+      assert.equal(tuned.summary, plain.summary, tuned.text);
+      assert.match(tuned.text, /feedback\.ringDb = 30 \(default 12, from show\.conf\)/);
+      assert.equal(C.feedback.ringDb, 30);
+    } finally {
+      setTuning([]);
+      rx.stop();
+      emu.stop();
+      rmSync(home, { recursive: true, force: true });
+    }
+  }));
 
 test("the dashboard test reaches a real console through the app's own socket and leaves that socket running", () =>
   withEmulatorPorts(async () => {

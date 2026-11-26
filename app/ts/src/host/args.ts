@@ -1,5 +1,7 @@
 import { isIP } from "node:net";
 import { parseArgs } from "node:util";
+import { TuningError, parseOverride } from "../core/tuning.ts";
+import type { TuningOverride } from "../core/tuning.ts";
 
 export class UsageError extends Error {
   constructor(message: string) {
@@ -40,6 +42,8 @@ export interface Args {
   noShowClock: boolean;
   venue: string;
   sessionDb: string | null;
+  tune: TuningOverride[];
+  listTuning: boolean;
   help: boolean;
 }
 
@@ -53,7 +57,7 @@ export const USAGE = `usage: TrioMixAssistant [-h] [--host HOST] [--lan] [--port
            [--https] [--pin PIN] [--trust] [--insecure-open] [--template TEMPLATE]
            [--ableset-port ABLESET_PORT] [--ableset-from ADDRESS] [--no-show-clock]
            [--venue VENUE]
-           [--session-db SESSION_DB]`;
+           [--session-db SESSION_DB] [--tune SECTION.NAME=VALUE ...] [--list-tuning]`;
 
 export const HELP = `${USAGE}
 
@@ -135,6 +139,11 @@ options:
   --session-db SESSION_DB
                         SQLite path for session logging (default: sessions.db beside
                         show.conf; use 'off' to disable)
+  --tune SECTION.NAME=VALUE
+                        change one tuning setting for this run, for example
+                        --tune feedback.ringDb=10; repeat for more. Overrides the
+                        template's "tuning" block. In show.conf write TUNE.SECTION.NAME = VALUE
+  --list-tuning         list every tuning setting with its default and allowed range, and exit
 `;
 
 const OPTIONS = {
@@ -170,6 +179,8 @@ const OPTIONS = {
   "no-show-clock": { type: "boolean" },
   venue: { type: "string" },
   "session-db": { type: "string" },
+  tune: { type: "string", multiple: true },
+  "list-tuning": { type: "boolean" },
 } as const;
 
 function intOption(name: string, raw: string | undefined, fallback: number | null, min: number = -Infinity, max: number = Infinity): number | null {
@@ -186,6 +197,15 @@ function floatOption(name: string, raw: string | undefined, fallback: number, mi
   if (!Number.isFinite(v)) throw new UsageError(`argument --${name}: invalid float value: '${raw}'`);
   if (v < min || v > max) throw new UsageError(`argument --${name}: ${v} is outside ${min}..${max}`);
   return v;
+}
+
+function tuneOption(raw: readonly string[] | undefined): TuningOverride[] {
+  try {
+    return (raw ?? []).map((t) => parseOverride(t, "show.conf or --tune"));
+  } catch (e) {
+    if (e instanceof TuningError) throw new UsageError(`argument --tune: ${e.message}`);
+    throw e;
+  }
 }
 
 export function parseCliArgs(argv: readonly string[]): Args {
@@ -228,6 +248,8 @@ export function parseCliArgs(argv: readonly string[]): Args {
     noShowClock: Boolean(values["no-show-clock"]),
     venue: values["venue"] ?? "",
     sessionDb: values["session-db"] ?? null,
+    tune: tuneOption(values["tune"]),
+    listTuning: Boolean(values["list-tuning"]),
     help: Boolean(values["help"]),
   };
   if (args.ablesetFrom !== null && isIP(args.ablesetFrom) === 0) {

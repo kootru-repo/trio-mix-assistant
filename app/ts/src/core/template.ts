@@ -1,5 +1,7 @@
 import { C } from "./config.ts";
 import type { ChannelMapSpec } from "./config.ts";
+import { TuningError, checkedOverride } from "./tuning.ts";
+import type { TuningOverride } from "./tuning.ts";
 import { intOf } from "./util.ts";
 
 export class TemplateError extends Error {
@@ -21,6 +23,7 @@ export interface ShowTemplate {
   name: string;
   songs: Song[];
   channels: ChannelMapSpec | null;
+  tuning: TuningOverride[];
 }
 
 export function songByName(t: ShowTemplate, name: string): Song | null {
@@ -106,6 +109,25 @@ function parseChannels(spec: Json): ChannelMapSpec | null {
   return spec as ChannelMapSpec;
 }
 
+function parseTuning(spec: Json, name: string): TuningOverride[] {
+  if (spec === null || spec === undefined) return [];
+  if (!isObject(spec)) throw new TemplateError("'tuning' must be an object of sections, for example {\"feedback\": {\"ringDb\": 10}}");
+  const out: TuningOverride[] = [];
+  for (const [section, keys] of Object.entries(spec)) {
+    if (!isObject(keys)) throw new TemplateError(`tuning.${section} must be an object of settings`);
+    for (const [key, value] of Object.entries(keys)) {
+      if (typeof value !== "number") throw new TemplateError(`tuning.${section}.${key} must be a number, got ${quoteJson(value)}`);
+      try {
+        out.push(checkedOverride(`${section}.${key}`, value, `template '${name}'`));
+      } catch (exc) {
+        if (exc instanceof TuningError) throw new TemplateError(`tuning: ${exc.message}`);
+        throw exc;
+      }
+    }
+  }
+  return out;
+}
+
 export function fromObject(d: Json): ShowTemplate {
   if (!isObject(d)) throw new TemplateError("template must be a JSON object");
   const channels = parseChannels(d["channels"]);
@@ -149,7 +171,8 @@ export function fromObject(d: Json): ShowTemplate {
       guest: guest === true,
     });
   });
-  return { name: d["name"] === undefined ? "Show" : String(d["name"]), songs, channels };
+  const name = d["name"] === undefined ? "Show" : String(d["name"]);
+  return { name, songs, channels, tuning: parseTuning(d["tuning"], name) };
 }
 
 export function defaultTemplate(): ShowTemplate {

@@ -19,6 +19,8 @@ import { qrAscii, qrEncode } from "../core/qr.ts";
 import { AbleSetReceiver, SimShowClock } from "../core/showclock.ts";
 import { defaultTemplate, fromObject } from "../core/template.ts";
 import type { ShowTemplate } from "../core/template.ts";
+import { TuningError, setTuning, tuningLines, tuningTable } from "../core/tuning.ts";
+import type { TuningOverride } from "../core/tuning.ts";
 import { HELP, UsageError, modeName, parseCliArgs, parseDevice, USAGE } from "./args.ts";
 import type { Args } from "./args.ts";
 import { bannerLines, emulatorLines } from "./banner.ts";
@@ -88,6 +90,20 @@ function loadShowTemplate(args: Args, io: Io): ShowTemplate {
     io.out(`  Channel map: ${C.CHANNELS.size} channels from template '${t.name}'`);
   }
   return t;
+}
+
+function applyTuning(io: Io, overrides: readonly TuningOverride[]): void {
+  try {
+    setTuning(overrides);
+  } catch (exc) {
+    if (exc instanceof TuningError) fail(io, `  [!] tuning: ${exc.message}`);
+    throw exc;
+  }
+  const lines = tuningLines();
+  if (lines.length) {
+    io.out("  Tuning changed from the defaults:");
+    for (const l of lines) io.out(`    ${l}`);
+  }
 }
 
 function loadChannelMap(args: Args, io: Io): Map<number, number> | null {
@@ -496,6 +512,10 @@ async function attempt(step: () => Promise<void>): Promise<void> {
 }
 
 async function runChecked(args: Args, io: Io): Promise<number> {
+  if (args.listTuning) {
+    io.out(tuningTable());
+    return 0;
+  }
   io.factory = await io.audio();
   if (args.listDevices) {
     try {
@@ -505,8 +525,12 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     }
     return 0;
   }
-  if (args.diagnose) return runDiagnose(args, io);
+  if (args.diagnose) {
+    applyTuning(io, args.tune);
+    return runDiagnose(args, io);
+  }
   if (args.vet) {
+    applyTuning(io, args.tune);
     const chanMap = loadChannelMap(args, io);
     const openSource =
       args.audioDevice === null
@@ -519,6 +543,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
   }
 
   const template = loadShowTemplate(args, io);
+  applyTuning(io, [...template.tuning, ...args.tune]);
   const chanMap = loadChannelMap(args, io);
   const auto = args.auto ? await autodetectSource(io) : null;
 

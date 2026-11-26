@@ -14,6 +14,7 @@ import type { OscArg } from "./oscwire.ts";
 import { SeededRng } from "./rng.ts";
 import type { ShowState } from "./showclock.ts";
 import type { ShowTemplate } from "./template.ts";
+import { pinDefaultTuning } from "./tuning.ts";
 import { clamp, zeroPad } from "./util.ts";
 
 export type VetStatus = "pass" | "fail" | "skip";
@@ -359,8 +360,8 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       addrs: [fader],
       act: (b) => {
         const db = faderToDb(b.get(fader)!);
-        const t = lowered(db, C.FADER_MIN_DB, C.FADER_MAX_DB);
-        if (t === null) return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.FADER_MIN_DB} dB); raise it and run this again`;
+        const t = lowered(db, C.limits.faderMinDb, C.limits.faderMaxDb);
+        if (t === null) return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.limits.faderMinDb} dB); raise it and run this again`;
         return one(fader, dbToFader(con.setFaderDb(ch, t)));
       },
     },
@@ -372,8 +373,8 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       addrs: [fader],
       act: (b) => {
         const db = faderToDb(b.get(fader)!);
-        const t = lowered(db, C.FADER_MIN_DB, C.FADER_MAX_DB);
-        if (t === null) return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.FADER_MIN_DB} dB); raise it and run this again`;
+        const t = lowered(db, C.limits.faderMinDb, C.limits.faderMaxDb);
+        if (t === null) return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.limits.faderMinDb} dB); raise it and run this again`;
         return one(fader, dbToFader(con.rampFaderDb(ch, db, t, 120, 4)));
       },
     },
@@ -420,7 +421,7 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       addrs: eqAddrs(`${p}/eq/1`, `${p}/eq/on`),
       act: () => {
         con.setEqNotch(ch, 1, 1000);
-        return eqExpect(`${p}/eq/1`, `${p}/eq/on`, 1000, C.FB_NOTCH_GAIN_DB, C.FB_NOTCH_Q);
+        return eqExpect(`${p}/eq/1`, `${p}/eq/on`, 1000, C.feedback.notchGainDb, C.feedback.notchQ);
       },
     },
     {
@@ -467,7 +468,7 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       addrs: [headampAddr(ch)],
       act: (b) => {
         const cur = b.get(headampAddr(ch))! * 72 - 12;
-        const delta = cur - 3 < C.HEADAMP_MIN_DB ? 1 : -3;
+        const delta = cur - 3 < C.limits.headampMinDb ? 1 : -3;
         return one(headampAddr(ch), (con.nudgeGainDb(ch, cur, delta) + 12) / 72);
       },
     },
@@ -607,6 +608,7 @@ const VET_MAP: ChannelMapSpec = {
 const vetTemplate = (): ShowTemplate => ({
   name: "vet",
   channels: null,
+  tuning: [],
   songs: [
     { name: "Vet Song A", scene: 11, leadTarget: -14, balance: new Map(), guest: false },
     { name: "Vet Song B", scene: 12, leadTarget: null, balance: new Map(), guest: true },
@@ -655,6 +657,7 @@ export interface SequenceOptions {
 export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOptions): Promise<void> {
   const saved = channelMapState();
   applyChannelMap(VET_MAP);
+  const restoreTuning = pinDefaultTuning();
   const area = "Features and sequences";
   const main = `/${C.MAIN_BUS}`;
   const make = (source: VetSource = new VetSource()): Engine => {
@@ -826,7 +829,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       }
       must(notchBand > 0, "a steady, rising 2500 Hz tone did not trigger a notch");
       await desk.expect(`/ch/04/eq/${notchBand}/f`, freqToEqParam(2500));
-      await desk.expect(`/ch/04/eq/${notchBand}/g`, (C.FB_NOTCH_GAIN_DB + 15) / 30);
+      await desk.expect(`/ch/04/eq/${notchBand}/g`, (C.feedback.notchGainDb + 15) / 30);
       await desk.expect("/ch/04/eq/on", 1);
       return `2500 Hz notched on channel 4, band ${notchBand}`;
     });
@@ -838,7 +841,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       }
       must(busBand > 0, "a steady, rising 800 Hz tone at the room mic did not trigger a main-bus notch");
       await desk.expect(`${main}/eq/${busBand}/f`, freqToEqParam(800));
-      await desk.expect(`${main}/eq/${busBand}/g`, (C.FB_NOTCH_GAIN_DB + 15) / 30);
+      await desk.expect(`${main}/eq/${busBand}/g`, (C.feedback.notchGainDb + 15) / 30);
       return `800 Hz notched on the main bus, band ${busBand}`;
     });
     await S("cmd_reset_notches", "Reset notches clears them", ["command:reset_notches"], async () => {
@@ -855,7 +858,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       const trimmed = j.assistant.gainDb.get(4) ?? 0;
       must(trimmed < start, "a clipping channel was not trimmed");
       await desk.expect(headampAddr(4), (trimmed + 12) / 72);
-      j.assistant.onFeatures(4, feat({ peakDbfs: -20 }), T(C.CLIP_RECOVER_S + 1));
+      j.assistant.onFeatures(4, feat({ peakDbfs: -20 }), T(C.clip.recoverS + 1));
       const restored = j.assistant.gainDb.get(4) ?? 0;
       must(restored > trimmed, "a clean channel did not get its gain back");
       await desk.expect(headampAddr(4), (restored + 12) / 72);
@@ -887,7 +890,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
     await S("job_phase", "Phase job: an out-of-polarity pair is flipped", ["job:phase"], async () => {
       j.setEnabled("phase", true);
       const rel: PhaseRelation = { zeroCorr: -0.9, bestCorr: -0.9, lagSamples: 0, lagMs: 0 };
-      for (let i = 0; i < C.PHASE_SUSTAIN + 4 && j.assistant.polarity.get(6) !== true; i++) j.assistant.handlePhase(5, 6, rel, T());
+      for (let i = 0; i < C.phase.sustain + 4 && j.assistant.polarity.get(6) !== true; i++) j.assistant.handlePhase(5, 6, rel, T());
       must(j.assistant.polarity.get(6) === true, "an inverted pair was not flipped");
       await desk.expect("/ch/06/preamp/invert", 1);
       j.setEnabled("phase", false);
@@ -898,7 +901,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       for (let i = 0; i < 20; i++) j.assistant.onFeatures(C.LEAD_VOCAL_CH, feat({ rmsDbfs: -20 }), T());
       const applied = j.assistant.duckApplied.get(2);
       must(applied !== undefined && applied < -1, "no dip was applied while the vocal was up");
-      const addr = `/ch/02/eq/${C.UNMASK_BAND}/g`;
+      const addr = `/ch/02/eq/${C.unmask.band}/g`;
       const held = await desk.num(addr);
       must(held !== null && held < 0.5 - 1 / 30, `the dip did not reach the console (${held === null ? "no answer" : fixed(held, 3)})`);
       j.setEnabled("unmask", false);
@@ -949,7 +952,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       desk.send("/ch/06/preamp/invert", oscInt(0));
       a.setEnabled("phase", true);
       const flipped = (): boolean => a.assistant.polarity.get(6) === true;
-      run(() => new Map([[5, tone(220, 0.2)], [6, tone(220, 0.2, -1)]]), C.PHASE_SUSTAIN + 8, flipped);
+      run(() => new Map([[5, tone(220, 0.2)], [6, tone(220, 0.2, -1)]]), C.phase.sustain + 8, flipped);
       must(flipped(), "an inverted pair in the samples was not flipped");
       await desk.expect("/ch/06/preamp/invert", 1);
       return "inverted samples went through the analyser; channel 6 polarity flipped";
@@ -993,6 +996,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
   } finally {
     desk.onFader = null;
     restoreChannelMapState(saved);
+    restoreTuning();
   }
 }
 

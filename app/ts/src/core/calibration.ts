@@ -37,22 +37,22 @@ export class Calibrator {
   plan(res: CalibrationResult): CalibrationStep[] {
     const steps: CalibrationStep[] = [];
     const corrected = new Set<number>();
-    res.corrections.slice(0, 4).forEach(([fc, cut], i) => {
-      steps.push({ band: i + 1, hz: fc, gain: cut, q: 3.0, kind: "room" });
+    res.corrections.slice(0, C.calibration.roomBands).forEach(([fc, cut], i) => {
+      steps.push({ band: i + 1, hz: fc, gain: cut, q: C.calibration.roomQ, kind: "room" });
       corrected.add(fc);
     });
     let nPredip = 0;
     for (const [fc, excess] of res.watchlist) {
-      if (nPredip >= C.CAL_N_PREDIP) break;
+      if (nPredip >= C.calibration.predipCount) break;
       if (corrected.has(fc)) continue;
-      steps.push({ band: 5 + nPredip, hz: fc, gain: C.CAL_PREDIP_DB, q: 6.0, kind: "predip", excess });
+      steps.push({ band: C.calibration.roomBands + 1 + nPredip, hz: fc, gain: C.calibration.predipDb, q: C.calibration.predipQ, kind: "predip", excess });
       nPredip++;
     }
     return steps;
   }
 
   apply(res: CalibrationResult, log: (msg: string) => void = () => {}): Set<number> {
-    for (let band = 1; band <= 6; band++) this.con.setBusEq(band, 1000.0, 0.0, 2.0);
+    for (let band = 1; band <= C.BUS_EQ_BANDS; band++) this.con.setBusEq(band, C.EQ_FLAT_FREQ, 0.0, C.EQ_FLAT_Q);
     const used = new Set<number>();
     for (const s of this.plan(res)) {
       this.con.setBusEq(s.band, s.hz, s.gain, s.q);

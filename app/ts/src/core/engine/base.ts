@@ -182,7 +182,7 @@ export class EngineBase {
     if (e === undefined) {
       this.latency.set(kind, { last: roundTo(ms, 2), ema: roundTo(ms, 2), max: roundTo(ms, 2), n: 1 });
     } else {
-      const a = 0.2;
+      const a = C.engine.latencyEma;
       e.last = roundTo(ms, 2);
       e.ema = roundTo((1 - a) * e.ema + a * ms, 2);
       e.max = roundTo(Math.max(e.max, ms), 2);
@@ -194,10 +194,10 @@ export class EngineBase {
     const computeMs = (this.clock.monotonic() - now) * 1000;
     const periodMs = (now - lastNow) * 1000;
     const jitterMs = Math.abs(periodMs - this.tick * 1000);
-    const a = 0.1;
+    const a = C.engine.perfEma;
     this.perf.tick_ms = roundTo((1 - a) * this.perf.tick_ms + a * computeMs, 2);
     this.perf.jitter_ms = roundTo((1 - a) * this.perf.jitter_ms + a * jitterMs, 2);
-    this.perf.max_ms = roundTo(Math.max(this.perf.max_ms * 0.999, computeMs), 2);
+    this.perf.max_ms = roundTo(Math.max(this.perf.max_ms * C.engine.perfMaxDecay, computeMs), 2);
   }
 
   protected noteRampError(exc: unknown): void {
@@ -273,9 +273,9 @@ export class EngineBase {
       const rms = feat ? feat.rmsDbfs : -90;
       const peak = feat ? feat.peakDbfs : -90;
       const streak = this.assistant.fbStreak.get(ch) ?? 0;
-      const notchedRecent = now - (this.lastNotchT.get(ch) ?? NEG_INF) < 2.0;
-      const clipRecent = now - (this.lastClipT.get(ch) ?? NEG_INF) < 1.5;
-      const fbState = notchedRecent ? "notched" : streak >= 2 ? "building" : "ok";
+      const notchedRecent = now - (this.lastNotchT.get(ch) ?? NEG_INF) < C.feedback.notchRecentS;
+      const clipRecent = now - (this.lastClipT.get(ch) ?? NEG_INF) < C.clip.recentS;
+      const fbState = notchedRecent ? "notched" : streak >= C.feedback.buildingStreak ? "building" : "ok";
       const notchFreqs = this.con instanceof SimConsole ? this.con.notchFreqs(ch) : [];
       const label = C.ROLE_LABELS.get(roleName);
       if (label === undefined) throw new Error(`unknown role ${roleName}`);
@@ -307,17 +307,14 @@ export class EngineBase {
     return out;
   }
 
-  static readonly OPENING_BARS = 8;
-  static readonly DEAD_CRITICAL_S = 1.5;
-
   protected inOpeningBars(now: number): boolean {
     if (!this.show.playing || this.songStartT < 0) return false;
     const bpm = this.show.bpm;
     if (typeof bpm === "number" && bpm > 0) {
       const secPerBar = (4.0 * 60.0) / bpm;
-      return now - this.songStartT < EngineBase.OPENING_BARS * secPerBar;
+      return now - this.songStartT < C.show.openingBars * secPerBar;
     }
-    return now - this.songStartT < 16.0;
+    return now - this.songStartT < C.show.openingFallbackS;
   }
 
   protected alertsAndMode(now: number, connected: boolean): [Alert[], string] {
@@ -326,7 +323,7 @@ export class EngineBase {
     const dead = Boolean(cap["dead"]);
     if (dead && this.deadSince < 0) this.deadSince = now;
     else if (!dead) this.deadSince = -1e9;
-    if (dead && now - this.deadSince > EngineBase.DEAD_CRITICAL_S) {
+    if (dead && now - this.deadSince > C.engine.deadCriticalS) {
       alerts.push({ level: "critical", msg: "audio capture stopped — the assistant is deaf (check the interface is connected)" });
     } else if (dead) {
       alerts.push({ level: "warn", msg: "audio dropout — recovering…" });
@@ -474,8 +471,8 @@ export class EngineBase {
       unmask: {
         enabled: a.enabled["unmask"] ?? false,
         duck_db: r1(a.duckGain),
-        freq: roundHalfEven(C.UNMASK_FREQ),
-        channels: [...a.unmaskTargets()],
+        freq: roundHalfEven(C.unmask.freq),
+        channels: [...a.unmask.targets()],
       },
       main_muted: this.con instanceof SimConsole ? this.con.mainMuted : false,
       master: { fader: r1(this.masterDb) },

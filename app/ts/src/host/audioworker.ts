@@ -4,6 +4,7 @@ import type { FromCapture, ToCapture } from "../core/capturelink.ts";
 import { C } from "../core/config.ts";
 import type { AudioInputFactory } from "../core/devicecapture.ts";
 import { TimedAudioFactory } from "../core/timedaudio.ts";
+import { setTuning } from "../core/tuning.ts";
 import { NativeAudioInputFactory } from "./audiodevice.ts";
 import { SystemClock, threadStamp } from "./clock.ts";
 
@@ -16,6 +17,9 @@ const factory: AudioInputFactory = kind === "timed" ? new TimedAudioFactory(cloc
 const host = new CaptureHost(factory, clock, (message: FromCapture) => port.postMessage(message), threadStamp);
 
 port.on("message", (message: ToCapture) => {
-  if (message.type === "open") C.MEAS_MIC_CH = message.config.measCh;
+  if (message.type === "open") {
+    C.MEAS_MIC_CH = message.config.measCh;
+    setTuning(message.config.tuning);
+  }
   host.handle(message);
 });

@@ -35,14 +35,14 @@ export class EngineCalibration extends EngineShow {
 
   protected async calibrateWorker(): Promise<void> {
     const epoch = this.takeoverEpoch;
-    await this.clock.sleep(1.2);
+    await this.clock.sleep(C.calibration.settleS);
     if (this.calibrationAborted(epoch)) return;
     let capture: Samples | null = null;
     let played = true;
     if (this.source !== null) {
-      played = await this.source.emitPinkNoise(generatePinkNoise(C.CAL_DURATION_S, this.noiseRng));
+      played = await this.source.emitPinkNoise(generatePinkNoise(C.calibration.durationS, this.noiseRng));
       if (this.calibrationAborted(epoch)) return;
-      capture = await this.source.captureMeas(C.CAL_DURATION_S);
+      capture = await this.source.captureMeas(C.calibration.durationS);
     }
     if (this.calibrationAborted(epoch)) return;
     let res: CalibrationResult | null = null;
@@ -53,7 +53,7 @@ export class EngineCalibration extends EngineShow {
       for (let i = 0; i < capture.length; i++) sumSq += capture[i]! * capture[i]!;
       const rms = Math.sqrt(sumSq / capture.length);
       levelDb = 20.0 * Math.log10(rms + 1e-9);
-      if (rms < 10 ** (-50.0 / 20.0)) silent = true;
+      if (rms < 10 ** (C.calibration.minLevelDbfs / 20.0)) silent = true;
       else res = this.calibrator.analyze(capture);
     }
     if (silent) {
@@ -63,7 +63,7 @@ export class EngineCalibration extends EngineShow {
         ? "the test tone could not be played — check the output device"
         : "raise the mic gain / speaker level or move the mic closer";
       const lvl = levelDb !== null ? `${fixed(levelDb, 0)} dBFS` : "silence";
-      this.assistant.emit("calibration", `calibration heard only ${lvl} at the mic (needs > -50 dBFS) — ${hint}`);
+      this.assistant.emit("calibration", `calibration heard only ${lvl} at the mic (needs > ${fixed(C.calibration.minLevelDbfs, 0)} dBFS) — ${hint}`);
       this.rebuildTelemetry();
       return;
     }

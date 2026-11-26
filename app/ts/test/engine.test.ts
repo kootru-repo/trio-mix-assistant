@@ -10,7 +10,7 @@ import { OscConsole, SimConsole } from "../src/core/console.ts";
 import { fromObject, TemplateError } from "../src/core/template.ts";
 import { asBool, intOf, numOf } from "../src/core/util.ts";
 import type { VenueModel } from "../src/core/venue.ts";
-import { fixture } from "./helpers.ts";
+import { fixture, recording, saveFixture } from "./helpers.ts";
 import { StepClock } from "./stepclock.ts";
 
 interface Fx {
@@ -83,6 +83,12 @@ test("the engine, stepped on a manual clock, publishes the recorded telemetry", 
       default:
         throw new Error(op.op);
     }
+  }
+  if (recording) {
+    fx.snapshots = json(snapshots);
+    fx.events = json(e.events);
+    fx.final = { ...fx.final, status: e.status, calib_status: e.calibStatus, master_db: e.masterDb, muted: Object.fromEntries([...e.muted].map(([k, v]) => [String(k), v])) };
+    saveFixture("engine", fx);
   }
   assert.equal(snapshots.length, fx.snapshots.length);
   fx.snapshots.forEach((s, i) => {

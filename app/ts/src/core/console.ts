@@ -112,12 +112,12 @@ export abstract class ConsoleBase {
   setFaderDb(ch: number, db: number): number {
     finite(db);
     this.bumpRamp(ch);
-    return this.writeFader(ch, db, C.FADER_MIN_DB, C.FADER_MAX_DB);
+    return this.writeFader(ch, db, C.limits.faderMinDb, C.limits.faderMaxDb);
   }
 
-  rampFaderDb(ch: number, startDb: number, endDb: number, ms: number = C.RAMP_MS, steps: number = 12): number {
+  rampFaderDb(ch: number, startDb: number, endDb: number, ms: number = C.ride.rampMs, steps: number = 12): number {
     finite(startDb, endDb, ms, steps);
-    const end = clamp(endDb, C.FADER_MIN_DB, C.FADER_MAX_DB);
+    const end = clamp(endDb, C.limits.faderMinDb, C.limits.faderMaxDb);
     const job: RampJob = { ch, startDb, endDb: end, ms, steps, gen: this.bumpRamp(ch), epoch: this.rampEpoch };
     this.rampChain = this.rampChain.then(() => this.runRamp(job)).catch((exc: unknown) => {
       this.lastRampError = exc;
@@ -139,14 +139,14 @@ export abstract class ConsoleBase {
   private async runRamp(job: RampJob): Promise<void> {
     for (let i = 1; i <= job.steps; i++) {
       if (this.closed || job.epoch !== this.rampEpoch || job.gen !== this.rampGen.get(job.ch)) return;
-      this.writeFader(job.ch, job.startDb + (job.endDb - job.startDb) * (i / job.steps), C.FADER_MIN_DB, C.FADER_MAX_DB);
+      this.writeFader(job.ch, job.startDb + (job.endDb - job.startDb) * (i / job.steps), C.limits.faderMinDb, C.limits.faderMaxDb);
       if (this.rampClock) await this.rampClock.sleep(job.ms / 1000 / job.steps);
     }
   }
 
   nudgeGainDb(ch: number, currentDb: number, deltaDb: number): number {
     finite(currentDb, deltaDb);
-    const next = clamp(currentDb + deltaDb, C.HEADAMP_MIN_DB, C.HEADAMP_MAX_DB);
+    const next = clamp(currentDb + deltaDb, C.limits.headampMinDb, C.limits.headampMaxDb);
     this.send(`/headamp/${zeroPad(ch - 1, 3)}/gain`, oscFloat((next + 12) / 72));
     this.record({ kind: "gain", ch, db: next });
     return next;
@@ -164,8 +164,8 @@ export abstract class ConsoleBase {
     ch: number,
     band: number,
     hz: number,
-    gainDb: number = C.FB_NOTCH_GAIN_DB,
-    q: number = C.FB_NOTCH_Q,
+    gainDb: number = C.feedback.notchGainDb,
+    q: number = C.feedback.notchQ,
   ): void {
     this.eqBand(`/ch/${zeroPad(ch, 2)}/eq/${band}`, hz, gainDb, q);
     this.send(`/ch/${zeroPad(ch, 2)}/eq/on`, oscInt(1));

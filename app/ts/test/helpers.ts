@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export function fixture<T = any>(name: string): T {
   const path = fileURLToPath(new URL(`../fixtures/${name}.json`, import.meta.url));
   return JSON.parse(readFileSync(path, "utf8")) as T;
+}
+
+export const recording = process.env["RECORD_FIXTURES"] === "1";
+
+export function saveFixture(name: string, data: unknown): void {
+  writeFileSync(fileURLToPath(new URL(`../fixtures/${name}.json`, import.meta.url)), JSON.stringify(data));
 }
 
 export function f32(b64: string): Float32Array {

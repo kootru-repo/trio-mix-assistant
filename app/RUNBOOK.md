@@ -373,6 +373,8 @@ validates mechanics, not your firmware's exact formats; that's still §2.4.)
 | `--no-show-clock` | disable the simulated show clock (simulation and `--emulate`) |
 | `--venue "<name>"` | tag the session log **and load/learn this venue's model** (recurring feedback freqs pre‑seed the watch‑list; the model updates after each run with that venue name, simulation and rehearse runs included) |
 | `--session-db <path｜off>` | session‑log location, or disable |
+| `--tune <section.name=value>` | change one tuning setting for this run (repeat for more), e.g. `--tune feedback.ringDb=10`; wins over the template's `"tuning"` block. Like any flag other than `--rehearse`, `--list-devices`, `--diagnose` and `--vet`, it makes the app ignore `show.conf`, so to tune the usual start put `TUNE.feedback.ringDb = 10` in `show.conf` instead |
+| `--list-tuning` | list every tuning setting with its default and allowed range, and exit |
 | `--lan` | bind to the LAN so tablets can connect |
 | `--https` | serve TLS (self‑signed) for PWA install + Wake Lock |
 | `--pin "<code>"` | require this PIN (at least 6 characters) to open the dashboard + control the console; pair with `--https`. Required with `--lan` unless `--insecure-open` is given. `PIN=` in `show.conf` |

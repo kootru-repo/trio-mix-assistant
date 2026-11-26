@@ -21,6 +21,7 @@ import { AbleSetReceiver } from "../core/showclock.ts";
 import type { ShowState } from "../core/showclock.ts";
 import { fromObject } from "../core/template.ts";
 import type { Peer } from "../core/transport.ts";
+import { tuningLines } from "../core/tuning.ts";
 import { buildModel } from "../core/venue.ts";
 import {
   Desk,
@@ -619,7 +620,7 @@ async function sound(ctx: Ctx): Promise<void> {
   }
   await step(ctx.rows, ctx.log, spec, async () => {
     if (ctx.stopped()) throw new VetSkip("stopped before this step ran");
-    const seconds = C.CAL_DURATION_S;
+    const seconds = C.calibration.durationS;
     ctx.io.out("");
     ctx.io.out(`  SOUND: pink noise plays through the output device for ${seconds} seconds.`);
     const source = open();
@@ -756,6 +757,12 @@ export async function setupLines(io: Io, lanIp: () => Promise<string | null>): P
     }
   } catch (e) {
     out.push(`    show.conf could not be read: ${errText(e)}`);
+  }
+  const tuned = tuningLines();
+  if (tuned.length === 0) out.push("    Tuning: all defaults");
+  else {
+    out.push("    Tuning changed from the defaults (the full test's job steps run with the defaults):");
+    for (const l of tuned) out.push(`      ${l}`);
   }
   try {
     const names = readdirSync(io.layout.appDir);

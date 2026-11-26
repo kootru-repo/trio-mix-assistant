@@ -113,7 +113,7 @@ export function findRingBin(db: Float64Array): number | null {
   for (let i = lo; i < k; i++) neighbourhood.push(db[i]!);
   for (let i = k + 1; i < hi; i++) neighbourhood.push(db[i]!);
   if (neighbourhood.length === 0) return null;
-  return db[k]! - median(neighbourhood) > C.FB_RING_DB ? k : null;
+  return db[k]! - median(neighbourhood) > C.feedback.ringDb ? k : null;
 }
 
 export function harmonicityOf(db: Float64Array, k: number, floor: number = median(db)): number {
@@ -135,7 +135,7 @@ export class RollingRingDetector {
   private readonly win: Float64Array;
 
   constructor(fftSize: number | null = null, sr: number = C.SAMPLE_RATE) {
-    this.n = Math.trunc(fftSize || C.FB_DETECT_FFT);
+    this.n = Math.trunc(fftSize || C.feedback.detectFft);
     this.sr = sr;
     this.win = hanning(this.n);
   }
@@ -204,7 +204,7 @@ export function phaseRelation(
   if (na < 1e-9 || nb < 1e-9) return noPhase();
   const denom = na * nb;
   const zero = xy / denom;
-  let maxLag = Math.trunc(((maxLagMs ?? C.PHASE_MAX_LAG_MS) / 1000) * sr);
+  let maxLag = Math.trunc(((maxLagMs ?? C.phase.maxLagMs) / 1000) * sr);
   maxLag = Math.max(1, Math.min(maxLag, n - 1));
   let bestLag = -maxLag;
   let bestVal = 0;
@@ -228,7 +228,7 @@ export function generatePinkNoise(
   seconds: number,
   rng: Rng,
   sr: number = C.SAMPLE_RATE,
-  levelDbfs: number = C.CAL_NOISE_DBFS,
+  levelDbfs: number = C.calibration.noiseDbfs,
 ): Float32Array {
   const n = Math.trunc(seconds * sr);
   const white = new Float64Array(n);
@@ -259,7 +259,7 @@ export function octaveBandLevels(samples: Samples, sr: number = C.SAMPLE_RATE): 
   for (let i = 0; i < n; i++) windowed[i] = samples[i]! * win[i]!;
   const mag = magnitude(rfft(windowed));
   const out = new Map<number, number>();
-  for (const fc of C.CAL_OCTAVE_BANDS) {
+  for (const fc of C.calibration.octaveBands) {
     const lo = fc / Math.SQRT2;
     const hi = fc * Math.SQRT2;
     let sum = 0;
@@ -292,8 +292,8 @@ export function findResonantPeaks(
     if (i === 0 || i === fcs.length - 1) continue;
     const avg = ((vals[i - 1] ?? 0) + vals[i]! + (vals[i + 1] ?? 0)) / 3;
     const excess = vals[i]! - avg;
-    if (excess > C.CAL_PEAK_THRESH) {
-      const cut = Math.max(C.CAL_MAX_CUT_DB, -excess);
+    if (excess > C.calibration.peakThreshDb) {
+      const cut = Math.max(C.calibration.maxCutDb, -excess);
       corrections.push([fcs[i]!, roundTo(cut, 1)]);
       watch.push([fcs[i]!, roundTo(excess, 1)]);
     }

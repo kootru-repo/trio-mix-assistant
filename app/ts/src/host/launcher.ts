@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import { TuningError, parseOverride } from "../core/tuning.ts";
 
 export type Conf = Record<string, string>;
 
@@ -146,6 +147,16 @@ export function buildArgv(
   if (sessionDb) {
     const off = sessionDb.toLowerCase() === "off";
     argv.push(`--session-db=${off ? "off" : isAbsolute(sessionDb) ? sessionDb : join(baseDir, sessionDb)}`);
+  }
+  for (const [key, value] of Object.entries(cfg)) {
+    if (!key.startsWith("TUNE.")) continue;
+    try {
+      const o = parseOverride(`${key.slice(5)}=${value}`, "show.conf");
+      argv.push(`--tune=${o.path}=${o.value}`);
+    } catch (exc) {
+      if (exc instanceof TuningError) throw new ConfError(`${key} in show.conf: ${exc.message}`);
+      throw exc;
+    }
   }
   return { argv, mode, port };
 }

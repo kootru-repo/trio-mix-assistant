@@ -205,6 +205,9 @@ npm run run -- --hardware --console-ip <ip> --template myset.json --ableset-port
 - **Show template** (`--template file.json`): a validated setlist mapping each song
   (as AbleSet names it) to a console `scene` plus per-song `lead_target` / `balance`
   reference levels and an optional `guest` flag. Omit it for the built-in trio set.
+  An optional `"tuning"` block changes how the jobs act for that show, for example
+  `"tuning": {"feedback": {"ringDb": 10}}`; `--tune` and `TUNE.` lines in `show.conf`
+  win over it, and `--list-tuning` lists every setting with its default and range.
   In simulation the clock walks the setlist automatically so you can watch scenes
   recall live; `--no-show-clock` disables that.
 - **Session log**: the assistant's decisions are written to SQLite (`sessions.db`, off the
@@ -257,7 +260,7 @@ over `wss://` automatically under https.
 | **Vocal ride** | advisory | Hold the lead vocal's *output* at a target as the singer's input drifts (clamped P-leveler: deadband + step limit + smooth ramp). |
 | **Balance hold** | advisory | Snapshot the bass/keys balance and hold it from wandering. |
 | **Phase / polarity** | advisory | Cross-correlate paired mics (mic+DI, two mics on one source): out of polarity → auto-flip the channel Φ (or advise in coach mode); flag comb-filtering time offsets. Opt-in via `PHASE_PAIRS` / template `phase_pairs`. |
-| **Vocal unmask** | advisory | Dynamic EQ sidechained to the lead vocal: when it's up, duck each instrument's `UNMASK_FREQ` (~3 kHz) band toward `UNMASK_DEPTH_DB` (fast attack), release when it pauses (slow). Coach mode advises a static dip. Targets = `UNMASK_CHANNELS` (default: all but vocal/meas/stage). |
+| **Vocal unmask** | advisory | Dynamic EQ sidechained to the lead vocal: when it's up, duck each instrument's `unmask.freq` (~3 kHz) band toward `unmask.depthDb` (fast attack), release when it pauses (slow). Coach mode advises a static dip. Targets = `UNMASK_CHANNELS` (default: all but vocal/meas/stage). |
 | **Pink-noise calibration** | pre-show | Measure the room, cut up to four octave bands that stand out (a fifth or sixth gets a −3 dB dip), build the baseline + watch-list. |
 | **Manual mixing surface** | performer | Draggable per-channel fader strips + master + one-tap mute, over WebSocket. A human move makes the auto-ride **yield** on that channel for a few seconds (shared-control). |
 | **Coach mode** | advisory | A header toggle that suspends new automatic console writes (switching it on first flattens any vocal-unmask dip already applied), covering mix corrections *and* setlist automation (scene recall, guest mutes), and instead lists the exact manual move (channel, band, dB, Hz, scene) in a panel + the log. Only your own manual moves act. The numbers are the same deterministic math as auto mode. For mixing by hand with guidance, or previewing what the app would do. |
@@ -290,11 +293,11 @@ engine's timer.
 
 | Module (`ts/src/core` unless noted) | Responsibility |
 |--------|----------------|
-| `config.ts` | Rig map + all tunable constants |
+| `config.ts`, `tuning.ts` | Rig map and every constant, grouped by job (`C.feedback.ringDb` …); `tuning.ts` holds the tunable list with ranges and merges template, `show.conf` and `--tune` overrides |
 | `dsp.ts`, `fft.ts` | Features, ring detection, pink-noise + octave-band math (pure) |
 | `console.ts`, `oscwire.ts` | X32/M32 scaling + `ConsoleBase` → `OscConsole` (UDP) / `SimConsole` (records); OSC encode and decode |
 | `calibration.ts` | Pre-show pink-noise pass |
-| `assistant/` | The guard-railed decision loops + typed decision log: `base` (state, log, coach), `protect` (feedback, clip), `levels` (vocal ride, balance), `clarity` (phase, unmask), `core` (`MixAssistant`) |
+| `assistant/` | The guard-railed decision loops + typed decision log: one unit per job, each given a shared context (config, a narrow mixer interface, shared state) so it can be tested alone: `feedback`, `clip`, `ride` (vocal ride, balance), `room` (room confidence, stage volume), `clarity` (phase, unmask), `coach`; `context` holds the shared pieces and `core` (`MixAssistant`) composes them |
 | `capture.ts`, `devicecapture.ts`, `timedaudio.ts` | The listening half: the `CaptureSource` interface and simulator, real multichannel input behind an injected stream, and the emulator's timed stream |
 | `blockanalysis.ts`, `capturelink.ts` | Per-block analysis, and the link between the audio thread (`CaptureHost`) and the engine (`RemoteCapture`): open, restart, recording and liveness as messages |
 | `host/audiodevice.ts`, `host/audioworker.ts`, `host/capturethread.ts` | The PortAudio binding (called directly), the audio thread's entry file, and its launcher |

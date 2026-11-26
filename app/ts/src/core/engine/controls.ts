@@ -35,7 +35,7 @@ export class EngineControls extends EngineBase {
     } catch {
       return;
     }
-    v = clamp(v, -40, 10);
+    v = clamp(v, C.ride.leadTargetMinDb, C.ride.leadTargetMaxDb);
     this.assistant.leadTarget = v;
     this.assistant.emit("system", `lead target set to ${signed(v, 1)} dB`);
     this.rebuildTelemetry();
@@ -191,11 +191,11 @@ export class EngineControls extends EngineBase {
     if (!C.CHANNELS.has(ch) || !Number.isFinite(db)) return;
     const now = this.clock.monotonic();
     this.lastRxT = now;
-    if (now - (this.assistant.lastMoveT.get(ch) ?? -1e9) < 0.8) return;
-    if (Math.abs(db - (this.assistant.faderDb.get(ch) ?? 0)) < 0.5) return;
+    if (now - (this.assistant.lastMoveT.get(ch) ?? -1e9) < C.manual.echoS) return;
+    if (Math.abs(db - (this.assistant.faderDb.get(ch) ?? 0)) < C.manual.minDb) return;
     this.assistant.faderDb.set(ch, db);
     this.assistant.noteManual(ch, now);
-    if (now - (this.lastReconcileLog.get(ch) ?? -1e9) > 0.5) {
+    if (now - (this.lastReconcileLog.get(ch) ?? -1e9) > C.manual.logIntervalS) {
       this.lastReconcileLog.set(ch, now);
       this.assistant.emit("manual", `${chan(ch)} moved on console → ${signed(db, 1)} dB`, ch);
     }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import { Calibrator } from "../src/core/calibration.ts";
 import type { CalibrationResult } from "../src/core/calibration.ts";
 import { ManualClock } from "../src/core/clock.ts";
@@ -9,7 +9,7 @@ import { SimConsole } from "../src/core/console.ts";
 import type { ChannelFeatures } from "../src/core/dsp.ts";
 import { MixAssistant } from "../src/core/assistant/index.ts";
 import type { AssistantEvent } from "../src/core/assistant/index.ts";
-import { fixture } from "./helpers.ts";
+import { fixture, recording, saveFixture } from "./helpers.ts";
 
 interface Scenario {
   name: string;
@@ -188,6 +188,12 @@ for (const sc of scenarios) {
           r.errors.push(`UnknownChannel:${m[1]}`);
         }
       }
+      if (recording) {
+        sc.errors = r.errors;
+        sc.events = JSON.parse(JSON.stringify(r.events));
+        sc.snapshots = JSON.parse(JSON.stringify(r.snapshots));
+        sc.state = JSON.parse(JSON.stringify(r.state()));
+      }
       assert.deepEqual(r.errors, sc.errors);
       sameValue(r.events, sc.events, "events");
       sameValue(r.snapshots, sc.snapshots, "coach snapshots");
@@ -197,6 +203,10 @@ for (const sc of scenarios) {
     }
   });
 }
+
+after(() => {
+  if (recording) saveFixture("assistant", scenarios);
+});
 
 test("the scenarios exercise every job", () => {
   const kinds = new Set(scenarios.flatMap((s) => s.events.map((e) => e.kind)));
