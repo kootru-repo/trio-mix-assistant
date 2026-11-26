@@ -1,0 +1,59 @@
+name: Mac Safari run full test
+
+# Starts the built Mac app the way a double-click does, opens the dashboard in
+# real Safari and clicks Run full test straight away: once on a fresh start and
+# once after the Terminal microphone test from the README.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/scripts/safari-run-full.mjs"
+      - ".github/workflows/mac-safari.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  safari:
+    name: safari (${{ matrix.mac }}, ${{ matrix.scenario }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, mac: arm64, scenario: fresh }
+          - { os: macos-latest, mac: arm64, scenario: terminal-first }
+          - { os: macos-15-intel, mac: x64, scenario: fresh }
+          - { os: macos-15-intel, mac: x64, scenario: terminal-first }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/ts/package-lock.json
+      - name: Build the single-file app
+        working-directory: app/ts
+        run: |
+          npm ci --foreground-scripts
+          npm run exe
+          tar -czf "$RUNNER_TEMP/TrioMixAssistant-macos-${{ matrix.mac }}.tar.gz" -C dist/exe .
+      - name: Unpack it into Downloads, as Safari does
+        run: |
+          mkdir -p ~/Downloads/TrioMixAssistant-macos-${{ matrix.mac }}
+          tar -xzf "$RUNNER_TEMP/TrioMixAssistant-macos-${{ matrix.mac }}.tar.gz" -C ~/Downloads/TrioMixAssistant-macos-${{ matrix.mac }}
+          ls -la ~/Downloads/TrioMixAssistant-macos-${{ matrix.mac }}
+      - name: Let safaridriver control Safari
+        run: sudo safaridriver --enable
+      - name: Click Run full test in Safari
+        run: node .github/scripts/safari-run-full.mjs ~/Downloads/TrioMixAssistant-macos-${{ matrix.mac }} ${{ matrix.scenario }} "$RUNNER_TEMP/safari-out"
+      - name: Keep the screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: safari-${{ matrix.mac }}-${{ matrix.scenario }}
+          path: ${{ runner.temp }}/safari-out
+          retention-days: 14
