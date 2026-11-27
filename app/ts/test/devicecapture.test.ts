@@ -276,8 +276,7 @@ test("device not found raises a clear error", () => {
     () => cap.makeInputStream(),
     (e: unknown) =>
       e instanceof CaptureError &&
-      e.message ===
-        "audio device 999 could not be opened (Error: no such device). Run --list-devices and check --audio-device.",
+      e.message === "audio device 999 could not be opened (Error: no such device). Run --list-devices and check --audio-device.",
   );
 });
 
@@ -289,8 +288,7 @@ test("open failure raises a clear error", () => {
     (e: unknown) =>
       e instanceof CaptureError &&
       e.message ===
-        'could not open audio device "Mic" at 48000 Hz (Error: busy). ' +
-          "It may be in use by another app, or not support 48000 Hz.",
+        'could not open audio device "Mic" at 48000 Hz (Error: busy). ' + "It may be in use by another app, or not support 48000 Hz.",
   );
 });
 
@@ -484,10 +482,7 @@ test("listAudioDevices and autodetectInputs use the factory", () => {
     { name: "B", max_input_channels: 1, default_samplerate: 48000, hostapi: 0 },
   ];
   f.defaultIndex = 1;
-  assert.equal(
-    listAudioDevices(f),
-    "Input devices:\n  [0] A  (2 in, 48000 Hz, Windows WASAPI)\n  [1] B  (1 in, 48000 Hz, Windows WASAPI)",
-  );
+  assert.equal(listAudioDevices(f), "Input devices:\n  [0] A  (2 in, 48000 Hz, Windows WASAPI)\n  [1] B  (1 in, 48000 Hz, Windows WASAPI)");
   assert.deepEqual(
     autodetectInputs(f, 48000).map((r) => r.index),
     [1, 0],
@@ -758,7 +753,10 @@ test("a missing module and a broken install are told apart", async () => {
   const brokenInstall = Object.assign(new Error("The specified module could not be found: portaudio.node"), {
     code: "ERR_DLOPEN_FAILED",
   });
-  await assert.rejects(loadNativeAudio(() => Promise.reject(brokenInstall)), /portaudio\.node/);
+  await assert.rejects(
+    loadNativeAudio(() => Promise.reject(brokenInstall)),
+    /portaudio\.node/,
+  );
   const broken = await NativeAudioInputFactory.create(() => Promise.reject(brokenInstall));
   assert.throws(
     () => broken.listDevices(),
@@ -768,7 +766,10 @@ test("a missing module and a broken install are told apart", async () => {
   const otherPackage = Object.assign(new Error("Cannot find package 'bindings' imported from /x/y.js"), {
     code: "ERR_MODULE_NOT_FOUND",
   });
-  await assert.rejects(loadNativeAudio(() => Promise.reject(otherPackage)), /bindings/);
+  await assert.rejects(
+    loadNativeAudio(() => Promise.reject(otherPackage)),
+    /bindings/,
+  );
 
   const { native } = fakeNative();
   assert.equal(await loadNativeAudio(() => Promise.resolve({ default: native })), native);
@@ -784,11 +785,17 @@ test("the native output sink plays stereo to the named output device", async () 
   assert.equal(o.options.outOptions.channelCount, 2);
   assert.equal(o.options.outOptions.sampleRate, 48000);
   const bytes = o.written[0]!;
-  assert.deepEqual([...new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))], [0.25, 0.25, -0.5, -0.5]);
+  assert.deepEqual(
+    [...new Float32Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))],
+    [0.25, 0.25, -0.5, -0.5],
+  );
   assert.equal(o.quit, 0, "the noise must still be playing when play returns, so the recording overlaps it");
   await f.idle();
   assert.equal(o.quit, 1);
-  await assert.rejects(Promise.resolve().then(() => sink.play(new Float32Array(1), 48000, "Nope")), /No output device/);
+  await assert.rejects(
+    Promise.resolve().then(() => sink.play(new Float32Array(1), 48000, "Nope")),
+    /No output device/,
+  );
   assert.equal(new NativeAudioInputFactory(null).outputSink(), null);
 });
 
@@ -857,7 +864,9 @@ test("the native device id is used, not the position in the device list", () => 
 test("input arrives as whole blocks however the driver slices it", async () => {
   const { native, opened } = fakeNative();
   const got: number[][] = [];
-  const stream = new NativeAudioInputFactory(native).open({ device: 1, channels: 2, sampleRate: 48000, blockSize: 3 }, (d) => got.push([...d]));
+  const stream = new NativeAudioInputFactory(native).open({ device: 1, channels: 2, sampleRate: 48000, blockSize: 3 }, (d) =>
+    got.push([...d]),
+  );
   stream.start();
   assert.ok(opened[0]!.options.inOptions.maxQueue >= 16, "the driver must be able to queue blocks while the reader is busy");
   const samples = Float32Array.from({ length: 15 }, (_, i) => i + 1);
@@ -1032,7 +1041,10 @@ test("an output stream that will not start is released and rethrown, and one tha
     },
   });
   const sink = new NativeAudioInputFactory(failing.native).outputSink()!;
-  await assert.rejects(Promise.resolve().then(() => sink.play(new Float32Array(2), 48000, 0)), /start refused/);
+  await assert.rejects(
+    Promise.resolve().then(() => sink.play(new Float32Array(2), 48000, 0)),
+    /start refused/,
+  );
   await turn();
   assert.equal(failing.opened[0]!.quit, 1);
   assert.equal(failing.opened[0]!.options.outOptions.deviceId, 7);

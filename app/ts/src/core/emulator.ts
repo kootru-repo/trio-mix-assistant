@@ -93,27 +93,9 @@ const FLOAT_LEAVES = new Set([
   "lpf",
 ]);
 
-const SCOLOR = [
-  "OFF",
-  "RD",
-  "GN",
-  "YE",
-  "BL",
-  "MG",
-  "CY",
-  "WH",
-  "OFFi",
-  "RDi",
-  "GNi",
-  "YEi",
-  "BLi",
-  "MGi",
-  "CYi",
-  "WHi",
-];
+const SCOLOR = ["OFF", "RD", "GN", "YE", "BL", "MG", "CY", "WH", "OFFi", "RDi", "GNi", "YEi", "BLi", "MGi", "CYi", "WHi"];
 
-const mixSend = (m: RegExpMatchArray): string =>
-  Number.parseInt(m[1]!, 10) % 2 ? "ON -oo +0 POST 0" : "ON -oo";
+const mixSend = (m: RegExpMatchArray): string => (Number.parseInt(m[1]!, 10) % 2 ? "ON -oo +0 POST 0" : "ON -oo");
 
 const NODE_RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^\/(?:ch|auxin|fxrtn)\/\d{2}\/mix\/(\d{2})$/, mixSend],
@@ -343,7 +325,11 @@ export class EmulatedDesk {
   private seedParams(): void {
     for (let ch = 1; ch <= 32; ch++) {
       const role = this.cfg.CHANNELS.get(ch);
-      const name = role ? Array.from(this.cfg.ROLE_LABELS.get(role) ?? role).slice(0, 12).join("") : "";
+      const name = role
+        ? Array.from(this.cfg.ROLE_LABELS.get(role) ?? role)
+            .slice(0, 12)
+            .join("")
+        : "";
       const p = `/ch/${zeroPad(ch, 2)}`;
       this.params.set(`${p}/config/name`, [oscStr(name)]);
       this.params.set(`${p}/config/color`, [oscInt((ch % 8) + 1)]);
@@ -476,12 +462,7 @@ export class EmulatedDesk {
       return;
     }
     if (addr === "/xinfo") {
-      this.reply(client, "/xinfo", [
-        oscStr(this.localIp),
-        oscStr(this.cfg.X32_NAME),
-        oscStr(this.cfg.X32_MODEL),
-        oscStr(this.cfg.X32_FW),
-      ]);
+      this.reply(client, "/xinfo", [oscStr(this.localIp), oscStr(this.cfg.X32_NAME), oscStr(this.cfg.X32_MODEL), oscStr(this.cfg.X32_FW)]);
       return;
     }
     if (addr === "/status") {
@@ -519,9 +500,7 @@ export class EmulatedDesk {
       return;
     }
     if (addr === "/showdump") {
-      this.reply(client, "node", [
-        oscStr(`/-show/showfile/show "${this.cfg.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "${this.cfg.X32_FW}"\n`),
-      ]);
+      this.reply(client, "node", [oscStr(`/-show/showfile/show "${this.cfg.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "${this.cfg.X32_FW}"\n`)]);
       return;
     }
 

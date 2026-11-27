@@ -154,36 +154,100 @@ export class MixAssistant {
     return this.feedback.allocBusBand();
   }
 
-  get coachMode(): boolean { return this.coach.coachMode; }
-  get coachRecs(): Map<string, CoachRec> { return this.coach.coachRecs; }
-  get enabled(): Record<string, boolean> { return this.state.enabled; }
-  get faderDb(): Map<number, number> { return this.state.faderDb; }
-  get gainDb(): Map<number, number> { return this.state.gainDb; }
-  get nominalGain(): Map<number, number> { return this.state.nominalGain; }
-  get lastMoveT(): Map<number, number> { return this.state.lastMoveT; }
-  get manualHoldUntil(): Map<number, number> { return this.state.manualHoldUntil; }
-  get roomConfidence(): number { return this.state.roomConfidence; }
-  get roomLevelDb(): number { return this.room.roomLevelDb; }
-  get roomContrastDb(): number { return this.room.roomContrastDb; }
-  get stageBaseline(): number | null { return this.stage.stageBaseline; }
-  get leadTarget(): number { return this.ride.leadTarget; }
-  set leadTarget(v: number) { this.ride.leadTarget = v; }
-  get inEma(): Map<number, number | null> { return this.ride.inEma; }
-  get balanceTargets(): Map<number, number> { return this.ride.balanceTargets; }
-  get fbStreak(): Map<number, number> { return this.feedback.fbStreak; }
-  get fbLastLevel(): Map<number, number> { return this.feedback.fbLastLevel; }
-  get usedNotchBand(): Map<number, number> { return this.feedback.usedNotchBand; }
-  get usedBusNotchBand(): number { return this.feedback.usedBusNotchBand; }
-  set usedBusNotchBand(v: number) { this.feedback.usedBusNotchBand = v; }
-  get fbBusBands(): number[] { return this.feedback.fbBusBands; }
-  set fbBusBands(v: number[]) { this.feedback.fbBusBands = v; }
-  get calBusBands(): Set<number> { return this.feedback.calBusBands; }
-  set calBusBands(v: Set<number>) { this.feedback.calBusBands = v; }
-  get venueWatchFreqs(): number[] { return this.feedback.venueWatchFreqs; }
-  set venueWatchFreqs(v: number[]) { this.feedback.venueWatchFreqs = v; }
-  get polarity(): Map<number, boolean> { return this.phase.polarity; }
-  get phaseStatus(): Map<string, PhaseStatus> { return this.phase.phaseStatus; }
-  get duckGain(): number { return this.unmask.duckGain; }
-  get duckApplied(): Map<number, number> { return this.unmask.duckApplied; }
-  get voxLevelEma(): number | null { return this.unmask.voxLevelEma; }
+  get coachMode(): boolean {
+    return this.coach.coachMode;
+  }
+  get coachRecs(): Map<string, CoachRec> {
+    return this.coach.coachRecs;
+  }
+  get enabled(): Record<string, boolean> {
+    return this.state.enabled;
+  }
+  get faderDb(): Map<number, number> {
+    return this.state.faderDb;
+  }
+  get gainDb(): Map<number, number> {
+    return this.state.gainDb;
+  }
+  get nominalGain(): Map<number, number> {
+    return this.state.nominalGain;
+  }
+  get lastMoveT(): Map<number, number> {
+    return this.state.lastMoveT;
+  }
+  get manualHoldUntil(): Map<number, number> {
+    return this.state.manualHoldUntil;
+  }
+  get roomConfidence(): number {
+    return this.state.roomConfidence;
+  }
+  get roomLevelDb(): number {
+    return this.room.roomLevelDb;
+  }
+  get roomContrastDb(): number {
+    return this.room.roomContrastDb;
+  }
+  get stageBaseline(): number | null {
+    return this.stage.stageBaseline;
+  }
+  get leadTarget(): number {
+    return this.ride.leadTarget;
+  }
+  set leadTarget(v: number) {
+    this.ride.leadTarget = v;
+  }
+  get inEma(): Map<number, number | null> {
+    return this.ride.inEma;
+  }
+  get balanceTargets(): Map<number, number> {
+    return this.ride.balanceTargets;
+  }
+  get fbStreak(): Map<number, number> {
+    return this.feedback.fbStreak;
+  }
+  get fbLastLevel(): Map<number, number> {
+    return this.feedback.fbLastLevel;
+  }
+  get usedNotchBand(): Map<number, number> {
+    return this.feedback.usedNotchBand;
+  }
+  get usedBusNotchBand(): number {
+    return this.feedback.usedBusNotchBand;
+  }
+  set usedBusNotchBand(v: number) {
+    this.feedback.usedBusNotchBand = v;
+  }
+  get fbBusBands(): number[] {
+    return this.feedback.fbBusBands;
+  }
+  set fbBusBands(v: number[]) {
+    this.feedback.fbBusBands = v;
+  }
+  get calBusBands(): Set<number> {
+    return this.feedback.calBusBands;
+  }
+  set calBusBands(v: Set<number>) {
+    this.feedback.calBusBands = v;
+  }
+  get venueWatchFreqs(): number[] {
+    return this.feedback.venueWatchFreqs;
+  }
+  set venueWatchFreqs(v: number[]) {
+    this.feedback.venueWatchFreqs = v;
+  }
+  get polarity(): Map<number, boolean> {
+    return this.phase.polarity;
+  }
+  get phaseStatus(): Map<string, PhaseStatus> {
+    return this.phase.phaseStatus;
+  }
+  get duckGain(): number {
+    return this.unmask.duckGain;
+  }
+  get duckApplied(): Map<number, number> {
+    return this.unmask.duckApplied;
+  }
+  get voxLevelEma(): number | null {
+    return this.unmask.voxLevelEma;
+  }
 }

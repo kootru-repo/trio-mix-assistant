@@ -102,9 +102,7 @@ test("SimConsole ends in the recorded state", () => {
   for (const [k, v] of Object.entries(s.gain_db)) close(c.gainDb.get(Number(k))!, v as number, 0, 1e-12, `gain ${k}`);
   assert.deepEqual(
     Object.fromEntries([...c.notches].map(([k, v]) => [String(k), v.map((n) => [n.band, n.hz, n.gainDb, n.q])])),
-    Object.fromEntries(
-      Object.entries(s.notches).map(([k, v]: [string, any]) => [k, v.map((n: any) => [n.band, n.hz, n.gain_db, n.q])]),
-    ),
+    Object.fromEntries(Object.entries(s.notches).map(([k, v]: [string, any]) => [k, v.map((n: any) => [n.band, n.hz, n.gain_db, n.q])])),
   );
   assert.deepEqual(
     Object.fromEntries([...c.busEq].map(([k, v]) => [String(k), [v.hz, v.gainDb, v.q]])),
@@ -115,7 +113,9 @@ test("SimConsole ends in the recorded state", () => {
   assert.equal(c.masterDb, s.master_db);
   assert.equal(c.lastScene, s.last_scene);
   assert.deepEqual(
-    Object.fromEntries([...c.eqBands].map(([k, v]) => [String(k), Object.fromEntries([...v].map(([b, d]) => [String(b), [d.hz, d.gainDb, d.q, d.on]]))])),
+    Object.fromEntries(
+      [...c.eqBands].map(([k, v]) => [String(k), Object.fromEntries([...v].map(([b, d]) => [String(b), [d.hz, d.gainDb, d.q, d.on]]))]),
+    ),
     Object.fromEntries(
       Object.entries(s.eq_bands).map(([k, v]: [string, any]) => [
         k,
@@ -144,7 +144,10 @@ test("encoded messages decode back to the same arguments", () => {
   }
   const withBlob = encodeMessage("/meters/1", [oscStr("x"), oscBlob(Uint8Array.of(1, 2, 3, 4, 5)), oscInt(-7), oscFloat(0.5)]);
   const back = decodeMessage(withBlob)!;
-  assert.deepEqual(back.args.map((a) => a.t), ["s", "b", "i", "f"]);
+  assert.deepEqual(
+    back.args.map((a) => a.t),
+    ["s", "b", "i", "f"],
+  );
   assert.deepEqual([...(back.args[1] as { v: Uint8Array }).v], [1, 2, 3, 4, 5]);
   assert.equal(withBlob.length % 4, 0);
 });
@@ -166,7 +169,10 @@ test("bundles are unpacked into their messages", () => {
   const head = new Uint8Array([...Buffer.from("#bundle\0"), 0, 0, 0, 0, 0, 0, 0, 1]);
   const len = (n: number) => new Uint8Array([0, 0, 0, n]);
   const bundle = new Uint8Array([...head, ...len(one.length), ...one, ...len(two.length), ...two]);
-  assert.deepEqual(decodePacket(bundle).map((m) => m.address), ["/a", "/b"]);
+  assert.deepEqual(
+    decodePacket(bundle).map((m) => m.address),
+    ["/a", "/b"],
+  );
 });
 
 test("meter blobs match the recorded encoder and decoder, including bad input", () => {
@@ -318,7 +324,10 @@ test("the console never sends a non-finite number and leaves no trace when it re
 test("switching one EQ band off zeroes its gain and leaves the channel EQ switch alone", () => {
   const c = new Capture();
   c.setEqBand(4, 2, 1000, 6, 2, false);
-  assert.deepEqual(c.sent.map((m) => m.addr), ["/ch/04/eq/2/g", "/ch/04/eq/2/type", "/ch/04/eq/2/f", "/ch/04/eq/2/q"]);
+  assert.deepEqual(
+    c.sent.map((m) => m.addr),
+    ["/ch/04/eq/2/g", "/ch/04/eq/2/type", "/ch/04/eq/2/f", "/ch/04/eq/2/q"],
+  );
   close(c.sent[0]!.args[0]!.v as number, 0.5, 0, 1e-12);
   const s = new SimConsole();
   s.setEqBand(4, 2, 1000, 6, 2, false);

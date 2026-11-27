@@ -13,7 +13,7 @@ export const NAME = "TrioMixAssistant";
 const DOCS = ["show.conf", "RUNBOOK.md", "HARDWARE_BRINGUP.md", "HARDWARE_SETUP.md", "README.md"];
 
 const NODE_CHECK_BAT =
-  'node -e "var v=process.versions.node.split(\'.\').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=13)?0:1)" >nul 2>nul || (\r\n' +
+  "node -e \"var v=process.versions.node.split('.').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=13)?0:1)\" >nul 2>nul || (\r\n" +
   "  echo Node.js 22.13 or newer is needed. Install it from https://nodejs.org/ and run this again.\r\n" +
   "  pause\r\n" +
   "  exit /b 1\r\n" +
@@ -33,9 +33,7 @@ export const SCRIPTS: Record<string, string> = {
   "rehearse.bat": bat(
     "echo Running the FULL app against a simulated console (no hardware needed)...\r\nnode --no-warnings js\\host\\launch.js --rehearse\r\n",
   ),
-  "list-devices.bat": bat(
-    "node --no-warnings js\\host\\launch.js --list-devices\r\n",
-  ),
+  "list-devices.bat": bat("node --no-warnings js\\host\\launch.js --list-devices\r\n"),
   "start.command": sh("node --no-warnings js/host/launch.js\n"),
   "rehearse.command": sh("node --no-warnings js/host/launch.js --rehearse\n"),
   "list-devices.command": sh("node --no-warnings js/host/launch.js --list-devices\n"),
@@ -135,10 +133,14 @@ export function buildPackage(outDir: string): PackageResult {
   mkdirSync(outDir, { recursive: true });
   rmSync(dest, { recursive: true, force: true });
   mkdirSync(dest, { recursive: true });
-  const build = spawnSync(process.execPath, [join(tsDir, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.build.json", "--outDir", join(dest, "js")], {
-    cwd: tsDir,
-    encoding: "utf8",
-  });
+  const build = spawnSync(
+    process.execPath,
+    [join(tsDir, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.build.json", "--outDir", join(dest, "js")],
+    {
+      cwd: tsDir,
+      encoding: "utf8",
+    },
+  );
   if (build.status !== 0) throw new Error("build failed:\n" + build.stdout + build.stderr);
   const own: unknown = JSON.parse(readFileSync(join(tsDir, "package.json"), "utf8"));
   const version = typeof own === "object" && own !== null ? String(Reflect.get(own, "version") ?? "unknown") : "unknown";
@@ -150,7 +152,8 @@ export function buildPackage(outDir: string): PackageResult {
   cpSync(join(appDir, "x32_default_nodes.scn"), join(dest, "x32_default_nodes.scn"));
   if (existsSync(join(appDir, "templates"))) cpSync(join(appDir, "templates"), join(dest, "templates"), { recursive: true });
   for (const f of DOCS) if (existsSync(join(appDir, f))) cpSync(join(appDir, f), join(dest, f));
-  for (const [name, text] of Object.entries(SCRIPTS)) writeFileSync(join(dest, name), text, { mode: name.endsWith(".command") ? 0o755 : 0o644 });
+  for (const [name, text] of Object.entries(SCRIPTS))
+    writeFileSync(join(dest, name), text, { mode: name.endsWith(".command") ? 0o755 : 0o644 });
   cpSync(join(appDir, "START-HERE.txt"), join(dest, "START-HERE.txt"));
   const zip = join(outDir, NAME + ".zip");
   rmSync(zip, { force: true });

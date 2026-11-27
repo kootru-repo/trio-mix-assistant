@@ -163,17 +163,29 @@ export abstract class ConsoleBase {
   rampFaderDb(ch: number, startDb: number, endDb: number, ms: number = this.cfg.ride.rampMs, steps: number = 12): number {
     finite(startDb, endDb, ms, steps);
     const end = clamp(endDb, this.cfg.limits.faderMinDb, this.cfg.limits.faderMaxDb);
-    const job: RampJob = { ch, startDb, endDb: end, ms, steps, gen: this.bumpRamp(ch), epoch: this.rampEpoch, created: this.rampClock ? this.rampClock.monotonic() : null, lane: this.lane };
-    this.rampChain = this.rampChain.then(() => this.runRamp(job)).catch((exc: unknown) => {
-      this.lastRampError = exc;
-      if (this.onError !== null) {
-        try {
-          this.onError(exc);
-        } catch {
-          return;
+    const job: RampJob = {
+      ch,
+      startDb,
+      endDb: end,
+      ms,
+      steps,
+      gen: this.bumpRamp(ch),
+      epoch: this.rampEpoch,
+      created: this.rampClock ? this.rampClock.monotonic() : null,
+      lane: this.lane,
+    };
+    this.rampChain = this.rampChain
+      .then(() => this.runRamp(job))
+      .catch((exc: unknown) => {
+        this.lastRampError = exc;
+        if (this.onError !== null) {
+          try {
+            this.onError(exc);
+          } catch {
+            return;
+          }
         }
-      }
-    });
+      });
     return end;
   }
 
@@ -199,7 +211,14 @@ export abstract class ConsoleBase {
     const stepS = job.ms / 1000 / job.steps;
     for (let i = 1; i <= job.steps; i++) {
       if (!this.live(job)) return;
-      this.withLane(job.lane, () => this.writeFader(job.ch, job.startDb + (job.endDb - job.startDb) * (i / job.steps), this.cfg.limits.faderMinDb, this.cfg.limits.faderMaxDb));
+      this.withLane(job.lane, () =>
+        this.writeFader(
+          job.ch,
+          job.startDb + (job.endDb - job.startDb) * (i / job.steps),
+          this.cfg.limits.faderMinDb,
+          this.cfg.limits.faderMaxDb,
+        ),
+      );
       if (!clock) continue;
       const before = clock.monotonic();
       await clock.sleep(stepS);
@@ -323,7 +342,8 @@ export function autoLane(con: ConsoleBase) {
   return {
     setEqNotch: (ch: number, band: number, hz: number): void => auto(() => con.setEqNotch(ch, band, hz)),
     setBusEq: (band: number, hz: number, gainDb: number, q: number): void => auto(() => con.setBusEq(band, hz, gainDb, q)),
-    setEqBand: (ch: number, band: number, hz: number, gainDb: number, q: number, on: boolean): void => auto(() => con.setEqBand(ch, band, hz, gainDb, q, on)),
+    setEqBand: (ch: number, band: number, hz: number, gainDb: number, q: number, on: boolean): void =>
+      auto(() => con.setEqBand(ch, band, hz, gainDb, q, on)),
     rampFaderDb: (ch: number, startDb: number, endDb: number): number => auto(() => con.rampFaderDb(ch, startDb, endDb)),
     nudgeGainDb: (ch: number, currentDb: number, deltaDb: number): number => auto(() => con.nudgeGainDb(ch, currentDb, deltaDb)),
     setPolarity: (ch: number, inverted: boolean): void => auto(() => con.setPolarity(ch, inverted)),
@@ -349,7 +369,15 @@ export class OscConsole extends ConsoleBase {
       opts.clock === null || opts.clock === undefined
         ? null
         : new WriteGovernor(
-            { manualPerS: s.manualPerS, manualBurst: s.manualBurst, autoPerS: s.autoPerS, autoBurst: s.autoBurst, totalPerS: s.totalPerS, repeatS: s.repeatS, stormS: s.stormS },
+            {
+              manualPerS: s.manualPerS,
+              manualBurst: s.manualBurst,
+              autoPerS: s.autoPerS,
+              autoBurst: s.autoBurst,
+              totalPerS: s.totalPerS,
+              repeatS: s.repeatS,
+              stormS: s.stormS,
+            },
             (addr, args) => this.sink.send(encodeMessage(addr, [...args])),
           );
   }

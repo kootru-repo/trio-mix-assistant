@@ -1,15 +1,57 @@
 "use strict";
 const JOBS = [
-    { key: "feedback", name: "Feedback notch", tier: "reflex", cls: "reflex", icon: "ic-feedback", desc: "Catch a rising, stable ring → park a narrow EQ cut." },
-    { key: "clip", name: "Clip protection", tier: "reflex", cls: "reflex", icon: "ic-clip", desc: "Peak near full scale → trim the preamp a touch." },
-    { key: "vocal_ride", name: "Vocal ride", tier: "advisory", cls: "adv", icon: "ic-vocal", desc: "Hold the lead vocal at its loudness target." },
-    { key: "balance", name: "Balance hold", tier: "advisory", cls: "adv", icon: "ic-balance", desc: "Keep bass/keys from wandering off a stored balance." },
-    { key: "phase", name: "Phase / polarity", tier: "advisory", cls: "adv", icon: "ic-balance", desc: "Paired mics out of polarity → auto-flip (or advise); flag comb filtering. Needs phase pairs." },
-    { key: "unmask", name: "Vocal unmask", tier: "advisory", cls: "adv", icon: "ic-vocal", desc: "When the vocal is up, duck instruments' ~3 kHz a few dB so it cuts through; release when it pauses." },
+    {
+        key: "feedback",
+        name: "Feedback notch",
+        tier: "reflex",
+        cls: "reflex",
+        icon: "ic-feedback",
+        desc: "Catch a rising, stable ring → park a narrow EQ cut.",
+    },
+    {
+        key: "clip",
+        name: "Clip protection",
+        tier: "reflex",
+        cls: "reflex",
+        icon: "ic-clip",
+        desc: "Peak near full scale → trim the preamp a touch.",
+    },
+    {
+        key: "vocal_ride",
+        name: "Vocal ride",
+        tier: "advisory",
+        cls: "adv",
+        icon: "ic-vocal",
+        desc: "Hold the lead vocal at its loudness target.",
+    },
+    {
+        key: "balance",
+        name: "Balance hold",
+        tier: "advisory",
+        cls: "adv",
+        icon: "ic-balance",
+        desc: "Keep bass/keys from wandering off a stored balance.",
+    },
+    {
+        key: "phase",
+        name: "Phase / polarity",
+        tier: "advisory",
+        cls: "adv",
+        icon: "ic-balance",
+        desc: "Paired mics out of polarity → auto-flip (or advise); flag comb filtering. Needs phase pairs.",
+    },
+    {
+        key: "unmask",
+        name: "Vocal unmask",
+        tier: "advisory",
+        cls: "adv",
+        icon: "ic-vocal",
+        desc: "When the vocal is up, duck instruments' ~3 kHz a few dB so it cuts through; release when it pauses.",
+    },
 ];
 const $ = (s) => document.querySelector(s);
-const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-const esc = (s) => String(s).replace(/[&<>"']/g, c => ESCAPES[c]);
+const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESCAPES[c]);
 const rendered = new WeakMap();
 function setHTML(el, html) {
     if (rendered.get(el) === html)
@@ -18,9 +60,9 @@ function setHTML(el, html) {
     el.innerHTML = html;
     return true;
 }
-const dbPct = (db) => Math.max(0, Math.min(100, (db + 60) / 60 * 100));
-const zone = (db) => db >= -3 ? 'red' : (db >= -12 ? 'yel' : 'grn');
-const nf = (v, d = 0) => Number.isFinite(v) ? v : d;
+const dbPct = (db) => Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+const zone = (db) => (db >= -3 ? "red" : db >= -12 ? "yel" : "grn");
+const nf = (v, d = 0) => (Number.isFinite(v) ? v : d);
 const jobEls = {}, chEls = {};
 function buildJobs() {
     const root = $("#jobs");
@@ -61,10 +103,18 @@ function buildChannels(chs) {
       </div>`;
         root.appendChild(el);
         const q = (sel) => el.querySelector(sel);
-        chEls[c.ch] = { root: el, fill: q(".fill"), peak: q(".peak"),
-            db: q(".db"), fb: q(".fb"), led: q(".led"),
-            fbtxt: q(".fbtxt"), chips: q(".chips"),
-            fader: q(".fader"), gain: q(".gain") };
+        chEls[c.ch] = {
+            root: el,
+            fill: q(".fill"),
+            peak: q(".peak"),
+            db: q(".db"),
+            fb: q(".fb"),
+            led: q(".led"),
+            fbtxt: q(".fbtxt"),
+            chips: q(".chips"),
+            fader: q(".fader"),
+            gain: q(".gain"),
+        };
     }
 }
 let built = false;
@@ -77,10 +127,10 @@ function renderSong(show) {
         return;
     }
     bar.hidden = false;
-    $("#songidx").textContent = (show.index != null) ? ("#" + (show.index + 1)) : "";
+    $("#songidx").textContent = show.index != null ? "#" + (show.index + 1) : "";
     $("#songname").textContent = show.current;
-    const sec = (show.section && show.section !== "Song") ? show.section : "";
-    $("#songsec").textContent = sec ? ("· " + sec) : "";
+    const sec = show.section && show.section !== "Song" ? show.section : "";
+    $("#songsec").textContent = sec ? "· " + sec : "";
     $("#songnext").textContent = show.next || "—";
     const chip = $("#scenechip");
     if (show.scene != null) {
@@ -102,7 +152,7 @@ function renderSong(show) {
 let _bannerDismissed = "";
 function renderBanner(alerts) {
     const bn = $("#banner");
-    const top = (alerts || []).filter(a => a.level === "warn")[0];
+    const top = (alerts || []).filter((a) => a.level === "warn")[0];
     if (!top) {
         bn.hidden = true;
         _bannerDismissed = "";
@@ -118,11 +168,14 @@ function renderBanner(alerts) {
     $("#bannermsg").textContent = top.msg;
     bn.dataset.key = key;
 }
-$("#bannerx").onclick = () => { _bannerDismissed = $("#banner").dataset.key || ""; $("#banner").hidden = true; };
+$("#bannerx").onclick = () => {
+    _bannerDismissed = $("#banner").dataset.key || "";
+    $("#banner").hidden = true;
+};
 let _critAcked = "";
 function renderOverlay(alerts) {
     const ov = $("#critoverlay");
-    const top = (alerts || []).filter(a => a.level === "critical")[0];
+    const top = (alerts || []).filter((a) => a.level === "critical")[0];
     if (!top) {
         ov.hidden = true;
         _critAcked = "";
@@ -136,7 +189,10 @@ function renderOverlay(alerts) {
     $("#critmsg").textContent = top.msg;
     ov.dataset.key = top.msg;
 }
-$("#critack").onclick = () => { _critAcked = $("#critoverlay").dataset.key || ""; $("#critoverlay").hidden = true; };
+$("#critack").onclick = () => {
+    _critAcked = $("#critoverlay").dataset.key || "";
+    $("#critoverlay").hidden = true;
+};
 function renderScenes(scenes) {
     const panel = $("#scenepanel"), wrap = $("#scenes");
     if (!scenes || !scenes.length) {
@@ -144,9 +200,11 @@ function renderScenes(scenes) {
         return;
     }
     panel.hidden = false;
-    const html = scenes.map(sc => `<button class="scenebtn ${sc.current ? 'current' : ''}" data-scene="${esc(sc.index)}">`
-        + `<span class="sc">SCENE ${esc(sc.index)}${sc.current ? ' · NOW' : ''}</span>`
-        + `<span class="sn">${esc(sc.name)}</span></button>`).join("");
+    const html = scenes
+        .map((sc) => `<button class="scenebtn ${sc.current ? "current" : ""}" data-scene="${esc(sc.index)}">` +
+        `<span class="sc">SCENE ${esc(sc.index)}${sc.current ? " · NOW" : ""}</span>` +
+        `<span class="sn">${esc(sc.name)}</span></button>`)
+        .join("");
     if (!setHTML(wrap, html))
         return;
     for (const b of wrap.querySelectorAll(".scenebtn")) {
@@ -162,7 +220,7 @@ function selectTab(name, push) {
     for (const x of document.querySelectorAll(".tab"))
         x.classList.toggle("on", x.dataset.tab === name);
     for (const p of document.querySelectorAll(".tabpanel"))
-        p.hidden = (p.id !== "tab-" + name);
+        p.hidden = p.id !== "tab-" + name;
     eqDirty = fxDirty = true;
     if (_lastState)
         renderTabPanels(_lastState);
@@ -173,31 +231,44 @@ function selectTab(name, push) {
 for (const t of document.querySelectorAll(".tab")) {
     t.onclick = () => selectTab(t.dataset.tab, true);
 }
-function applyHashTab() { const h = (location.hash || "").slice(1); if (TABS.includes(h))
-    selectTab(h, false); }
+function applyHashTab() {
+    const h = (location.hash || "").slice(1);
+    if (TABS.includes(h))
+        selectTab(h, false);
+}
 window.addEventListener("hashchange", applyHashTab);
 const fEQs = (p) => 20 * Math.pow(10, 3 * p);
 const fEQinv = (f) => Math.log10(Math.max(20, Math.min(20000, f)) / 20) / 3;
-const hzLbl = (f) => f < 1000 ? f.toFixed(0) : (f / 1000).toFixed(1) + "k";
-function chMeta(s, ch) { return (s.channels || []).find(c => c.ch === ch) || {}; }
+const hzLbl = (f) => (f < 1000 ? f.toFixed(0) : (f / 1000).toFixed(1) + "k");
+function chMeta(s, ch) {
+    return (s.channels || []).find((c) => c.ch === ch) || {};
+}
 function renderEQ(s) {
-    const chans = (s.channels || []).filter(c => c.in_mix).map(c => c.ch);
+    const chans = (s.channels || []).filter((c) => c.in_mix).map((c) => c.ch);
     if (!chans.length)
         return;
     if (eqCh == null || !chans.includes(eqCh))
         eqCh = chans[0];
     const cur = eqCh;
-    $("#eqchsel").innerHTML = chans.map(ch => `<span class="chip ${ch === eqCh ? 'on' : ''}" data-ch="${esc(ch)}">${esc(chMeta(s, ch).label || ('ch' + ch))}</span>`).join("");
+    $("#eqchsel").innerHTML = chans
+        .map((ch) => `<span class="chip ${ch === eqCh ? "on" : ""}" data-ch="${esc(ch)}">${esc(chMeta(s, ch).label || "ch" + ch)}</span>`)
+        .join("");
     for (const c of $("#eqchsel").querySelectorAll(".chip"))
-        c.onclick = () => { eqCh = +c.dataset.ch; eqDirty = true; renderTabPanels(_lastState); };
+        c.onclick = () => {
+            eqCh = +c.dataset.ch;
+            eqDirty = true;
+            renderTabPanels(_lastState);
+        };
     const bands = (s.eq && s.eq[cur]) || [];
-    $("#eqbands").innerHTML = bands.map(b => `
+    $("#eqbands").innerHTML = bands
+        .map((b) => `
     <div class="eqband" data-band="${esc(b.band)}">
-      <h4>BAND ${esc(b.band)}<span class="togg ${b.on ? 'on' : ''}" data-act="on">${b.on ? 'ON' : 'OFF'}</span></h4>
+      <h4>BAND ${esc(b.band)}<span class="togg ${b.on ? "on" : ""}" data-act="on">${b.on ? "ON" : "OFF"}</span></h4>
       <div class="eqrow"><span>Freq</span><input type="range" min="0" max="1" step="0.001" value="${esc(fEQinv(b.hz))}" data-act="hz"><b>${esc(hzLbl(b.hz))}</b></div>
-      <div class="eqrow"><span>Gain</span><input type="range" min="-15" max="15" step="0.5" value="${esc(b.gain)}" data-act="gain"><b>${b.gain > 0 ? '+' : ''}${esc(b.gain.toFixed(1))}</b></div>
+      <div class="eqrow"><span>Gain</span><input type="range" min="-15" max="15" step="0.5" value="${esc(b.gain)}" data-act="gain"><b>${b.gain > 0 ? "+" : ""}${esc(b.gain.toFixed(1))}</b></div>
       <div class="eqrow"><span>Q</span><input type="range" min="0.3" max="10" step="0.1" value="${esc(b.q)}" data-act="q"><b>${esc(b.q.toFixed(1))}</b></div>
-    </div>`).join("");
+    </div>`)
+        .join("");
     for (const card of $("#eqbands").querySelectorAll(".eqband")) {
         const band = +card.dataset.band;
         for (const inp of card.querySelectorAll("input"))
@@ -207,7 +278,10 @@ function renderEQ(s) {
                 eqDirty = true;
             };
         const tg = card.querySelector(".togg");
-        tg.onclick = () => { action({ type: "eq", ch: eqCh, band, on: !tg.classList.contains("on") }); eqDirty = true; };
+        tg.onclick = () => {
+            action({ type: "eq", ch: eqCh, band, on: !tg.classList.contains("on") });
+            eqDirty = true;
+        };
     }
     const nf = chMeta(s, cur).notch_freqs || [];
     $("#eqnote").textContent = nf.length
@@ -233,47 +307,66 @@ function drawEQ(bands, notches) {
         const x = (fEQinv(nf) * W).toFixed(1);
         m += `<line class="notch" x1="${x}" y1="0" x2="${x}" y2="${H}"/>`;
     }
-    $("#eqcurve").innerHTML = `<line class="grid0" x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}"/>${m}<polyline class="resp" points="${pts.trim()}"/>`;
+    $("#eqcurve").innerHTML =
+        `<line class="grid0" x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}"/>${m}<polyline class="resp" points="${pts.trim()}"/>`;
 }
 function renderFX(s) {
-    const buses = (s.fx && s.fx.buses) || {}, chans = (s.channels || []).filter(c => c.in_mix);
-    $("#fxwrap").innerHTML = Object.keys(buses).map(fx => {
+    const buses = (s.fx && s.fx.buses) || {}, chans = (s.channels || []).filter((c) => c.in_mix);
+    $("#fxwrap").innerHTML = Object.keys(buses)
+        .map((fx) => {
         const wet = (s.fx.wet || {})[fx];
-        const wv = (wet == null ? -90 : wet);
-        const sends = chans.map(c => {
+        const wv = wet == null ? -90 : wet;
+        const sends = chans
+            .map((c) => {
             const lvl = ((s.sends || {})[c.ch] || {})[fx];
-            const v = (lvl == null ? -90 : lvl);
-            return `<div class="fxsend" data-ch="${esc(c.ch)}" data-fx="${esc(fx)}"><span>${esc(c.label)}</span><input type="range" min="-90" max="10" step="1" value="${esc(v)}"><b>${v <= -90 ? '-∞' : esc(v.toFixed(0))}</b></div>`;
-        }).join("");
+            const v = lvl == null ? -90 : lvl;
+            return `<div class="fxsend" data-ch="${esc(c.ch)}" data-fx="${esc(fx)}"><span>${esc(c.label)}</span><input type="range" min="-90" max="10" step="1" value="${esc(v)}"><b>${v <= -90 ? "-∞" : esc(v.toFixed(0))}</b></div>`;
+        })
+            .join("");
         return `<div class="fxbus"><h3>${esc(buses[fx])}</h3>
-      <div class="fxwet" data-fx="${esc(fx)}"><span>WET</span><input type="range" min="-90" max="10" step="1" value="${esc(wv)}"><b>${wv <= -90 ? '-∞' : esc(wv.toFixed(0))}</b></div>${sends}</div>`;
-    }).join("");
+      <div class="fxwet" data-fx="${esc(fx)}"><span>WET</span><input type="range" min="-90" max="10" step="1" value="${esc(wv)}"><b>${wv <= -90 ? "-∞" : esc(wv.toFixed(0))}</b></div>${sends}</div>`;
+    })
+        .join("");
     for (const w of $("#fxwrap").querySelectorAll(".fxwet")) {
         const fx = +w.dataset.fx;
-        w.querySelector("input").onchange = e => { action({ type: "fx", fx, db: +e.target.value }); fxDirty = true; };
+        w.querySelector("input").onchange = (e) => {
+            action({ type: "fx", fx, db: +e.target.value });
+            fxDirty = true;
+        };
     }
     for (const r of $("#fxwrap").querySelectorAll(".fxsend")) {
         const ch = +r.dataset.ch, fx = +r.dataset.fx;
-        r.querySelector("input").onchange = e => { action({ type: "send", ch, fx, db: +e.target.value }); fxDirty = true; };
+        r.querySelector("input").onchange = (e) => {
+            action({ type: "send", ch, fx, db: +e.target.value });
+            fxDirty = true;
+        };
     }
 }
 function renderSettings(s) {
     const cap = s.capture || {}, con = s.console || {}, lat = s.latency || {}, room = s.room || {}, show = s.show || {};
-    const row = (k, v, cls) => `<div class="row"><span class="k">${esc(k)}</span><span class="v ${cls || ''}">${esc(v)}</span></div>`;
-    const audio = cap.kind === "audio" ? ((cap.name || "audio") + " — " + (cap.dead ? "DEAD" : cap.silent ? "SILENT" : cap.overload ? "XRUN" : "ok")) : String(cap.kind);
+    const row = (k, v, cls) => `<div class="row"><span class="k">${esc(k)}</span><span class="v ${cls || ""}">${esc(v)}</span></div>`;
+    const audio = cap.kind === "audio"
+        ? (cap.name || "audio") + " — " + (cap.dead ? "DEAD" : cap.silent ? "SILENT" : cap.overload ? "XRUN" : "ok")
+        : String(cap.kind);
     setHTML($("#setconn"), row("Mode", s.mode || "") +
-        row("Audio input", audio, (cap.dead || cap.silent) ? "bad" : "ok") +
-        row("Console feed", con.connected ? ("connected · " + con.meters + " meters") : "no feed", con.connected ? "ok" : "bad"));
-    const latTxt = Object.keys(lat).length ? Object.entries(lat).map(([k, v]) => k + " " + v.ema + "ms").join(" · ") : "—";
+        row("Audio input", audio, cap.dead || cap.silent ? "bad" : "ok") +
+        row("Console feed", con.connected ? "connected · " + con.meters + " meters" : "no feed", con.connected ? "ok" : "bad"));
+    const latTxt = Object.keys(lat).length
+        ? Object.entries(lat)
+            .map(([k, v]) => k + " " + v.ema + "ms")
+            .join(" · ")
+        : "—";
     setHTML($("#setperf"), row("Loop", (s.perf ? s.perf.tick_ms : 0) + " ms · jit " + (s.perf ? s.perf.jitter_ms : 0) + " ms") +
         row("Detect→actuate", latTxt) +
         row("Block buffer", (s.block_ms || 0) + " ms") +
-        row("Room SNR", room.confidence != null ? (Math.round(room.confidence * 100) + "% · " + room.level_db + " dBFS") : "—", (room.confidence != null && room.confidence < 0.5) ? "bad" : "ok"));
+        row("Room SNR", room.confidence != null ? Math.round(room.confidence * 100) + "% · " + room.level_db + " dBFS" : "—", room.confidence != null && room.confidence < 0.5 ? "bad" : "ok"));
     const ven = s.venue;
     setHTML($("#setshow"), row("Template song", show.current || "—") +
         row("Scene", show.scene != null ? show.scene : "—") +
         row("Calibration", (s.calibration || {}).status || "—") +
-        row("Venue model", ven ? (ven.shows + " show(s) · " + Math.round((ven.confidence || 0) * 100) + "% · " + (ven.freqs || []).length + " known freqs") : "—"));
+        row("Venue model", ven
+            ? ven.shows + " show(s) · " + Math.round((ven.confidence || 0) * 100) + "% · " + (ven.freqs || []).length + " known freqs"
+            : "—"));
     renderChecks(s.diagnostics, s.vet);
     renderVet(s.vet);
     vetDoneNotice(s.vet);
@@ -320,7 +413,8 @@ function chainStep(s) {
     else if (el > 5000) {
         chain = null;
         chainLen = 0;
-        showDone("bad", "The full test did not start", (s.vet && s.vet.blocked) || "The app did not begin the test. Reload the page (Cmd+Shift+R) and try again. If it still does nothing, check the app is still running in Terminal.", "", null);
+        showDone("bad", "The full test did not start", (s.vet && s.vet.blocked) ||
+            "The app did not begin the test. Reload the page (Cmd+Shift+R) and try again. If it still does nothing, check the app is still running in Terminal.", "", null);
     }
 }
 function lockForVet(v) {
@@ -337,12 +431,12 @@ function lockForVet(v) {
         if (chain !== null) {
             const el = (Date.now() - chain.t0) / 1000;
             if (chain.stage === "cal") {
-                pct = Math.min(calBase, Math.floor(el / 3 * calBase));
+                pct = Math.min(calBase, Math.floor((el / 3) * calBase));
                 now = "Calibrating the built-in stage (no sound is played)";
                 stage = "Full test: step 1 of " + chainLen + ", calibration";
             }
             else if (chain.stage === "checks") {
-                pct = calBase + Math.min(CHAIN_VET_BASE - calBase, Math.floor(el / 9 * (CHAIN_VET_BASE - calBase)));
+                pct = calBase + Math.min(CHAIN_VET_BASE - calBase, Math.floor((el / 9) * (CHAIN_VET_BASE - calBase)));
                 now = "Checking the setup: listening to the input and asking the console";
                 stage = "Full test: step " + (chainLen - 1) + " of " + chainLen + ", checks";
             }
@@ -354,11 +448,11 @@ function lockForVet(v) {
         }
         else if (v) {
             const total = Math.max(v.expected || 1, v.done + 1), base = chainLen > 0 ? CHAIN_VET_BASE : 0;
-            pct = Math.min(99, base + Math.floor((100 - base) * v.done / total));
+            pct = Math.min(99, base + Math.floor(((100 - base) * v.done) / total));
             now = v.title || "Starting";
             steps = "Step " + Math.min(v.done + 1, total) + " of about " + total;
             const secs = (Date.now() - vetStarted) / 1000;
-            left = v.done >= 3 ? "about " + Math.max(1, Math.round(secs / v.done * (total - v.done))) + " s left" : "";
+            left = v.done >= 3 ? "about " + Math.max(1, Math.round((secs / v.done) * (total - v.done))) + " s left" : "";
             if (chainLen > 0)
                 stage = "Full test: step " + chainLen + " of " + chainLen + ", every control";
         }
@@ -383,12 +477,12 @@ let vetText = "";
 function renderVet(v) {
     const running = !!v && v.status === "running";
     const run = $("#vetrun");
-    const why = !v ? "Waiting for the app." : running || chain !== null ? "" : (v.blocked || "");
+    const why = !v ? "Waiting for the app." : running || chain !== null ? "" : v.blocked || "";
     run.disabled = running || chain !== null || why !== "";
     const wy = $("#vetwhy");
     wy.hidden = why === "";
     wy.textContent = why ? "Run full test is greyed out: " + why : "";
-    run.textContent = running ? "Testing… about half a minute" : (v && v.status === "done" ? "Run full test again" : "Run full test");
+    run.textContent = running ? "Testing… about half a minute" : v && v.status === "done" ? "Run full test again" : "Run full test";
     $("#vetconsole").hidden = !(v && v.console);
     $("#vetopts").hidden = !$("#vetreal").checked;
     setHTML($("#vetsum"), v && v.status === "done" ? esc("Result: " + v.summary + (v.failed ? " — see the FAIL lines below" : "")) : "");
@@ -415,15 +509,22 @@ function showDone(kind, title, body, file, dl) {
     $("#donewrap").hidden = false;
     $("#doneok").focus();
 }
-$("#doneok").onclick = () => { $("#donewrap").hidden = true; };
-$("#donedl").onclick = () => { if (doneAction)
-    doneAction(); };
+$("#doneok").onclick = () => {
+    $("#donewrap").hidden = true;
+};
+$("#donedl").onclick = () => {
+    if (doneAction)
+        doneAction();
+};
 const SAVED_HINT = "The file is in your browser's Downloads folder (on a Mac: Finder → Downloads). Chrome, Safari and Firefox also show it under the download arrow in the toolbar.";
 let seenVetError = "", seenVet = null, seenDiag = null, diagStarted = 0;
 function vetDoneNotice(v) {
     const st = v ? v.status : "idle";
     if (seenVet !== null && seenVet === "running" && st === "done" && v) {
-        const dl = () => { const n = downloadText("trio-full-test", $("#vettext").value); showDone(v.failed ? "bad" : "ok", "Full test finished", "Result: " + v.summary, "Saved as " + n + "\n" + SAVED_HINT, dl); };
+        const dl = () => {
+            const n = downloadText("trio-full-test", $("#vettext").value);
+            showDone(v.failed ? "bad" : "ok", "Full test finished", "Result: " + v.summary, "Saved as " + n + "\n" + SAVED_HINT, dl);
+        };
         showDone(v.failed ? "bad" : "ok", v.failed ? "Full test finished with failures" : "Full test passed", "Result: " + v.summary + (v.failed ? "\nThe FAIL lines are in the report below." : ""), "The report is on screen under Full test. Download it to send it.", dl);
     }
     const err = v ? v.error : "";
@@ -436,7 +537,10 @@ function diagDoneNotice(d) {
     const st = d ? d.status : "idle";
     if (seenDiag !== null && seenDiag === "running" && st === "done" && d && d.report && chainLen === 0) {
         const rep = d.report, bad = rep.result === "fail", warn = rep.result === "warn";
-        const dl = () => { const n = downloadText("trio-checks", $("#diagtext").value); showDone(bad ? "bad" : warn ? "warn" : "ok", "Checks finished", "Result: " + rep.summary, "Saved as " + n + "\n" + SAVED_HINT, dl); };
+        const dl = () => {
+            const n = downloadText("trio-checks", $("#diagtext").value);
+            showDone(bad ? "bad" : warn ? "warn" : "ok", "Checks finished", "Result: " + rep.summary, "Saved as " + n + "\n" + SAVED_HINT, dl);
+        };
         showDone(bad ? "bad" : warn ? "warn" : "ok", bad ? "Checks found a problem" : warn ? "Checks finished with warnings" : "Checks passed", "Result: " + rep.summary, "The report is on screen under Checks. Download it to send it.", dl);
     }
     seenDiag = st;
@@ -450,18 +554,20 @@ function diagProgress(d) {
     }
     if (diagStarted === 0)
         diagStarted = Date.now();
-    const pct = Math.min(95, Math.floor(100 * (Date.now() - diagStarted) / 9000));
+    const pct = Math.min(95, Math.floor((100 * (Date.now() - diagStarted)) / 9000));
     $("#diagpct").textContent = pct + "%";
     $("#diagfill").style.width = pct + "%";
     $("#diagbar").setAttribute("aria-valuenow", String(pct));
 }
-setInterval(() => { if (_lastState) {
-    diagProgress(_lastState.diagnostics);
-    if (chain !== null) {
-        chainStep(_lastState);
-        lockForVet(_lastState.vet);
+setInterval(() => {
+    if (_lastState) {
+        diagProgress(_lastState.diagnostics);
+        if (chain !== null) {
+            chainStep(_lastState);
+            lockForVet(_lastState.vet);
+        }
     }
-} }, 250);
+}, 250);
 function downloadText(name, text) {
     const d = new Date(), two = (n) => String(n).padStart(2, "0");
     const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
@@ -479,17 +585,22 @@ let diagText = "";
 function renderChecks(d, v) {
     const running = !!d && d.status === "running", rep = d ? d.report : null;
     const run = $("#diagrun");
-    const why = running || !v ? "" : (v.checksBlocked || "");
+    const why = running || !v ? "" : v.checksBlocked || "";
     run.disabled = running || why !== "";
     const wy = $("#diagwhy");
     wy.hidden = why === "";
     wy.textContent = why ? "Run checks is greyed out: " + why : "";
-    run.textContent = running ? "Checking… about 8 seconds" : (rep ? "Run checks again" : "Run checks");
+    run.textContent = running ? "Checking… about 8 seconds" : rep ? "Run checks again" : "Run checks";
     setHTML($("#diagsum"), rep ? esc("Result: " + rep.summary) : "");
-    setHTML($("#diaglist"), rep ? rep.checks.map(c => `<div class="diagitem ${esc(c.status)}"><span class="tag">${esc(String(c.status).toUpperCase())}</span>` +
-        `<span class="what"><b>${esc(c.title)}</b> <span>${esc(c.detail)}</span></span>` +
-        (c.rows && c.rows.length ? `<span class="rows">${esc(c.rows.join("\n"))}</span>` : "") +
-        (c.fix ? `<span class="fix">Fix: ${esc(c.fix)}</span>` : "") + `</div>`).join("") : "");
+    setHTML($("#diaglist"), rep
+        ? rep.checks
+            .map((c) => `<div class="diagitem ${esc(c.status)}"><span class="tag">${esc(String(c.status).toUpperCase())}</span>` +
+            `<span class="what"><b>${esc(c.title)}</b> <span>${esc(c.detail)}</span></span>` +
+            (c.rows && c.rows.length ? `<span class="rows">${esc(c.rows.join("\n"))}</span>` : "") +
+            (c.fix ? `<span class="fix">Fix: ${esc(c.fix)}</span>` : "") +
+            `</div>`)
+            .join("")
+        : "");
     const box = $("#diagtext"), text = rep ? rep.text : "";
     if (text !== diagText) {
         diagText = text;
@@ -511,13 +622,17 @@ function renderTabPanels(s) {
         fxDirty = false;
     }
 }
-$("#eqreset").onclick = () => { if (eqCh != null) {
-    action({ type: "eq_reset", ch: eqCh });
-    eqDirty = true;
-} };
+$("#eqreset").onclick = () => {
+    if (eqCh != null) {
+        action({ type: "eq_reset", ch: eqCh });
+        eqDirty = true;
+    }
+};
 $("#setcal").onclick = () => action({ type: "calibrate" });
 $("#diagrun").onclick = () => action({ type: "diagnose", identify: $("#diagkeep").checked });
-$("#vetreal").onchange = () => { $("#vetopts").hidden = !$("#vetreal").checked; };
+$("#vetreal").onchange = () => {
+    $("#vetopts").hidden = !$("#vetreal").checked;
+};
 $("#vetrun").onclick = () => {
     const vs = _lastState ? _lastState.vet : undefined;
     if (!vs) {
@@ -542,7 +657,9 @@ $("#vetrun").onclick = () => {
             alert("Preamp gain needs a channel number.");
             return;
         }
-        const what = (channel !== null ? "channel " + channel + (gain ? " (including its preamp gain)" : "") : "") + (channel !== null && main ? " and " : "") + (main ? "the main bus and FX return" : "");
+        const what = (channel !== null ? "channel " + channel + (gain ? " (including its preamp gain)" : "") : "") +
+            (channel !== null && main ? " and " : "") +
+            (main ? "the main bus and FX return" : "");
         if (!confirm("Turn the PA OFF first.\n\nThis changes values on " + what + ", reads each back and puts it back. Continue?"))
             return;
     }
@@ -552,12 +669,23 @@ $("#vetrun").onclick = () => {
     chainStart(chainHasCal ? "cal" : "checks");
     lockForVet(vs);
 };
-$("#vetdownload").onclick = () => { const n = downloadText("trio-full-test", $("#vettext").value); showDone("ok", "Report downloaded", "", "Saved as " + n + "\n" + SAVED_HINT, null); };
-$("#diagdownload").onclick = () => { const n = downloadText("trio-checks", $("#diagtext").value); showDone("ok", "Report downloaded", "", "Saved as " + n + "\n" + SAVED_HINT, null); };
+$("#vetdownload").onclick = () => {
+    const n = downloadText("trio-full-test", $("#vettext").value);
+    showDone("ok", "Report downloaded", "", "Saved as " + n + "\n" + SAVED_HINT, null);
+};
+$("#diagdownload").onclick = () => {
+    const n = downloadText("trio-checks", $("#diagtext").value);
+    showDone("ok", "Report downloaded", "", "Saved as " + n + "\n" + SAVED_HINT, null);
+};
 $("#vetcopy").onclick = () => {
     const box = $("#vettext"), btn = $("#vetcopy");
     box.select();
-    const done = (ok) => { btn.textContent = ok ? "Copied" : "Press Ctrl+C to copy"; setTimeout(() => { btn.textContent = "Copy report"; }, 2000); };
+    const done = (ok) => {
+        btn.textContent = ok ? "Copied" : "Press Ctrl+C to copy";
+        setTimeout(() => {
+            btn.textContent = "Copy report";
+        }, 2000);
+    };
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(box.value).then(() => done(true), () => done(false));
     }
@@ -572,7 +700,12 @@ $("#vetcopy").onclick = () => {
 };
 $("#diagcopy").onclick = () => {
     const box = $("#diagtext"), btn = $("#diagcopy");
-    const done = (ok) => { btn.textContent = ok ? "Copied" : "Select the text below and copy it"; setTimeout(() => { btn.textContent = "Copy report"; }, 2500); };
+    const done = (ok) => {
+        btn.textContent = ok ? "Copied" : "Select the text below and copy it";
+        setTimeout(() => {
+            btn.textContent = "Copy report";
+        }, 2500);
+    };
     box.focus();
     box.select();
     if (navigator.clipboard && window.isSecureContext)
@@ -613,7 +746,7 @@ function render(s) {
         const st = cap.dead ? "DEAD" : cap.silent ? "SILENT" : cap.overload ? "XRUN" : "ok";
         const nm = cap.name ? String(cap.name).slice(0, 20) + " " : "";
         fa.textContent = `audio: ${nm}${st}`;
-        fa.style.color = (st === "ok") ? "" : "#f5a623";
+        fa.style.color = st === "ok" ? "" : "#f5a623";
     }
     else if (cap.kind === "simulation") {
         fa.textContent = "audio: sim";
@@ -635,7 +768,7 @@ function render(s) {
         jobEls[j.key].classList.toggle("on", !!(s.enabled || {})[j.key]);
     }
     renderCoach(s.coach);
-    for (const c of (s.channels || [])) {
+    for (const c of s.channels || []) {
         const e = chEls[c.ch];
         if (!e)
             continue;
@@ -643,12 +776,12 @@ function render(s) {
         e.fill.style.width = dbPct(rms) + "%";
         e.fill.className = "fill " + zone(rms);
         e.peak.style.left = dbPct(peak) + "%";
-        e.db.textContent = (rms <= -90 ? "-∞" : rms.toFixed(1));
-        e.fb.className = "fb " + (c.fb_state === "notched" ? "notched" : (c.fb_state === "building" ? "building" : ""));
-        e.fbtxt.textContent = c.fb_state === "notched" ? "notched" : (c.fb_state === "building" ? "ring building" : "clear");
+        e.db.textContent = rms <= -90 ? "-∞" : rms.toFixed(1);
+        e.fb.className = "fb " + (c.fb_state === "notched" ? "notched" : c.fb_state === "building" ? "building" : "");
+        e.fbtxt.textContent = c.fb_state === "notched" ? "notched" : c.fb_state === "building" ? "ring building" : "clear";
         e.root.classList.toggle("alarm", c.fb_state === "building" || c.clip_recent);
         let chips = "";
-        for (const f of (c.notch_freqs || []))
+        for (const f of c.notch_freqs || [])
             chips += `<span class="chip notch">${esc(f)} Hz cut</span>`;
         if (c.gain_trimmed)
             chips += `<span class="chip trim">preamp ${esc(gn)} dB</span>`;
@@ -656,7 +789,7 @@ function render(s) {
         e.fader.textContent = (fdr >= 0 ? "+" : "") + fdr.toFixed(1);
         e.gain.textContent = gn.toFixed(0);
     }
-    for (const c of (s.channels || [])) {
+    for (const c of s.channels || []) {
         const st = stripEls[c.ch];
         if (!st)
             continue;
@@ -684,22 +817,25 @@ function render(s) {
     const cal = s.calibration || {};
     const calbtn = $("#calbtn"), cs = cal.status;
     calbtn.disabled = cs === "running";
-    $("#callbl").textContent = cs === "running" ? "Calibrating…" : (cs === "done" ? "Re-run calibration" : "Run calibration");
-    setHTML($("#calstatus"), cs === "running" ? "Emitting pink noise &amp; measuring the room…" :
-        (cs === "done" ? `Room measured · ${esc((cal.corrections || []).length)} peak(s) found` : "Not yet run — using raw detection thresholds."));
+    $("#callbl").textContent = cs === "running" ? "Calibrating…" : cs === "done" ? "Re-run calibration" : "Run calibration";
+    setHTML($("#calstatus"), cs === "running"
+        ? "Emitting pink noise &amp; measuring the room…"
+        : cs === "done"
+            ? `Room measured · ${esc((cal.corrections || []).length)} peak(s) found`
+            : "Not yet run — using raw detection thresholds.");
     const bands = $("#bands");
     const bl = cal.baseline || [];
     if (bl.length) {
         bands.style.display = "flex";
         let bandsHtml = "";
-        const ds = bl.map(b => b.db);
+        const ds = bl.map((b) => b.db);
         const lo = Math.min(...ds) - 2, hi = Math.max(...ds) + 2;
-        const watch = (cal.watchlist || []).map(w => w.hz);
+        const watch = (cal.watchlist || []).map((w) => w.hz);
         for (const { hz, db } of bl) {
-            const h = Math.max(6, (db - lo) / (hi - lo) * 100);
-            const hot = watch.some(w => Math.abs(w - hz) / hz < 0.25);
-            const lbl = (hz >= 1000) ? (Math.round(hz / 100) / 10) + "k" : Math.round(hz);
-            bandsHtml += `<div class="band"><div class="bar ${hot ? 'hot' : ''}" style="height:${esc(h)}%"></div><div class="bl">${esc(lbl)}</div></div>`;
+            const h = Math.max(6, ((db - lo) / (hi - lo)) * 100);
+            const hot = watch.some((w) => Math.abs(w - hz) / hz < 0.25);
+            const lbl = hz >= 1000 ? Math.round(hz / 100) / 10 + "k" : Math.round(hz);
+            bandsHtml += `<div class="band"><div class="bar ${hot ? "hot" : ""}" style="height:${esc(h)}%"></div><div class="bl">${esc(lbl)}</div></div>`;
         }
         setHTML(bands, bandsHtml);
     }
@@ -712,9 +848,9 @@ function render(s) {
         wc += `<span class="cchip">▼ ${esc(c.hz)} Hz · ${esc(c.cut)} dB</span>`;
     setHTML($("#watchchips"), wc ? `<div class="chips-row">${wc}</div>` : "");
     const L = s.lead || {};
-    $("#leadtgtv").textContent = (L.target != null ? L.target.toFixed(1) : "—");
-    $("#leadin").textContent = (L.input != null ? L.input.toFixed(1) : "—");
-    $("#leadoutv").textContent = (L.output != null ? L.output.toFixed(1) : "—");
+    $("#leadtgtv").textContent = L.target != null ? L.target.toFixed(1) : "—";
+    $("#leadin").textContent = L.input != null ? L.input.toFixed(1) : "—";
+    $("#leadoutv").textContent = L.output != null ? L.output.toFixed(1) : "—";
     $("#leadout").style.width = (L.output != null ? dbPct(L.output) : 0) + "%";
     $("#leadtgt").style.left = (L.target != null ? dbPct(L.target) : 50) + "%";
     if (!tgtDragging && L.target != null) {
@@ -725,10 +861,14 @@ function render(s) {
     const bt = s.balance_targets || {};
     const btk = Object.keys(bt);
     setHTML($("#baltargets"), btk.length
-        ? "Holding: " + btk.map(k => `<span class="cchip">ch${esc(k)} ${bt[k] >= 0 ? '+' : ''}${esc(bt[k])}</span>`).join(" ")
+        ? "Holding: " + btk.map((k) => `<span class="cchip">ch${esc(k)} ${bt[k] >= 0 ? "+" : ""}${esc(bt[k])}</span>`).join(" ")
         : `<span class="empty">No balance captured yet.</span>`);
     const log = s.log || [];
-    setHTML($("#log"), log.length ? log.map(e => `<div class="logrow ${esc(e.kind)} lv-${esc(e.level || 'info')}"><span class="t mono">${esc(e.time)}</span><span class="lvdot"></span><span class="k">${esc(e.kind)}</span><span class="m">${esc(e.msg)}</span></div>`).join("") : `<div class="empty">No decisions yet. Toggle jobs or run calibration.</div>`);
+    setHTML($("#log"), log.length
+        ? log
+            .map((e) => `<div class="logrow ${esc(e.kind)} lv-${esc(e.level || "info")}"><span class="t mono">${esc(e.time)}</span><span class="lvdot"></span><span class="k">${esc(e.kind)}</span><span class="m">${esc(e.msg)}</span></div>`)
+            .join("")
+        : `<div class="empty">No decisions yet. Toggle jobs or run calibration.</div>`);
 }
 function renderCoach(coach) {
     const on = !!(coach && coach.on);
@@ -739,7 +879,9 @@ function renderCoach(coach) {
         return;
     const recs = (coach && coach.recs) || [];
     setHTML($("#coachrecs"), recs.length
-        ? recs.map(r => `<div class="crec ${esc(r.kind)}"><span class="ck">${esc(r.kind)}</span><span class="cm">${esc(r.text)}</span></div>`).join("")
+        ? recs
+            .map((r) => `<div class="crec ${esc(r.kind)}"><span class="ck">${esc(r.kind)}</span><span class="cm">${esc(r.text)}</span></div>`)
+            .join("")
         : `<div class="empty">No moves needed right now — the mix is within targets.</div>`);
 }
 async function post(path, body) {
@@ -786,8 +928,15 @@ function checkSession() {
     if (sessionCheck)
         return;
     sessionCheck = true;
-    fetch("/state").then(r => { if (r.status === 401)
-        location.reload(); }).catch(() => { }).finally(() => { sessionCheck = false; });
+    fetch("/state")
+        .then((r) => {
+        if (r.status === 401)
+            location.reload();
+    })
+        .catch(() => { })
+        .finally(() => {
+        sessionCheck = false;
+    });
 }
 function action(obj) {
     if (wsReady && ws) {
@@ -809,7 +958,7 @@ let tgtDragging = false, lastTarget = null;
 const TMIN = -18, TMAX = 0;
 function paintSlider(v) {
     v = +v;
-    const p = (v - TMIN) / (TMAX - TMIN) * 100;
+    const p = ((v - TMIN) / (TMAX - TMIN)) * 100;
     $("#tgt").style.setProperty("--p", p + "%");
     const sb = $("#slbubble");
     sb.textContent = v.toFixed(1);
@@ -824,10 +973,18 @@ function setTarget(v, push) {
         action({ type: "lead_target", db: v });
     }
 }
-$("#tgt").addEventListener("input", e => { tgtDragging = true; $("#slider").classList.add("drag"); paintSlider(e.target.value); });
-$("#tgt").addEventListener("change", e => { tgtDragging = false; $("#slider").classList.remove("drag"); setTarget(e.target.value, true); });
-$("#tgtdn").onclick = () => setTarget((+$("#tgt").value) - 0.5, true);
-$("#tgtup").onclick = () => setTarget((+$("#tgt").value) + 0.5, true);
+$("#tgt").addEventListener("input", (e) => {
+    tgtDragging = true;
+    $("#slider").classList.add("drag");
+    paintSlider(e.target.value);
+});
+$("#tgt").addEventListener("change", (e) => {
+    tgtDragging = false;
+    $("#slider").classList.remove("drag");
+    setTarget(e.target.value, true);
+});
+$("#tgtdn").onclick = () => setTarget(+$("#tgt").value - 0.5, true);
+$("#tgtup").onclick = () => setTarget(+$("#tgt").value + 0.5, true);
 function addRipple(e) {
     const b = e.currentTarget;
     if (b.disabled)
@@ -836,23 +993,40 @@ function addRipple(e) {
     r.className = "ripple";
     const rect = b.getBoundingClientRect(), d = Math.max(rect.width, rect.height);
     r.style.width = r.style.height = d + "px";
-    r.style.left = ((e.clientX ?? rect.left + rect.width / 2) - rect.left - d / 2) + "px";
-    r.style.top = ((e.clientY ?? rect.top + rect.height / 2) - rect.top - d / 2) + "px";
+    r.style.left = (e.clientX ?? rect.left + rect.width / 2) - rect.left - d / 2 + "px";
+    r.style.top = (e.clientY ?? rect.top + rect.height / 2) - rect.top - d / 2 + "px";
     b.appendChild(r);
     setTimeout(() => r.remove(), 600);
 }
-document.querySelectorAll(".btn,.step,.takeover-btn").forEach(b => b.addEventListener("pointerdown", addRipple));
+document.querySelectorAll(".btn,.step,.takeover-btn").forEach((b) => b.addEventListener("pointerdown", addRipple));
 paintSlider($("#tgt").value);
-const SHORT = { lead_vox: "VOX1", harm_vox_l: "VOX2", harm_vox_r: "VOX3", acoustic_gtr: "GTR", bass_di: "BASS", cajon: "CAJ", keys_aux: "KEYS" };
+const SHORT = {
+    lead_vox: "VOX1",
+    harm_vox_l: "VOX2",
+    harm_vox_r: "VOX3",
+    acoustic_gtr: "GTR",
+    bass_di: "BASS",
+    cajon: "CAJ",
+    keys_aux: "KEYS",
+};
 const FUI_MIN = -60, FUI_MAX = 10, FH = 200, CAPH = 32;
 const stripEls = {};
 const muteOn = {};
 const dragging = new Set();
 let masterEl = null;
 const clampF = (v) => Math.max(FUI_MIN, Math.min(FUI_MAX, v));
-function capBottom(db) { return (clampF(db) - FUI_MIN) / (FUI_MAX - FUI_MIN) * (FH - CAPH); }
-function meterV(db) { return Math.max(0, Math.min(100, (db + 60) / 60 * 100)); }
-function yToDb(vf, clientY) { const r = vf.getBoundingClientRect(); let t = (clientY - r.top - CAPH / 2) / (r.height - CAPH); t = Math.max(0, Math.min(1, t)); return Math.round((FUI_MAX - t * (FUI_MAX - FUI_MIN)) * 2) / 2; }
+function capBottom(db) {
+    return ((clampF(db) - FUI_MIN) / (FUI_MAX - FUI_MIN)) * (FH - CAPH);
+}
+function meterV(db) {
+    return Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+}
+function yToDb(vf, clientY) {
+    const r = vf.getBoundingClientRect();
+    let t = (clientY - r.top - CAPH / 2) / (r.height - CAPH);
+    t = Math.max(0, Math.min(1, t));
+    return Math.round((FUI_MAX - t * (FUI_MAX - FUI_MIN)) * 2) / 2;
+}
 function makeStrip(key, label, isMaster) {
     const el = document.createElement("div");
     el.className = "strip" + (isMaster ? " master" : "");
@@ -872,16 +1046,25 @@ function makeStrip(key, label, isMaster) {
             action(isMaster ? { type: "master", db } : { type: "fader", ch: key, db });
         }
     }
-    vf.addEventListener("pointerdown", e => { try {
-        vf.setPointerCapture(e.pointerId);
-    }
-    catch (_) { } dragging.add(key); commit(yToDb(vf, e.clientY)); e.preventDefault(); });
-    vf.addEventListener("pointermove", e => { if (dragging.has(key))
-        commit(yToDb(vf, e.clientY)); });
-    const end = (e) => { if (dragging.has(key)) {
-        commit(yToDb(vf, e.clientY), true);
-        dragging.delete(key);
-    } };
+    vf.addEventListener("pointerdown", (e) => {
+        try {
+            vf.setPointerCapture(e.pointerId);
+        }
+        catch (_) { }
+        dragging.add(key);
+        commit(yToDb(vf, e.clientY));
+        e.preventDefault();
+    });
+    vf.addEventListener("pointermove", (e) => {
+        if (dragging.has(key))
+            commit(yToDb(vf, e.clientY));
+    });
+    const end = (e) => {
+        if (dragging.has(key)) {
+            commit(yToDb(vf, e.clientY), true);
+            dragging.delete(key);
+        }
+    };
     vf.addEventListener("pointerup", end);
     vf.addEventListener("pointercancel", end);
     vf.addEventListener("lostpointercapture", () => dragging.delete(key));
@@ -894,7 +1077,7 @@ function makeStrip(key, label, isMaster) {
 function buildMixer(chs) {
     const root = $("#mixer");
     root.innerHTML = "";
-    for (const c of (chs || [])) {
+    for (const c of chs || []) {
         if (c.is_meas)
             continue;
         const s = makeStrip(c.ch, SHORT[c.role] || (c.label || "").slice(0, 4).toUpperCase(), false);
@@ -904,29 +1087,37 @@ function buildMixer(chs) {
     masterEl = makeStrip("master", "MAIN", true);
     root.appendChild(masterEl.el);
 }
-function closeWS() { if (ws) {
-    ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
-    try {
-        ws.close();
+function closeWS() {
+    if (ws) {
+        ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
+        try {
+            ws.close();
+        }
+        catch { }
+        ws = null;
     }
-    catch { }
-    ws = null;
-} wsReady = false; }
-function closeSSE() { if (es) {
-    try {
-        es.close();
+    wsReady = false;
+}
+function closeSSE() {
+    if (es) {
+        try {
+            es.close();
+        }
+        catch { }
+        es = null;
     }
-    catch { }
-    es = null;
-} }
+}
 function useSSE() {
     closeWS();
     if (es)
         return;
     es = new EventSource("/events");
     es.onopen = () => setConn(true, "connected · SSE");
-    es.onerror = () => { setConn(false, "reconnecting…"); checkSession(); };
-    es.onmessage = ev => onFrame(ev.data);
+    es.onerror = () => {
+        setConn(false, "reconnecting…");
+        checkSession();
+    };
+    es.onmessage = (ev) => onFrame(ev.data);
 }
 function connectWS() {
     closeSSE();
@@ -940,8 +1131,12 @@ function connectWS() {
         useSSE();
         return;
     }
-    sock.onopen = () => { opened = true; wsReady = true; setConn(true, "connected"); };
-    sock.onmessage = ev => onFrame(ev.data);
+    sock.onopen = () => {
+        opened = true;
+        wsReady = true;
+        setConn(true, "connected");
+    };
+    sock.onmessage = (ev) => onFrame(ev.data);
     sock.onerror = () => { };
     sock.onclose = () => {
         wsReady = false;
@@ -954,7 +1149,10 @@ function connectWS() {
             setConn(false, "reconnecting…");
             checkSession();
             if (!retryT)
-                retryT = setTimeout(() => { retryT = null; connectWS(); }, 1500);
+                retryT = setTimeout(() => {
+                    retryT = null;
+                    connectWS();
+                }, 1500);
         }
     };
 }
@@ -964,7 +1162,9 @@ async function keepAwake() {
         return;
     try {
         wakeLock = await navigator.wakeLock.request("screen");
-        wakeLock.addEventListener("release", () => { wakeLock = null; });
+        wakeLock.addEventListener("release", () => {
+            wakeLock = null;
+        });
     }
     catch {
         wakeLock = null;
@@ -978,7 +1178,13 @@ buildJobs();
 render(window.__INITIAL__ || null);
 applyHashTab();
 const _SHOT = new URLSearchParams(location.search).has("shot");
-fetch("/state").then(r => r.json()).then((s) => { render(s); applyHashTab(); }).catch(() => { });
+fetch("/state")
+    .then((r) => r.json())
+    .then((s) => {
+    render(s);
+    applyHashTab();
+})
+    .catch(() => { });
 if (!_SHOT) {
     connectWS();
     keepAwake();

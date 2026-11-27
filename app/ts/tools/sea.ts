@@ -24,9 +24,7 @@ interface AudioPart {
 }
 
 export const AUDIO_MODULE = "naudiodon2";
-export const AUDIO_PARTS: readonly AudioPart[] = [
-  { name: AUDIO_MODULE, files: ["package.json"], licence: "LICENSE", binaries: true },
-];
+export const AUDIO_PARTS: readonly AudioPart[] = [{ name: AUDIO_MODULE, files: ["package.json"], licence: "LICENSE", binaries: true }];
 
 export interface ExeResult {
   exe: string;
@@ -63,7 +61,12 @@ function listFiles(folder: string): string[] {
 export function buildManifest(folder: string): { id: string; files: ManifestFile[] } {
   const files = listFiles(folder)
     .filter((p) => !LEFT_OUT.test(p))
-    .map((p) => ({ path: p, sha256: createHash("sha256").update(readFileSync(join(folder, p))).digest("hex") }));
+    .map((p) => ({
+      path: p,
+      sha256: createHash("sha256")
+        .update(readFileSync(join(folder, p)))
+        .digest("hex"),
+    }));
   const id = createHash("sha256")
     .update(files.map((f) => `${f.path}\n${f.sha256}\n`).join(""))
     .digest("hex")
@@ -96,16 +99,24 @@ export function stageAudio(modulesDir: string, folder: string): number {
     copy(join(from, part.licence), join(to, "LICENSE"));
     if (!part.binaries) continue;
     const release = join(from, "build", "Release");
-    const binaries = existsSync(release) ? readdirSync(release).filter((n) => NATIVE_BINARY.test(n) && statSync(join(release, n)).isFile()) : [];
-    if (!binaries.some((n) => n.endsWith(".node"))) throw new Error(`'${part.name}' is installed but was never compiled (no .node file in ${release})`);
+    const binaries = existsSync(release)
+      ? readdirSync(release).filter((n) => NATIVE_BINARY.test(n) && statSync(join(release, n)).isFile())
+      : [];
+    if (!binaries.some((n) => n.endsWith(".node")))
+      throw new Error(`'${part.name}' is installed but was never compiled (no .node file in ${release})`);
     for (const n of binaries) copy(join(release, n), join(to, "build", "Release", n));
   }
   const portaudio = leadingComment(join(modulesDir, AUDIO_MODULE, "portaudio", "include", "portaudio.h"));
   if (!portaudio.includes("Permission is hereby granted")) throw new Error("the PortAudio licence text was not found in the audio module");
   writeFileSync(join(folder, "node_modules", AUDIO_MODULE, "PORTAUDIO-LICENSE.txt"), portaudio);
-  const check = spawnSync(process.execPath, ["-e", AUDIO_CHECK, join(folder, "node_modules", AUDIO_MODULE)], { cwd: folder, encoding: "utf8" });
+  const check = spawnSync(process.execPath, ["-e", AUDIO_CHECK, join(folder, "node_modules", AUDIO_MODULE)], {
+    cwd: folder,
+    encoding: "utf8",
+  });
   if (check.status !== 0 || !check.stdout.includes("ok ")) {
-    throw new Error(`the audio module does not load from the app folder, so the app would not be able to listen:\n${check.stdout}${check.stderr}`);
+    throw new Error(
+      `the audio module does not load from the app folder, so the app would not be able to listen:\n${check.stdout}${check.stderr}`,
+    );
   }
   return copied + 1;
 }
@@ -185,7 +196,9 @@ if (entry && import.meta.url === pathToFileURL(entry).href) {
       console.log(`  ${(r.bytes / 1048576).toFixed(0)} MB, ${r.files} app files inside, build id ${r.id}`);
       console.log(`  Ship ${r.notice} with it.`);
       if (!r.licenceDownloaded) {
-        console.log("  [!] The Node.js licence text could not be downloaded, so that file only links to it. Rebuild online before sharing the app.");
+        console.log(
+          "  [!] The Node.js licence text could not be downloaded, so that file only links to it. Rebuild online before sharing the app.",
+        );
       }
     },
     (err: unknown) => {

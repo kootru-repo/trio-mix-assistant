@@ -257,17 +257,13 @@ it("setCalibration loads watch frequencies and null clears them", {}, ({ job }) 
   assert.equal(job.isNearWatch(3100), false);
 });
 
-it(
-  "a watch-list tone never needs fewer than one block",
-  tuned("feedback", { sustainBlocks: 1 }),
-  ({ h, job }) => {
-    job.venueWatchFreqs = [1000];
-    job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -40 }));
-    assert.deepEqual(h.mixer.calls, []);
-    job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -30 }));
-    assert.deepEqual(h.mixer.calls, [{ op: "notch", ch: 1, band: 1, hz: 1000 }]);
-  },
-);
+it("a watch-list tone never needs fewer than one block", tuned("feedback", { sustainBlocks: 1 }), ({ h, job }) => {
+  job.venueWatchFreqs = [1000];
+  job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -40 }));
+  assert.deepEqual(h.mixer.calls, []);
+  job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -30 }));
+  assert.deepEqual(h.mixer.calls, [{ op: "notch", ch: 1, band: 1, hz: 1000 }]);
+});
 
 it("harmonicity adds harmonicity times harmonicSustain rounded half to even", {}, ({ h, job }) => {
   for (let i = 0; i < 6; i++) job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -60 + i, harmonicity: 0.5 }));
@@ -277,25 +273,17 @@ it("harmonicity adds harmonicity times harmonicSustain rounded half to even", {}
   assert.deepEqual(h.mixer.calls, [{ op: "notch", ch: 1, band: 1, hz: 1000 }]);
 });
 
-it(
-  "a harmonic extra of exactly two and a half rounds down to two",
-  tuned("feedback", { harmonicSustain: 5 }),
-  ({ h, job }) => {
-    for (let i = 0; i < 6; i++) job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -60 + i, harmonicity: 0.5 }));
-    assert.deepEqual(h.mixer.calls, []);
-    job.handle(1, feat({ fbFreq: 1000, rmsDbfs: 0, harmonicity: 0.5 }));
-    assert.deepEqual(h.mixer.calls, [{ op: "notch", ch: 1, band: 1, hz: 1000 }]);
-  },
-);
+it("a harmonic extra of exactly two and a half rounds down to two", tuned("feedback", { harmonicSustain: 5 }), ({ h, job }) => {
+  for (let i = 0; i < 6; i++) job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -60 + i, harmonicity: 0.5 }));
+  assert.deepEqual(h.mixer.calls, []);
+  job.handle(1, feat({ fbFreq: 1000, rmsDbfs: 0, harmonicity: 0.5 }));
+  assert.deepEqual(h.mixer.calls, [{ op: "notch", ch: 1, band: 1, hz: 1000 }]);
+});
 
-it(
-  "a harmonic extra of exactly a half rounds down to zero",
-  tuned("feedback", { harmonicSustain: 1 }),
-  ({ h, job }) => {
-    for (let i = 0; i < 5; i++) job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -60 + i, harmonicity: 0.5 }));
-    assert.deepEqual(h.mixer.calls, [{ op: "notch", ch: 1, band: 1, hz: 1000 }]);
-  },
-);
+it("a harmonic extra of exactly a half rounds down to zero", tuned("feedback", { harmonicSustain: 1 }), ({ h, job }) => {
+  for (let i = 0; i < 5; i++) job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -60 + i, harmonicity: 0.5 }));
+  assert.deepEqual(h.mixer.calls, [{ op: "notch", ch: 1, band: 1, hz: 1000 }]);
+});
 
 it("zero or negative harmonicity adds nothing", {}, ({ h, job }) => {
   for (let i = 0; i < 5; i++) job.handle(1, feat({ fbFreq: 1000, rmsDbfs: -60 + i, harmonicity: -1 }));
@@ -344,28 +332,20 @@ it("low room confidence does not affect channels other than the measurement mic"
   assert.deepEqual(h.mixer.calls, [{ op: "notch", ch: 1, band: 1, hz: 1000 }]);
 });
 
-it(
-  "the confidence scaling rounds half to even",
-  tuned("feedback", { sustainBlocks: 5 }),
-  ({ h, job }) => {
-    h.state.roomConfidence = 0.4;
-    climb(job, 8, 13, 1000);
-    assert.deepEqual(h.mixer.calls, [{ op: "busEq", band: 1, hz: 1000, gainDb: -9, q: 8 }]);
-    assert.equal(streak(job, 8), 0);
-  },
-);
+it("the confidence scaling rounds half to even", tuned("feedback", { sustainBlocks: 5 }), ({ h, job }) => {
+  h.state.roomConfidence = 0.4;
+  climb(job, 8, 13, 1000);
+  assert.deepEqual(h.mixer.calls, [{ op: "busEq", band: 1, hz: 1000, gainDb: -9, q: 8 }]);
+  assert.equal(streak(job, 8), 0);
+});
 
-it(
-  "the confidence scaling never lowers the block count below the unscaled one",
-  tuned("feedback", { confFloor: 2 }),
-  ({ h, job }) => {
-    h.state.roomConfidence = 0.5;
-    climb(job, 8, 4, 1000);
-    assert.deepEqual(h.mixer.calls, []);
-    job.handle(8, feat({ fbFreq: 1000, rmsDbfs: 0 }));
-    assert.deepEqual(h.mixer.calls, [{ op: "busEq", band: 1, hz: 1000, gainDb: -9, q: 8 }]);
-  },
-);
+it("the confidence scaling never lowers the block count below the unscaled one", tuned("feedback", { confFloor: 2 }), ({ h, job }) => {
+  h.state.roomConfidence = 0.5;
+  climb(job, 8, 4, 1000);
+  assert.deepEqual(h.mixer.calls, []);
+  job.handle(8, feat({ fbFreq: 1000, rmsDbfs: 0 }));
+  assert.deepEqual(h.mixer.calls, [{ op: "busEq", band: 1, hz: 1000, gainDb: -9, q: 8 }]);
+});
 
 it("a measurement mic notch goes to the main bus and is recorded", {}, ({ h, job }) => {
   climb(job, 8, 5, 812.4);
@@ -583,32 +563,24 @@ it("coach mode on a channel flags watch-list tones and cycles bands with its own
   assert.equal(job.coachNotchBand.get(1), 1);
 });
 
-it(
-  "coach text rounds the configured gain and Q half to even",
-  tuned("feedback", { notchGainDb: -6.5, notchQ: 4.5 }),
-  ({ h, job }) => {
-    h.coach.on = true;
-    climb(job, 8, 5, 1000);
-    climb(job, 1, 5, 1000);
-    assert.deepEqual(
-      h.recs.map((r) => r.text),
-      [
-        "Feedback 1000 Hz in the room → cut the MAIN BUS at 1000 Hz by -6 dB (Q 4); e.g. main PEQ band 1.",
-        "Feedback 1000 Hz on lead_vox → notch input EQ band 1 at 1000 Hz, -6 dB (Q 4).",
-      ],
-    );
-    assert.deepEqual(h.recs[0]?.meta, { freq: 1000, gain_db: -6.5, q: 4.5, target: "main-bus", band: 1 });
-  },
-);
+it("coach text rounds the configured gain and Q half to even", tuned("feedback", { notchGainDb: -6.5, notchQ: 4.5 }), ({ h, job }) => {
+  h.coach.on = true;
+  climb(job, 8, 5, 1000);
+  climb(job, 1, 5, 1000);
+  assert.deepEqual(
+    h.recs.map((r) => r.text),
+    [
+      "Feedback 1000 Hz in the room → cut the MAIN BUS at 1000 Hz by -6 dB (Q 4); e.g. main PEQ band 1.",
+      "Feedback 1000 Hz on lead_vox → notch input EQ band 1 at 1000 Hz, -6 dB (Q 4).",
+    ],
+  );
+  assert.deepEqual(h.recs[0]?.meta, { freq: 1000, gain_db: -6.5, q: 4.5, target: "main-bus", band: 1 });
+});
 
-it(
-  "main-bus notches use the configured gain and Q",
-  tuned("feedback", { notchGainDb: -12, notchQ: 10 }),
-  ({ h, job }) => {
-    climb(job, 8, 5, 1000);
-    assert.deepEqual(h.mixer.calls, [{ op: "busEq", band: 1, hz: 1000, gainDb: -12, q: 10 }]);
-  },
-);
+it("main-bus notches use the configured gain and Q", tuned("feedback", { notchGainDb: -12, notchQ: 10 }), ({ h, job }) => {
+  climb(job, 8, 5, 1000);
+  assert.deepEqual(h.mixer.calls, [{ op: "busEq", band: 1, hz: 1000, gainDb: -12, q: 10 }]);
+});
 
 it("channel notches cycle through bands one to four", {}, ({ h, job }) => {
   for (const hz of [1000, 2000, 3000, 4000, 5000]) climb(job, 1, 5, hz);
@@ -663,18 +635,17 @@ it("coach mode also skips the unmask band in its suggestion", {}, ({ h, job }) =
   assert.equal(job.usedNotchBand.get(1), 0);
 });
 
-it(
-  "with a single channel EQ band the unmask band is never skipped",
-  { CHANNEL_EQ_BANDS: 1, ...tuned("unmask", { band: 1 }) },
-  ({ h, job }) => {
-    h.state.enabled["unmask"] = true;
-    for (const hz of [1000, 2000]) climb(job, 1, 5, hz);
-    assert.deepEqual(h.mixer.calls, [
-      { op: "notch", ch: 1, band: 1, hz: 1000 },
-      { op: "notch", ch: 1, band: 1, hz: 2000 },
-    ]);
-  },
-);
+it("with a single channel EQ band the unmask band is never skipped", { CHANNEL_EQ_BANDS: 1, ...tuned("unmask", { band: 1 }) }, ({
+  h,
+  job,
+}) => {
+  h.state.enabled["unmask"] = true;
+  for (const hz of [1000, 2000]) climb(job, 1, 5, hz);
+  assert.deepEqual(h.mixer.calls, [
+    { op: "notch", ch: 1, band: 1, hz: 1000 },
+    { op: "notch", ch: 1, band: 1, hz: 2000 },
+  ]);
+});
 
 it("each channel keeps its own streak and notch band", {}, ({ h, job }) => {
   climb(job, 1, 5, 1000);
@@ -739,61 +710,49 @@ it("resetNotches with nothing parked reports zero and touches nothing", {}, ({ h
   assert.deepEqual(h.events, [{ kind: "system", msg: "cleared 0 parked notch(es)", ch: null }]);
 });
 
-it(
-  "resetNotches uses the configured flat frequency and Q",
-  { EQ_FLAT_FREQ: 750, EQ_FLAT_Q: 1.5 },
-  ({ h, job }) => {
-    climb(job, 8, 5, 1000);
-    h.mixer.calls = [];
-    job.resetNotches();
-    assert.deepEqual(h.mixer.calls, [{ op: "busEq", band: 1, hz: 750, gainDb: 0, q: 1.5 }]);
-  },
-);
+it("resetNotches uses the configured flat frequency and Q", { EQ_FLAT_FREQ: 750, EQ_FLAT_Q: 1.5 }, ({ h, job }) => {
+  climb(job, 8, 5, 1000);
+  h.mixer.calls = [];
+  job.resetNotches();
+  assert.deepEqual(h.mixer.calls, [{ op: "busEq", band: 1, hz: 750, gainDb: 0, q: 1.5 }]);
+});
 
-it(
-  "an injected channel map, measurement mic and tuning are honoured without touching the global config",
-  {
-    CHANNELS: new Map([
-      [3, "a"],
-      [9, "meas_mic"],
-    ]),
-    MEAS_MIC_CH: 9,
-    ...tuned("feedback", { sustainBlocks: 2 }),
-  },
-  ({ h, job }) => {
-    assert.deepEqual([...job.fbStreak.keys()], [3, 9]);
-    climb(job, 3, 3, 1000);
-    climb(job, 9, 3, 2000);
-    assert.deepEqual(h.mixer.calls, [
-      { op: "notch", ch: 3, band: 1, hz: 1000 },
-      { op: "busEq", band: 1, hz: 2000, gainDb: -9, q: 8 },
-    ]);
-    assert.deepEqual(
-      h.events.map((e) => e.msg),
-      ["1000 Hz on a → notch band 1", "2000 Hz on meas_mic → main-bus band 1"],
-    );
-    assert.throws(() => job.handle(1, feat({ fbFreq: 1000 })), /unknown channel 1/);
-    assert.throws(() => job.handle(8, feat()), /unknown channel 8/);
-    job.resetNotches();
-    assert.deepEqual(h.mixer.calls.slice(2), [
-      { op: "clearEq", ch: 3 },
-      { op: "busEq", band: 1, hz: 1000, gainDb: 0, q: 2 },
-    ]);
-  },
-);
+it("an injected channel map, measurement mic and tuning are honoured without touching the global config", {
+  CHANNELS: new Map([
+    [3, "a"],
+    [9, "meas_mic"],
+  ]),
+  MEAS_MIC_CH: 9,
+  ...tuned("feedback", { sustainBlocks: 2 }),
+}, ({ h, job }) => {
+  assert.deepEqual([...job.fbStreak.keys()], [3, 9]);
+  climb(job, 3, 3, 1000);
+  climb(job, 9, 3, 2000);
+  assert.deepEqual(h.mixer.calls, [
+    { op: "notch", ch: 3, band: 1, hz: 1000 },
+    { op: "busEq", band: 1, hz: 2000, gainDb: -9, q: 8 },
+  ]);
+  assert.deepEqual(
+    h.events.map((e) => e.msg),
+    ["1000 Hz on a → notch band 1", "2000 Hz on meas_mic → main-bus band 1"],
+  );
+  assert.throws(() => job.handle(1, feat({ fbFreq: 1000 })), /unknown channel 1/);
+  assert.throws(() => job.handle(8, feat()), /unknown channel 8/);
+  job.resetNotches();
+  assert.deepEqual(h.mixer.calls.slice(2), [
+    { op: "clearEq", ch: 3 },
+    { op: "busEq", band: 1, hz: 1000, gainDb: 0, q: 2 },
+  ]);
+});
 
-it(
-  "a custom bus and channel band count is honoured",
-  { BUS_EQ_BANDS: 2, CHANNEL_EQ_BANDS: 2 },
-  ({ h, job }) => {
-    for (const hz of [1000, 2000, 3000]) climb(job, 8, 5, hz);
-    for (const hz of [1000, 2000, 3000]) climb(job, 1, 5, hz);
-    assert.deepEqual(
-      h.mixer.calls.map((c) => (c.op === "busEq" || c.op === "notch" ? `${c.op}${c.band}` : "")),
-      ["busEq1", "busEq2", "busEq1", "notch1", "notch2", "notch1"],
-    );
-  },
-);
+it("a custom bus and channel band count is honoured", { BUS_EQ_BANDS: 2, CHANNEL_EQ_BANDS: 2 }, ({ h, job }) => {
+  for (const hz of [1000, 2000, 3000]) climb(job, 8, 5, hz);
+  for (const hz of [1000, 2000, 3000]) climb(job, 1, 5, hz);
+  assert.deepEqual(
+    h.mixer.calls.map((c) => (c.op === "busEq" || c.op === "notch" ? `${c.op}${c.band}` : "")),
+    ["busEq1", "busEq2", "busEq1", "notch1", "notch2", "notch1"],
+  );
+});
 
 it("coach advice on a channel continues after the band a real notch already used", {}, ({ h, job }) => {
   climb(job, 4, 5, 1000);

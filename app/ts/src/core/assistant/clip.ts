@@ -24,13 +24,10 @@ export class ClipJob {
     if (feat.peakDbfs > C.clip.peakDbfs) {
       if (!coaching && now - need(this.lastClipT, ch) < C.clip.trimCooldownS) return;
       if (coaching) {
-        this.ctx.recommend(
-          "clip",
-          ch,
-          `${chanOf(C, ch)} near clip → trim its preamp/gain ${signed(C.clip.trimDb, 0)} dB.`,
-          false,
-          { peak: roundTo(feat.peakDbfs, 1), trim_db: C.clip.trimDb },
-        );
+        this.ctx.recommend("clip", ch, `${chanOf(C, ch)} near clip → trim its preamp/gain ${signed(C.clip.trimDb, 0)} dB.`, false, {
+          peak: roundTo(feat.peakDbfs, 1),
+          trim_db: C.clip.trimDb,
+        });
         return;
       }
       state.gainDb.set(ch, mixer.nudgeGainDb(ch, need(state.gainDb, ch), C.clip.trimDb));

@@ -87,7 +87,13 @@ test("the engine, stepped on a manual clock, publishes the recorded telemetry", 
   if (recording) {
     fx.snapshots = json(snapshots);
     fx.events = json(e.events);
-    fx.final = { ...fx.final, status: e.status, calib_status: e.calibStatus, master_db: e.masterDb, muted: Object.fromEntries([...e.muted].map(([k, v]) => [String(k), v])) };
+    fx.final = {
+      ...fx.final,
+      status: e.status,
+      calib_status: e.calibStatus,
+      master_db: e.masterDb,
+      muted: Object.fromEntries([...e.muted].map(([k, v]) => [String(k), v])),
+    };
     saveFixture("engine", fx);
   }
   assert.equal(snapshots.length, fx.snapshots.length);
@@ -310,7 +316,9 @@ test("channel specs are validated even without a channel map", () => {
     { stereo_links: [[1, null]] },
   ];
   for (const channels of bad) assert.throws(() => fromObject({ channels }), TemplateError, JSON.stringify(channels));
-  const ok = fromObject({ channels: { phase_pairs: [[1, 2]], labels: { lead: "Lead" }, balance: [1, 2], guest: [3], stereo_links: [[4, 5]] } });
+  const ok = fromObject({
+    channels: { phase_pairs: [[1, 2]], labels: { lead: "Lead" }, balance: [1, 2], guest: [3], stereo_links: [[4, 5]] },
+  });
   assert.deepEqual(ok.channels?.phase_pairs, [[1, 2]]);
 });
 
@@ -373,7 +381,10 @@ test("only a malformed command is dropped quietly; any other failure is reported
   const e = new Engine({ clock: new ManualClock(100, 1_700_000_000), console: new Boom() });
   e.command({ type: "master", db: "loud" });
   e.command({ type: "master" });
-  assert.equal(e.events.some((ev) => ev.msg.includes("engine error")), false);
+  assert.equal(
+    e.events.some((ev) => ev.msg.includes("engine error")),
+    false,
+  );
   e.command({ type: "master", db: -3 });
   assert.ok(e.events.some((ev) => ev.msg.includes("engine error") && ev.msg.includes("console exploded")));
 });
@@ -510,11 +521,20 @@ test("a dead capture is a warning at first and critical after 1.5 seconds", () =
     e.step(clock.monotonic(), clock.monotonic() - s);
   };
   stepBy(0.05);
-  assert.deepEqual(alertView(e).map((a) => a.level), ["warn"]);
+  assert.deepEqual(
+    alertView(e).map((a) => a.level),
+    ["warn"],
+  );
   stepBy(1.4);
-  assert.deepEqual(alertView(e).map((a) => a.level), ["warn"]);
+  assert.deepEqual(
+    alertView(e).map((a) => a.level),
+    ["warn"],
+  );
   stepBy(0.2);
-  assert.deepEqual(alertView(e).map((a) => a.level), ["critical"]);
+  assert.deepEqual(
+    alertView(e).map((a) => a.level),
+    ["critical"],
+  );
   assert.equal(e.snapshot()["op_mode"], "alert");
 });
 
@@ -547,5 +567,8 @@ test("the first 8 bars of a song hide warnings but not critical alerts", () => {
   clock.advance(1.6);
   e.step(clock.monotonic(), clock.monotonic() - 0.05);
   e.step(clock.monotonic() + 0.05, clock.monotonic());
-  assert.deepEqual(alertView(e).map((a) => a.level), ["critical"]);
+  assert.deepEqual(
+    alertView(e).map((a) => a.level),
+    ["critical"],
+  );
 });

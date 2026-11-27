@@ -152,7 +152,11 @@ const isRead = (s: Sent): boolean => s.args.length === 0 && (FADER.test(s.addr) 
 const pad = (n: number, width: number): string => String(n).padStart(width, "0");
 
 const deskAddresses = (): string[] =>
-  [...C.CHANNELS.keys()].flatMap((ch) => [`/ch/${pad(ch, 2)}/mix/fader`, `/headamp/${pad(ch - 1, 3)}/gain`, `/ch/${pad(ch, 2)}/preamp/invert`]);
+  [...C.CHANNELS.keys()].flatMap((ch) => [
+    `/ch/${pad(ch, 2)}/mix/fader`,
+    `/headamp/${pad(ch - 1, 3)}/gain`,
+    `/ch/${pad(ch, 2)}/preamp/invert`,
+  ]);
 
 const quietReceiver = (): MeterReceiverPort => ({ start: () => Promise.resolve(), stop: () => undefined });
 
@@ -171,7 +175,11 @@ const makeRig = async (clock: AnyClock = new StepClock(100, 1_700_000_000)): Pro
   return { e, clock, con, sink };
 };
 
-const readsSince = (r: Rig, from: number): string[] => r.sink.since(from).filter(isRead).map((s) => s.addr);
+const readsSince = (r: Rig, from: number): string[] =>
+  r.sink
+    .since(from)
+    .filter(isRead)
+    .map((s) => s.addr);
 
 const reply = (e: Engine, address: string): void => {
   e.consoleHeard();
@@ -228,7 +236,10 @@ const msgs = (e: Engine): string[] => e.events.map((ev) => ev.msg);
 const count = (e: Engine, prefix: string): number => msgs(e).filter((m) => m.startsWith(prefix)).length;
 
 const noErrors = (e: Engine): void => {
-  assert.deepEqual(msgs(e).filter((m) => m.startsWith("engine error")), []);
+  assert.deepEqual(
+    msgs(e).filter((m) => m.startsWith("engine error")),
+    [],
+  );
 };
 
 const isAlert = (x: unknown): x is Alert =>
@@ -414,10 +425,17 @@ test("an auto backlog that lasts stormS holds the jobs for write-storm with a cr
     near(r.e.assistant.gainDb.get(2), 35);
     await drive(r, 3.0, true);
     assert.equal(gov(r.con).backlog(), 0);
-    assert.deepEqual(writesTo(r, gainAddr(2), quiet).filter((a) => Math.abs(floatOf(a) - (33 + 12) / 72) < 1e-6), []);
+    assert.deepEqual(
+      writesTo(r, gainAddr(2), quiet).filter((a) => Math.abs(floatOf(a) - (33 + 12) / 72) < 1e-6),
+      [],
+    );
     const wanted = new Set(expected);
     const got = r.sink.since(from).filter((s) => wanted.has(s.addr) && s.args.length > 0);
-    assert.deepEqual(got.map((s) => s.addr), expected, "a queued write was lost, repeated or reordered");
+    assert.deepEqual(
+      got.map((s) => s.addr),
+      expected,
+      "a queued write was lost, repeated or reordered",
+    );
     const last = got.filter((s) => s.addr === "/ch/32/eq/4/g").at(-1);
     near(floatOf(last?.args[0]), (6 + 15) / 30);
     const lastF = got.filter((s) => s.addr === "/ch/32/eq/4/f").at(-1);
@@ -517,7 +535,10 @@ test("three hand moves within lockWindowS lock the channel out of every job unti
     r.e.reconcileFader(2, -6);
     assert.equal(r.e.channelLocked(2), true);
     assert.equal(count(r.e, lockMsg), 1);
-    assert.ok(logOf(r.e).some((m) => m.startsWith(lockMsg)), "the lock is not in the snapshot log");
+    assert.ok(
+      logOf(r.e).some((m) => m.startsWith(lockMsg)),
+      "the lock is not in the snapshot log",
+    );
     assert.deepEqual(r.e.snapshot()["hold"], { held: false, reasons: [] });
     const from = r.sink.sent.length;
     r.e.onPushedBlock(clipBlock(2), 0);

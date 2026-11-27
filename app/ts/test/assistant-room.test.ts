@@ -177,9 +177,7 @@ test("the stage baseline moves slowly with the default ema and a loud jump warns
   stage.handle(feat({ rmsDbfs: -20 }), 1);
   near(stage.stageBaseline ?? 0, 0.999 * -40 + 0.001 * -20);
   assert.equal(stage.lastStageWarn, 1);
-  assert.deepEqual(h.events, [
-    { kind: "system", msg: "stage volume up ~20 dB over baseline — consider easing back", ch: null },
-  ]);
+  assert.deepEqual(h.events, [{ kind: "system", msg: "stage volume up ~20 dB over baseline — consider easing back", ch: null }]);
   assert.deepEqual(h.mixer.calls, []);
 });
 
@@ -192,9 +190,7 @@ test("the stage warning needs the level strictly above baseline plus the rise", 
   assert.deepEqual(h.events, []);
   stage.handle(feat({ rmsDbfs: -27 }), 2);
   assert.equal(stage.stageBaseline, -31.5);
-  assert.deepEqual(h.events, [
-    { kind: "system", msg: "stage volume up ~4 dB over baseline — consider easing back", ch: null },
-  ]);
+  assert.deepEqual(h.events, [{ kind: "system", msg: "stage volume up ~4 dB over baseline — consider easing back", ch: null }]);
 });
 
 test("the stage warning repeats only after strictly more than the warn interval", () => {
@@ -236,7 +232,5 @@ isolated("the stage job honours an injected stage channel and tuning", () => {
   s2.handle(feat({ rmsDbfs: -36 }), 1);
   assert.equal(s2.stageBaseline, -38.25);
   assert.equal(s2.lastStageWarn, 1);
-  assert.deepEqual(h2.events, [
-    { kind: "system", msg: "stage volume up ~3 dB over baseline — consider easing back", ch: 12 },
-  ]);
+  assert.deepEqual(h2.events, [{ kind: "system", msg: "stage volume up ~3 dB over baseline — consider easing back", ch: 12 }]);
 });

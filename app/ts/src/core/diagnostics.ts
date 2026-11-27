@@ -132,10 +132,22 @@ function moduleCheck(f: DiagFacts): Check {
   const title = "Audio module loads";
   const m = f.audioModule;
   if (!m.ok) {
-    return check("module", title, "fail", m.error ?? "the audio module did not load", "Use the downloaded single-file app, which carries the audio module.");
+    return check(
+      "module",
+      title,
+      "fail",
+      m.error ?? "the audio module did not load",
+      "Use the downloaded single-file app, which carries the audio module.",
+    );
   }
   if (m.inputs === 0) {
-    return check("module", title, "fail", "loaded, but the system reports no audio inputs", "Plug in the console's USB cable or an audio interface and check the system's sound settings.");
+    return check(
+      "module",
+      title,
+      "fail",
+      "loaded, but the system reports no audio inputs",
+      "Plug in the console's USB cable or an audio interface and check the system's sound settings.",
+    );
   }
   return check("module", title, "pass", `loaded, ${plural(m.inputs, "input")} found`);
 }
@@ -168,7 +180,8 @@ function flowCheck(f: DiagFacts, input: Check): Check {
     `${fixed(rate, 1)} of ${fixed(a.expectedPerS, 1)} blocks per second over ${fixed(a.windowS, 0)} s` +
     `; ${a.stale} late, ${a.overruns} dropped by the driver`;
   const fix = "Close other audio apps, plug the interface straight into the computer, and on Windows pick the WASAPI entry for the device.";
-  if (a.dead || share < RATE_FAIL) return check("flow", title, "fail", a.dead ? `the input stopped delivering audio; ${detail}` : detail, fix);
+  if (a.dead || share < RATE_FAIL)
+    return check("flow", title, "fail", a.dead ? `the input stopped delivering audio; ${detail}` : detail, fix);
   if (share < RATE_WARN || a.overruns > 0 || a.stale > LATE_WARN * Math.max(1, a.blocks)) return check("flow", title, "warn", detail, fix);
   return check("flow", title, "pass", detail);
 }
@@ -181,7 +194,13 @@ function signalCheck(f: DiagFacts, flow: Check): Check {
   if (peaks.length === 0) return check("signal", title, "skip", "no mapped channel delivered audio");
   const peak = Math.max(...peaks);
   if (peak <= DIGITAL_SILENCE_DB) {
-    return check("signal", title, "fail", "every sample is exactly zero, which usually means the system is blocking the microphone", microphoneFix(f.platform));
+    return check(
+      "signal",
+      title,
+      "fail",
+      "every sample is exactly zero, which usually means the system is blocking the microphone",
+      microphoneFix(f.platform),
+    );
   }
   return check("signal", title, "pass", `loudest peak ${Math.round(peak) || 0} dBFS`);
 }
@@ -198,12 +217,15 @@ function channelsCheck(f: DiagFacts, signal: Check): Check {
   });
   const unmapped = a.channels.filter((c) => !c.mapped).length;
   const quiet = a.channels.filter((c) => c.mapped && (c.rmsDb === null || c.rmsDb <= QUIET_CHANNEL_DB)).length;
-  if (unmapped === 0 && quiet === 0) return check("channels", title, "pass", `all ${plural(a.channels.length, "channel")} carry signal`, null, rows);
+  if (unmapped === 0 && quiet === 0)
+    return check("channels", title, "pass", `all ${plural(a.channels.length, "channel")} carry signal`, null, rows);
   const parts: string[] = [];
   const fixes: string[] = [];
   if (quiet > 0) {
     parts.push(`${plural(quiet, "channel")} showed no signal`);
-    fixes.push("Make sound on each quiet channel and run the checks again. If a different channel moves instead, set the channel map (--channel-map).");
+    fixes.push(
+      "Make sound on each quiet channel and run the checks again. If a different channel moves instead, set the channel map (--channel-map).",
+    );
   }
   if (unmapped > 0) {
     parts.push(`${plural(unmapped, "channel")} missing from the channel map`);
@@ -244,9 +266,23 @@ function networkCheck(f: DiagFacts): Check {
   const title = "Tablet access";
   const n = f.network;
   if (!n.lan) return check("network", title, "skip", "the dashboard is open to this computer only (LAN is off)");
-  if (!n.pin) return check("network", title, "fail", "the dashboard is open to the network without a PIN", "Set a PIN of six or more characters (PIN in show.conf, or --pin).");
+  if (!n.pin)
+    return check(
+      "network",
+      title,
+      "fail",
+      "the dashboard is open to the network without a PIN",
+      "Set a PIN of six or more characters (PIN in show.conf, or --pin).",
+    );
   const where = n.url ?? "the address printed at start";
-  if (!n.https) return check("network", title, "warn", `PIN set, but it travels unencrypted; ${where}`, "Turn HTTPS on (HTTPS=yes in show.conf, or --https).");
+  if (!n.https)
+    return check(
+      "network",
+      title,
+      "warn",
+      `PIN set, but it travels unencrypted; ${where}`,
+      "Turn HTTPS on (HTTPS=yes in show.conf, or --https).",
+    );
   return check("network", title, "pass", `PIN and HTTPS are on; open ${where} on the tablet to confirm it connects`);
 }
 
@@ -319,7 +355,12 @@ export function makeScrubber(f: ScrubFacts): (text: string) => string {
 export function buildReport(f: DiagFacts): DiagReport {
   const scrub = f.scrub ?? ((text: string): string => text);
   const clean = (text: string): string => scrub(redact(text, f.home));
-  const checks = evaluate(f).map((c) => ({ ...c, detail: clean(c.detail), rows: c.rows.map(clean), fix: c.fix === null ? null : clean(c.fix) }));
+  const checks = evaluate(f).map((c) => ({
+    ...c,
+    detail: clean(c.detail),
+    rows: c.rows.map(clean),
+    fix: c.fix === null ? null : clean(c.fix),
+  }));
   const text = [...headerLines(f), ...checks.flatMap(checkLines), ...footerLines(checks)].join("\n");
   return { result: resultOf(checks), summary: summaryOf(checks), checks, text };
 }

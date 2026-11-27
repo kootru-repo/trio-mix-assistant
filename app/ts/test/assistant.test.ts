@@ -154,7 +154,7 @@ class Replay {
       lead_target: a.leadTarget,
       coach_recs: [...a.coachRecs.values()]
         .map((r) => [r.kind, r.ch])
-        .sort((x, y) => (x[0]! < y[0]! ? -1 : x[0]! > y[0]! ? 1 : (x[1] as number ?? -1) - ((y[1] as number) ?? -1))),
+        .sort((x, y) => (x[0]! < y[0]! ? -1 : x[0]! > y[0]! ? 1 : ((x[1] as number) ?? -1) - ((y[1] as number) ?? -1))),
       wire: c.wireLog.map(([addr, ...args]) => [addr, ...args.map((g) => g.v)]),
       console: {
         fader_db: obj(c.faderDb),

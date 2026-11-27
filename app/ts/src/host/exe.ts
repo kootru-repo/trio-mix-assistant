@@ -4,10 +4,10 @@ import type { Io } from "./main.ts";
 
 const LAUNCH_FLAGS = new Set(["--rehearse", "--list-devices", "--diagnose", "--vet"]);
 
-export const entryFor = (argv: readonly string[]): "launch" | "run" =>
-  argv.every((a) => LAUNCH_FLAGS.has(a)) ? "launch" : "run";
+export const entryFor = (argv: readonly string[]): "launch" | "run" => (argv.every((a) => LAUNCH_FLAGS.has(a)) ? "launch" : "run");
 
 export async function startFromExecutable(argv: readonly string[], io: Io = defaultIo()): Promise<number> {
-  if (!(argv.length === 1 && (argv[0] === "--version" || argv[0] === "--help" || argv[0] === "-h"))) io.out(`  Settings and logs are in: ${io.layout.appDir}`);
+  if (!(argv.length === 1 && (argv[0] === "--version" || argv[0] === "--help" || argv[0] === "-h")))
+    io.out(`  Settings and logs are in: ${io.layout.appDir}`);
   return entryFor(argv) === "launch" ? launch(argv, io) : run(argv, io);
 }

@@ -48,7 +48,14 @@ export class Calibrator {
     for (const [fc, excess] of res.watchlist) {
       if (nPredip >= this.cfg.calibration.predipCount) break;
       if (corrected.has(fc)) continue;
-      steps.push({ band: this.cfg.calibration.roomBands + 1 + nPredip, hz: fc, gain: this.cfg.calibration.predipDb, q: this.cfg.calibration.predipQ, kind: "predip", excess });
+      steps.push({
+        band: this.cfg.calibration.roomBands + 1 + nPredip,
+        hz: fc,
+        gain: this.cfg.calibration.predipDb,
+        q: this.cfg.calibration.predipQ,
+        kind: "predip",
+        excess,
+      });
       nPredip++;
     }
     return steps;

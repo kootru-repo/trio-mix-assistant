@@ -39,9 +39,7 @@ const request = (
     const req = http.request({ host: "127.0.0.1", port, method, path, headers, agent: false, timeout: 5000, ...local }, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));
-      res.on("end", () =>
-        resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") }),
-      );
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") }));
     });
     req.on("error", reject);
     req.on("timeout", () => req.destroy(new Error("timeout")));
@@ -149,11 +147,7 @@ class WsClient {
     return true;
   }
 
-  static async connect(
-    port: number,
-    extra: string[] = [],
-    keyOverride?: string,
-  ): Promise<{ client: WsClient; head: string }> {
+  static async connect(port: number, extra: string[] = [], keyOverride?: string): Promise<{ client: WsClient; head: string }> {
     const socket = net.createConnection({ host: "127.0.0.1", port });
     await new Promise<void>((resolve, reject) => {
       socket.once("connect", resolve);
@@ -178,7 +172,9 @@ class WsClient {
     const head = client.buf.subarray(0, at).toString("latin1");
     client.buf = client.buf.subarray(at + 4);
     if (head.startsWith("HTTP/1.1 101")) {
-      const accept = createHash("sha1").update(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
+      const accept = createHash("sha1")
+        .update(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+        .digest("base64");
       assert.ok(head.includes(`Sec-WebSocket-Accept: ${accept}`), head);
     }
     return { client, head };
@@ -256,7 +252,10 @@ test("index page seeds the initial state", async () => {
     assert.ok(res.body.includes("window.__INITIAL__"));
     assert.ok(!res.body.includes("__INITIAL_STATE__"));
     assert.ok(!res.body.includes("__APP_VERSION__"));
-    assert.ok(res.body.includes(`<span class="appver mono" title="Version and build">${appVersion().label}</span>`), "the header shows the version");
+    assert.ok(
+      res.body.includes(`<span class="appver mono" title="Version and build">${appVersion().label}</span>`),
+      "the header shows the version",
+    );
     assert.ok(res.body.includes('<script src="/dashboard.js">'));
   } finally {
     await r.close();
@@ -386,11 +385,7 @@ test("oversized, NaN and deeply nested bodies are rejected with 400", async () =
   const r = await rig();
   try {
     const big = JSON.stringify({ type: "toggle", job: "x", on: true, pad: "A".repeat(70000) });
-    const cases: (string | Buffer)[] = [
-      big,
-      '{"type":"fader","ch":1,"db":NaN}',
-      "[".repeat(10000) + "]".repeat(10000),
-    ];
+    const cases: (string | Buffer)[] = [big, '{"type":"fader","ch":1,"db":NaN}', "[".repeat(10000) + "]".repeat(10000)];
     for (const body of cases) {
       const res = await request(r.port, "POST", "/api/command", { body, headers: { "Content-Type": "application/json" } });
       assert.equal(res.status, 400);
@@ -635,7 +630,10 @@ test("parallel guesses cannot exceed the attempt limit", async () => {
     await sleep(500);
     const code = (i: number): number => Number(replies[i]!.split(" ", 3)[1]);
     const pending = socks.map((_, i) => i).filter((i) => replies[i] === "");
-    const codes = socks.map((_, i) => i).filter((i) => replies[i] !== "").map(code);
+    const codes = socks
+      .map((_, i) => i)
+      .filter((i) => replies[i] !== "")
+      .map(code);
     for (const i of pending) socks[i]!.write(body);
     for (let t = 0; t < 100 && pending.some((i) => replies[i] === ""); t++) await sleep(50);
     for (const i of pending) codes.push(code(i));
@@ -1183,8 +1181,7 @@ test("a chunked POST is refused with 411", async () => {
       s.on("close", () => resolve(text));
       s.on("error", reject);
       s.write(
-        `POST /api/panic HTTP/1.1\r\nHost: 127.0.0.1:${r.port}\r\nTransfer-Encoding: chunked\r\n\r\n` +
-          'b\r\n{"on":true}\r\n0\r\n\r\n',
+        `POST /api/panic HTTP/1.1\r\nHost: 127.0.0.1:${r.port}\r\nTransfer-Encoding: chunked\r\n\r\n` + 'b\r\n{"on":true}\r\n0\r\n\r\n',
       );
     });
     assert.ok(reply.startsWith("HTTP/1.1 411"), reply.slice(0, 40));
@@ -1294,21 +1291,22 @@ test("loopback commands past the global burst are refused with 429 and counted",
 
 const hasSecondLoopback = process.platform !== "darwin";
 
-if (hasSecondLoopback) test("the global command budget is shared by two client addresses (127.0.0.2 exists on Windows and Linux, not on macOS)", async () => {
-  const now = 0;
-  const r = await rig({ limitLoopback: true, globalBudget: new CommandBudget(100, 3, () => now) });
-  try {
-    assert.equal(await fader(r, -1, "127.0.0.1"), 200);
-    assert.equal(await fader(r, -2, "127.0.0.1"), 200);
-    assert.equal(await fader(r, -3, "127.0.0.2"), 200);
-    assert.equal(await fader(r, -4, "127.0.0.2"), 429);
-    assert.equal(await fader(r, -5, "127.0.0.1"), 429);
-    assert.equal(r.srv.globalBudget.dropped, 2);
-    assert.equal(r.srv.commandBudget.dropped, 0);
-  } finally {
-    await r.close();
-  }
-});
+if (hasSecondLoopback)
+  test("the global command budget is shared by two client addresses (127.0.0.2 exists on Windows and Linux, not on macOS)", async () => {
+    const now = 0;
+    const r = await rig({ limitLoopback: true, globalBudget: new CommandBudget(100, 3, () => now) });
+    try {
+      assert.equal(await fader(r, -1, "127.0.0.1"), 200);
+      assert.equal(await fader(r, -2, "127.0.0.1"), 200);
+      assert.equal(await fader(r, -3, "127.0.0.2"), 200);
+      assert.equal(await fader(r, -4, "127.0.0.2"), 429);
+      assert.equal(await fader(r, -5, "127.0.0.1"), 429);
+      assert.equal(r.srv.globalBudget.dropped, 2);
+      assert.equal(r.srv.commandBudget.dropped, 0);
+    } finally {
+      await r.close();
+    }
+  });
 
 test("takeover is accepted over HTTP and the WebSocket when the global budget is spent", async () => {
   const now = 0;

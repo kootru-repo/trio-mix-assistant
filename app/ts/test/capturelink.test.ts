@@ -21,7 +21,8 @@ const busy = (ms: number): void => {
   while (performance.now() < until);
 };
 
-const tone = (n: number, amp: number): Float32Array => Float32Array.from({ length: n }, (_, i) => amp * Math.sin((2 * Math.PI * 1000 * i) / 48000));
+const tone = (n: number, amp: number): Float32Array =>
+  Float32Array.from({ length: n }, (_, i) => amp * Math.sin((2 * Math.PI * 1000 * i) / 48000));
 
 test("the analyser works from the configuration it is given, not from this thread's settings", () => {
   const frame: Frame = new Map([
@@ -37,7 +38,12 @@ test("the analyser works from the configuration it is given, not from this threa
     [[2, 3]],
   );
   assert.ok(out.phases[0]!.relation.zeroCorr > 0.9);
-  const none = new BlockAnalyser().analyse(frame, { channels: [2, 3], measCh: 3, phasePairs: [[2, 3]], sampleRate: 48000 }, undefined, false);
+  const none = new BlockAnalyser().analyse(
+    frame,
+    { channels: [2, 3], measCh: 3, phasePairs: [[2, 3]], sampleRate: 48000 },
+    undefined,
+    false,
+  );
   assert.deepEqual(none.phases, []);
 });
 
@@ -71,7 +77,14 @@ const frameOf = (cols: number, level: number): Float32Array => new Float32Array(
 test("in push mode every arriving block is handed over once, with no timer in between", () => {
   const factory = new PushFactory();
   const clock = new ManualClock(10);
-  const cap = new DeviceCapture({ factory, clock, channelMap: new Map([[1, 0], [8, 1]]) });
+  const cap = new DeviceCapture({
+    factory,
+    clock,
+    channelMap: new Map([
+      [1, 0],
+      [8, 1],
+    ]),
+  });
   const seen: number[] = [];
   cap.subscribeFrames((frame) => seen.push(Math.round(frame.get(8)![0]! * 10)));
   cap.start();
@@ -115,7 +128,14 @@ test("in push mode a device is dead when nothing has arrived for a while, and ne
 test("in push mode a room-mic recording is cut from the arriving blocks", async () => {
   const factory = new PushFactory();
   const clock = new ManualClock(10);
-  const cap = new DeviceCapture({ factory, clock, channelMap: new Map([[1, 0], [8, 1]]) });
+  const cap = new DeviceCapture({
+    factory,
+    clock,
+    channelMap: new Map([
+      [1, 0],
+      [8, 1],
+    ]),
+  });
   cap.subscribeFrames(() => undefined);
   cap.start();
   const seconds = (3 * C.BLOCK) / C.SAMPLE_RATE;
@@ -136,7 +156,13 @@ const linked = (factory: AudioInputFactory, extra: Partial<RemoteCaptureOptions>
   new RemoteCapture({ connect: () => loopbackPort(factory, realClock, threadStamp), clock: realClock, stamp: threadStamp, ...extra });
 
 test("blocks cross the link already analysed, using the channel layout sent when the device was opened", async () => {
-  const src = linked(new TimedAudioFactory(realClock), { channelMap: new Map([[1, 0], [3, 7]]), measCh: 3 });
+  const src = linked(new TimedAudioFactory(realClock), {
+    channelMap: new Map([
+      [1, 0],
+      [3, 7],
+    ]),
+    measCh: 3,
+  });
   const saved = { channels: C.CHANNELS, meas: C.MEAS_MIC_CH };
   const blocks: AnalysedBlock[] = [];
   const ages: number[] = [];
@@ -176,7 +202,10 @@ test("blocks cross the link already analysed, using the channel layout sent when
 test("a device that will not open rejects with a capture error and is reported dead so the engine retries", async () => {
   const src = linked(new TimedAudioFactory(realClock, 2));
   src.start();
-  await assert.rejects(src.ready(), (e: unknown) => e instanceof CaptureError && /2 input channel\(s\) but this setup needs 8/.test(e.message));
+  await assert.rejects(
+    src.ready(),
+    (e: unknown) => e instanceof CaptureError && /2 input channel\(s\) but this setup needs 8/.test(e.message),
+  );
   assert.equal(src.dead(), true);
   assert.match(String(src.status()["lastError"]), /needs 8/);
   assert.equal(await src.restart(), false);
@@ -311,7 +340,10 @@ test("stop asks the capture side to release the device and ends the thread once 
   const port = ports[0]!;
   port.emit({ type: "opened", report: report() });
   src.stop();
-  assert.deepEqual(port.sent.map((m) => m.type), ["open", "close"]);
+  assert.deepEqual(
+    port.sent.map((m) => m.type),
+    ["open", "close"],
+  );
   port.emit({ type: "closed" });
   await src.settled();
   assert.equal(port.closed, 1);
@@ -366,7 +398,12 @@ test("with a pushing source the engine analyses nothing on its timer and handles
   engine.step(clock.monotonic(), clock.monotonic());
   assert.equal(source.pulls, 0);
   const lead = C.LEAD_VOCAL_CH;
-  const block = new BlockAnalyser().analyse(new Map([[lead, tone(C.BLOCK, 0.2)]]), { channels: [lead], measCh: C.MEAS_MIC_CH, phasePairs: [], sampleRate: C.SAMPLE_RATE });
+  const block = new BlockAnalyser().analyse(new Map([[lead, tone(C.BLOCK, 0.2)]]), {
+    channels: [lead],
+    measCh: C.MEAS_MIC_CH,
+    phasePairs: [],
+    sampleRate: C.SAMPLE_RATE,
+  });
   const now = clock.monotonic();
   source.handler(block, 0.1);
   assert.equal(times.length, 1);

@@ -102,7 +102,10 @@ test("unpacking refuses paths that leave the folder and data that does not match
   }));
 
 test("the per-user folder follows each platform's convention", () => {
-  assert.equal(boot.userBase({ LOCALAPPDATA: "C:\\Users\\x\\AppData\\Local" }, "win32", "C:\\Users\\x"), join("C:\\Users\\x\\AppData\\Local", boot.NAME));
+  assert.equal(
+    boot.userBase({ LOCALAPPDATA: "C:\\Users\\x\\AppData\\Local" }, "win32", "C:\\Users\\x"),
+    join("C:\\Users\\x\\AppData\\Local", boot.NAME),
+  );
   assert.equal(boot.userBase({}, "win32", "C:\\Users\\x"), join("C:\\Users\\x", "AppData", "Local", boot.NAME));
   assert.equal(boot.userBase({}, "darwin", "/Users/x"), join("/Users/x", "Library", "Application Support", boot.NAME));
   assert.equal(boot.userBase({ XDG_DATA_HOME: "/data" }, "linux", "/home/x"), join("/data", boot.NAME));
@@ -216,100 +219,110 @@ const registerIf = (condition: boolean, name: string, body: () => Promise<void>)
   if (condition) test(name, { timeout: 300000 }, body);
 };
 
-registerIf(process.platform === "win32" || process.platform === "darwin", "the built executable starts from an empty folder without Node.js on the path and serves the dashboard", () =>
-  withDir(async (dir) => {
-    const built = await buildExe(join(dir, "out"));
-    assert.ok(built.files > 50);
-    assert.ok(readFileSync(built.notice, "utf8").includes("Node.js"));
-    const exeDir = join(dir, "Downloads");
-    mkdirSync(exeDir);
-    const windows = process.platform === "win32";
-    const exeName = basename(built.exe);
-    const exe = join(exeDir, exeName);
-    copyFileSync(built.exe, exe);
-    if (!windows) chmodSync(exe, 0o755);
-    const profile = join(dir, "profile");
-    mkdirSync(profile);
-    const local = windows ? join(dir, "LocalAppData") : join(profile, "Library", "Application Support");
-    const systemRoot = process.env["SystemRoot"] ?? "C:\\Windows";
-    const port = await freePort();
-    const exeEnv: Record<string, string> = windows
-      ? { SystemRoot: systemRoot, PATH: join(systemRoot, "System32"), LOCALAPPDATA: local, USERPROFILE: profile, TEMP: dir, TMP: dir }
-      : { PATH: "/usr/bin:/bin", HOME: profile, TMPDIR: dir };
-    const child = spawn(exe, ["--port", String(port), "--session-db", "off"], { cwd: exeDir, env: exeEnv });
-    let text = "";
-    child.stdout.on("data", (b: Buffer) => (text += b.toString("utf8")));
-    child.stderr.on("data", (b: Buffer) => (text += b.toString("utf8")));
-    try {
-      for (let i = 0; i < 300 && !text.includes("Press Ctrl+C") && child.exitCode === null; i++) await sleep(100);
-      assert.ok(text.includes("Press Ctrl+C"), text);
-      assert.ok(!text.includes("ExperimentalWarning"), text);
-      const home = join(local, "TrioMixAssistant");
-      assert.ok(text.includes(home), "the settings folder should be printed");
-      const page = await fetch(`http://127.0.0.1:${port}/`);
-      assert.equal(page.status, 200);
-      assert.ok((await page.text()).includes("/dashboard.js"));
-      const state = (await (await fetch(`http://127.0.0.1:${port}/state`)).json()) as { mode: string };
-      assert.equal(state.mode, "simulation");
-      assert.ok(existsSync(join(home, "show.conf")));
-      assert.deepEqual(readdirSync(exeDir), [exeName]);
-      const runtime = join(home, "runtime", built.id, "node_modules");
-      for (const part of AUDIO_PARTS) assert.ok(existsSync(join(runtime, part.name, "LICENSE")), part.name);
-      assert.ok(existsSync(join(runtime, "naudiodon2", "PORTAUDIO-LICENSE.txt")));
-      const listed = spawnSync(exe, ["--list-devices"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
-      assert.equal(listed.status, 0, listed.stdout + listed.stderr);
-      assert.ok(listed.stdout.includes("Input devices:"), "the audio module must load inside the executable: " + listed.stdout + listed.stderr);
-      const checked = spawnSync(exe, ["--diagnose"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
-      const checkedText = checked.stdout + checked.stderr;
-      assert.ok(checked.status === 0 || checked.status === 1, checkedText);
-      const version = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
-      const label = /^[0-9a-f]{12}(\.dirty)?$/;
-      const appLine = checkedText.split(/\r?\n/).find((l) => l.includes("App: ")) ?? "";
-      const appMatch = /App: (\S+) \(([^)]+)\), single-file app, build (\S+),/.exec(appLine);
-      assert.ok(appMatch, appLine);
-      assert.equal(appMatch[1], version);
-      assert.match(appMatch[2] ?? "", label);
-      assert.equal(appMatch[3], built.id);
-      const shown = spawnSync(exe, ["--version"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
-      assert.equal(shown.status, 0, shown.stdout + shown.stderr);
-      assert.equal(shown.stdout.trim(), `TrioMixAssistant ${version} (${appMatch[2]})`);
-      assert.ok(/\[(PASS|FAIL)\] Audio module loads: loaded/.test(checkedText), checkedText);
-      assert.ok(/Result: \d+ failed/.test(checkedText), checkedText);
-      await withEmulatorPorts(async () => {
-        const emuPort = await freePort();
-        const emu = spawn(exe, ["--emulate", "--port", String(emuPort), "--session-db", "off", "--no-show-clock"], { cwd: exeDir, env: exeEnv });
-        let emuText = "";
-        emu.stdout.on("data", (b: Buffer) => (emuText += b.toString("utf8")));
-        emu.stderr.on("data", (b: Buffer) => (emuText += b.toString("utf8")));
-        try {
-          for (let i = 0; i < 300 && !emuText.includes("Press Ctrl+C") && emu.exitCode === null; i++) await sleep(100);
-          assert.ok(emuText.includes("Press Ctrl+C"), emuText);
-          const read = async (): Promise<ListeningState> => (await (await fetch(`http://127.0.0.1:${emuPort}/state`)).json()) as ListeningState;
-          let snap = await read();
-          for (let i = 0; i < 60 && !(snap.capture.link === "open" && snap.room.level_db > -80); i++) {
-            await sleep(250);
-            snap = await read();
-          }
-          assert.equal(snap.capture.link, "open", "the audio thread must start inside the executable");
-          assert.equal(snap.capture.dead, false);
-          assert.ok(snap.room.level_db > -80, `analysed audio must reach the engine (room ${snap.room.level_db} dB)`);
-        } finally {
-          await new Promise<void>((res) => {
-            if (emu.exitCode !== null) return res();
-            emu.once("exit", () => res());
-            emu.kill();
+registerIf(
+  process.platform === "win32" || process.platform === "darwin",
+  "the built executable starts from an empty folder without Node.js on the path and serves the dashboard",
+  () =>
+    withDir(async (dir) => {
+      const built = await buildExe(join(dir, "out"));
+      assert.ok(built.files > 50);
+      assert.ok(readFileSync(built.notice, "utf8").includes("Node.js"));
+      const exeDir = join(dir, "Downloads");
+      mkdirSync(exeDir);
+      const windows = process.platform === "win32";
+      const exeName = basename(built.exe);
+      const exe = join(exeDir, exeName);
+      copyFileSync(built.exe, exe);
+      if (!windows) chmodSync(exe, 0o755);
+      const profile = join(dir, "profile");
+      mkdirSync(profile);
+      const local = windows ? join(dir, "LocalAppData") : join(profile, "Library", "Application Support");
+      const systemRoot = process.env["SystemRoot"] ?? "C:\\Windows";
+      const port = await freePort();
+      const exeEnv: Record<string, string> = windows
+        ? { SystemRoot: systemRoot, PATH: join(systemRoot, "System32"), LOCALAPPDATA: local, USERPROFILE: profile, TEMP: dir, TMP: dir }
+        : { PATH: "/usr/bin:/bin", HOME: profile, TMPDIR: dir };
+      const child = spawn(exe, ["--port", String(port), "--session-db", "off"], { cwd: exeDir, env: exeEnv });
+      let text = "";
+      child.stdout.on("data", (b: Buffer) => (text += b.toString("utf8")));
+      child.stderr.on("data", (b: Buffer) => (text += b.toString("utf8")));
+      try {
+        for (let i = 0; i < 300 && !text.includes("Press Ctrl+C") && child.exitCode === null; i++) await sleep(100);
+        assert.ok(text.includes("Press Ctrl+C"), text);
+        assert.ok(!text.includes("ExperimentalWarning"), text);
+        const home = join(local, "TrioMixAssistant");
+        assert.ok(text.includes(home), "the settings folder should be printed");
+        const page = await fetch(`http://127.0.0.1:${port}/`);
+        assert.equal(page.status, 200);
+        assert.ok((await page.text()).includes("/dashboard.js"));
+        const state = (await (await fetch(`http://127.0.0.1:${port}/state`)).json()) as { mode: string };
+        assert.equal(state.mode, "simulation");
+        assert.ok(existsSync(join(home, "show.conf")));
+        assert.deepEqual(readdirSync(exeDir), [exeName]);
+        const runtime = join(home, "runtime", built.id, "node_modules");
+        for (const part of AUDIO_PARTS) assert.ok(existsSync(join(runtime, part.name, "LICENSE")), part.name);
+        assert.ok(existsSync(join(runtime, "naudiodon2", "PORTAUDIO-LICENSE.txt")));
+        const listed = spawnSync(exe, ["--list-devices"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
+        assert.equal(listed.status, 0, listed.stdout + listed.stderr);
+        assert.ok(
+          listed.stdout.includes("Input devices:"),
+          "the audio module must load inside the executable: " + listed.stdout + listed.stderr,
+        );
+        const checked = spawnSync(exe, ["--diagnose"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
+        const checkedText = checked.stdout + checked.stderr;
+        assert.ok(checked.status === 0 || checked.status === 1, checkedText);
+        const version = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
+        const label = /^[0-9a-f]{12}(\.dirty)?$/;
+        const appLine = checkedText.split(/\r?\n/).find((l) => l.includes("App: ")) ?? "";
+        const appMatch = /App: (\S+) \(([^)]+)\), single-file app, build (\S+),/.exec(appLine);
+        assert.ok(appMatch, appLine);
+        assert.equal(appMatch[1], version);
+        assert.match(appMatch[2] ?? "", label);
+        assert.equal(appMatch[3], built.id);
+        const shown = spawnSync(exe, ["--version"], { cwd: exeDir, env: exeEnv, encoding: "utf8", timeout: 60000 });
+        assert.equal(shown.status, 0, shown.stdout + shown.stderr);
+        assert.equal(shown.stdout.trim(), `TrioMixAssistant ${version} (${appMatch[2]})`);
+        assert.ok(/\[(PASS|FAIL)\] Audio module loads: loaded/.test(checkedText), checkedText);
+        assert.ok(/Result: \d+ failed/.test(checkedText), checkedText);
+        await withEmulatorPorts(async () => {
+          const emuPort = await freePort();
+          const emu = spawn(exe, ["--emulate", "--port", String(emuPort), "--session-db", "off", "--no-show-clock"], {
+            cwd: exeDir,
+            env: exeEnv,
           });
-          await sleep(300);
-        }
-      });
-      assert.deepEqual(readdirSync(exeDir), [exeName]);
-    } finally {
-      await new Promise<void>((res) => {
-        if (child.exitCode !== null) return res();
-        child.once("exit", () => res());
-        child.kill();
-      });
-      await sleep(300);
-    }
-  }),
+          let emuText = "";
+          emu.stdout.on("data", (b: Buffer) => (emuText += b.toString("utf8")));
+          emu.stderr.on("data", (b: Buffer) => (emuText += b.toString("utf8")));
+          try {
+            for (let i = 0; i < 300 && !emuText.includes("Press Ctrl+C") && emu.exitCode === null; i++) await sleep(100);
+            assert.ok(emuText.includes("Press Ctrl+C"), emuText);
+            const read = async (): Promise<ListeningState> =>
+              (await (await fetch(`http://127.0.0.1:${emuPort}/state`)).json()) as ListeningState;
+            let snap = await read();
+            for (let i = 0; i < 60 && !(snap.capture.link === "open" && snap.room.level_db > -80); i++) {
+              await sleep(250);
+              snap = await read();
+            }
+            assert.equal(snap.capture.link, "open", "the audio thread must start inside the executable");
+            assert.equal(snap.capture.dead, false);
+            assert.ok(snap.room.level_db > -80, `analysed audio must reach the engine (room ${snap.room.level_db} dB)`);
+          } finally {
+            await new Promise<void>((res) => {
+              if (emu.exitCode !== null) return res();
+              emu.once("exit", () => res());
+              emu.kill();
+            });
+            await sleep(300);
+          }
+        });
+        assert.deepEqual(readdirSync(exeDir), [exeName]);
+      } finally {
+        await new Promise<void>((res) => {
+          if (child.exitCode !== null) return res();
+          child.once("exit", () => res());
+          child.kill();
+        });
+        await sleep(300);
+      }
+    }),
 );

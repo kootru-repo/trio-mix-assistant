@@ -16,7 +16,11 @@ test("running from source reports the package version with no commit", () => {
 });
 
 test("a built package's version and commit make the label", () => {
-  assert.deepEqual(versionFrom('{"version":"1.2.3","commit":"abcdef012345"}'), { version: "1.2.3", commit: "abcdef012345", label: "1.2.3 (abcdef012345)" });
+  assert.deepEqual(versionFrom('{"version":"1.2.3","commit":"abcdef012345"}'), {
+    version: "1.2.3",
+    commit: "abcdef012345",
+    label: "1.2.3 (abcdef012345)",
+  });
   assert.deepEqual(versionFrom('{"version":"1.2.3","commit":null}'), { version: "1.2.3", commit: null, label: "1.2.3" });
 });
 
@@ -36,5 +40,8 @@ test("the banner shows the version when it is given and keeps the old line witho
   const args = parseCliArgs([]);
   const base = { args, scheme: "http", ip: null, altIps: [], caPath: "ca.pem", qr: null };
   assert.equal(bannerLines(base)[0], "Trio Mix-Assistant [SIMULATION] -> http://127.0.0.1:8770/");
-  assert.equal(bannerLines({ ...base, version: "0.2.9 (abcdef012345)" })[0], "Trio Mix-Assistant 0.2.9 (abcdef012345) [SIMULATION] -> http://127.0.0.1:8770/");
+  assert.equal(
+    bannerLines({ ...base, version: "0.2.9 (abcdef012345)" })[0],
+    "Trio Mix-Assistant 0.2.9 (abcdef012345) [SIMULATION] -> http://127.0.0.1:8770/",
+  );
 });

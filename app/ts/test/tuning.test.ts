@@ -35,14 +35,26 @@ test("every tuning setting exists, has a number default and the default is insid
 });
 
 test("the hard guardrails and structural values cannot be tuned", () => {
-  for (const path of ["limits.faderMaxDb", "limits.headampMaxDb", "ride.maxStepDb", "calibration.maxCutDb", "calibration.noiseDbfs", "feedback.detectFft", "unmask.band"]) {
+  for (const path of [
+    "limits.faderMaxDb",
+    "limits.headampMaxDb",
+    "ride.maxStepDb",
+    "calibration.maxCutDb",
+    "calibration.noiseDbfs",
+    "feedback.detectFft",
+    "unmask.band",
+  ]) {
     assert.throws(() => parseOverride(`${path}=1`, "test"), TuningError, path);
   }
 });
 
 test("later overrides win, unset values keep their defaults, and an empty list restores every default", () => {
   try {
-    setTuning([parseOverride("feedback.ringDb=10", "template"), parseOverride("feedback.ringDb=14", "show.conf"), parseOverride("clip.trimDb=-3", "show.conf")]);
+    setTuning([
+      parseOverride("feedback.ringDb=10", "template"),
+      parseOverride("feedback.ringDb=14", "show.conf"),
+      parseOverride("clip.trimDb=-3", "show.conf"),
+    ]);
     assert.equal(C.feedback.ringDb, 14);
     assert.equal(C.clip.trimDb, -3);
     assert.equal(C.feedback.notchQ, defaultTuning().feedback.notchQ);
@@ -118,14 +130,23 @@ test("a template's tuning block is read and checked", () => {
 
 test("show.conf TUNE lines become --tune flags, and a bad one stops the launch", () => {
   const plan = buildArgv(parseConf("MODE=sim\nLAN=no\nTUNE.feedback.ringDb = 10\nTUNE.CLIP.TRIMDB=-3\n"), ".");
-  assert.deepEqual(plan.argv.filter((a) => a.startsWith("--tune")), ["--tune=feedback.ringDb=10", "--tune=clip.trimDb=-3"]);
+  assert.deepEqual(
+    plan.argv.filter((a) => a.startsWith("--tune")),
+    ["--tune=feedback.ringDb=10", "--tune=clip.trimDb=-3"],
+  );
   assert.throws(() => buildArgv(parseConf("LAN=no\nTUNE.feedback.ringDb=99\n"), "."), ConfError);
   assert.throws(() => buildArgv(parseConf("LAN=no\nTUNE.nothing=1\n"), "."), ConfError);
 });
 
 test("--tune is parsed and checked on the command line", () => {
   const a = parseCliArgs(["--tune", "feedback.ringDb=10", "--tune=clip.trimDb=-3"]);
-  assert.deepEqual(a.tune.map((o) => [o.path, o.value]), [["feedback.ringDb", 10], ["clip.trimDb", -3]]);
+  assert.deepEqual(
+    a.tune.map((o) => [o.path, o.value]),
+    [
+      ["feedback.ringDb", 10],
+      ["clip.trimDb", -3],
+    ],
+  );
   assert.deepEqual(parseCliArgs([]).tune, []);
   assert.throws(() => parseCliArgs(["--tune", "feedback.ringDb=99"]), UsageError);
   assert.equal(parseCliArgs(["--list-tuning"]).listTuning, true);
@@ -135,7 +156,13 @@ test("--tune is parsed and checked on the command line", () => {
 test("the audio worker is sent the active tuning when capture opens, in its analysis settings, and never writes the shared settings", () => {
   try {
     setTuning([parseOverride("feedback.ringDb=18", "t")]);
-    const rc = new RemoteCapture({ connect: () => { throw new Error("not used"); }, clock: new ManualClock(), stamp: () => 0 });
+    const rc = new RemoteCapture({
+      connect: () => {
+        throw new Error("not used");
+      },
+      clock: new ManualClock(),
+      stamp: () => 0,
+    });
     assert.deepEqual(rc.config().tuning, [{ path: "feedback.ringDb", value: 18, source: "t" }]);
     assert.equal(rc.config().analysis.ringDb, 18);
   } finally {

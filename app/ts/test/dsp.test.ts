@@ -112,7 +112,7 @@ test("rfft and irfft round-trip for power-of-two and odd lengths", () => {
 test("rfft of a pure tone peaks at the right bin, and the window handles its edge cases", () => {
   const n = 4096;
   const x = new Float64Array(n);
-  for (let i = 0; i < n; i++) x[i] = Math.sin((2 * Math.PI * 1000 * i) / C.SAMPLE_RATE * (n / n));
+  for (let i = 0; i < n; i++) x[i] = Math.sin(((2 * Math.PI * 1000 * i) / C.SAMPLE_RATE) * (n / n));
   const mag = magnitude(rfft(x));
   let k = 0;
   for (let i = 1; i < mag.length; i++) if (mag[i]! > mag[k]!) k = i;

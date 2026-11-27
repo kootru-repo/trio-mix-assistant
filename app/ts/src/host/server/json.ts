@@ -9,8 +9,7 @@ export class BadMessage extends Error {
 
 export const jsonText = (v: unknown): string => JSON.stringify(v) ?? "null";
 
-export const jsonForHtml = (v: unknown): string =>
-  jsonText(v).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+export const jsonForHtml = (v: unknown): string => jsonText(v).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 
 const checkDepth = (text: string): void => {
   let depth = 0;

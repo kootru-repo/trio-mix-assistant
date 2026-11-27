@@ -49,8 +49,7 @@ export function ipBytes(host: string): Buffer {
   const parse = (s: string): number[] => (s === "" ? [] : s.split(":").map((g) => parseInt(g, 16)));
   const head = parse(halves[0] ?? "");
   const rest = halves.length > 1 ? parse(halves[1] ?? "") : [];
-  const groups =
-    halves.length > 1 ? [...head, ...new Array<number>(8 - head.length - rest.length).fill(0), ...rest] : head;
+  const groups = halves.length > 1 ? [...head, ...new Array<number>(8 - head.length - rest.length).fill(0), ...rest] : head;
   const out = Buffer.alloc(16);
   groups.forEach((g, i) => out.writeUInt16BE(g, i * 2));
   return out;
@@ -65,9 +64,7 @@ export function commonName(cn: string): Buffer {
 }
 
 export function subjectAltNameExt(hosts: readonly string[]): Buffer {
-  const names = hosts.map((h) =>
-    isIp(h) ? implicitPrimitive(7, ipBytes(h)) : implicitPrimitive(2, Buffer.from(h, "ascii")),
-  );
+  const names = hosts.map((h) => (isIp(h) ? implicitPrimitive(7, ipBytes(h)) : implicitPrimitive(2, Buffer.from(h, "ascii"))));
   return extension(OID_SAN, false, sequence(...names));
 }
 
@@ -180,6 +177,9 @@ export function subjectOf(certDer: Uint8Array): Buffer {
 }
 
 export function toPem(der: Uint8Array, label: string): string {
-  const lines = Buffer.from(der).toString("base64").match(/.{1,64}/g) ?? [];
+  const lines =
+    Buffer.from(der)
+      .toString("base64")
+      .match(/.{1,64}/g) ?? [];
   return `-----BEGIN ${label}-----\n${lines.join("\n")}\n-----END ${label}-----\n`;
 }

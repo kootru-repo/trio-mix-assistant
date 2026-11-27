@@ -8,7 +8,11 @@ import { decodeMeterBlob, decodePacket } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
 import type { Peer, UdpEndpoint, UdpFactory } from "./transport.ts";
 
-const hostKey = (host: string): string => host.trim().toLowerCase().replace(/^::ffff:/, "");
+const hostKey = (host: string): string =>
+  host
+    .trim()
+    .toLowerCase()
+    .replace(/^::ffff:/, "");
 
 export function chFromFaderAddr(addr: string): number | null {
   const parts = addr.split("/");

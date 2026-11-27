@@ -22,7 +22,18 @@ test("the package holds the compiled app, the dashboard and start scripts, and i
   const out = mkdtempSync(join(tmpdir(), "pkg-"));
   try {
     const r = buildPackage(out);
-    for (const f of ["js/host/main.js", "js/host/launch.js", "js/core/engine/core.js", "static/index.html", "static/dashboard.js", "x32_default_nodes.scn", "show.conf", "package.json", "START-HERE.txt", ...Object.keys(SCRIPTS)]) {
+    for (const f of [
+      "js/host/main.js",
+      "js/host/launch.js",
+      "js/core/engine/core.js",
+      "static/index.html",
+      "static/dashboard.js",
+      "x32_default_nodes.scn",
+      "show.conf",
+      "package.json",
+      "START-HERE.txt",
+      ...Object.keys(SCRIPTS),
+    ]) {
       assert.ok(existsSync(join(r.folder, f)), `missing ${f}`);
     }
     assert.ok(!existsSync(join(r.folder, "js", "host", "main.ts")));

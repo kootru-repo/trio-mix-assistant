@@ -186,7 +186,13 @@ const OPTIONS = {
   version: { type: "boolean" },
 } as const;
 
-function intOption(name: string, raw: string | undefined, fallback: number | null, min: number = -Infinity, max: number = Infinity): number | null {
+function intOption(
+  name: string,
+  raw: string | undefined,
+  fallback: number | null,
+  min: number = -Infinity,
+  max: number = Infinity,
+): number | null {
   if (raw === undefined) return fallback;
   if (!/^\s*[+-]?\d+\s*$/.test(raw)) throw new UsageError(`argument --${name}: invalid int value: '${raw}'`);
   const v = Number(raw.trim());

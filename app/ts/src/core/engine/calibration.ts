@@ -13,7 +13,10 @@ export class EngineCalibration extends EngineShow {
     if (this.vetBusy("calibration")) return;
     if (this.calibStatus === "running" || this.status === "takeover") return;
     if (this.held) {
-      this.assistant.emit("calibration", "calibration waits: the automatic jobs are on hold until the desk has been read and the console link is steady");
+      this.assistant.emit(
+        "calibration",
+        "calibration waits: the automatic jobs are on hold until the desk has been read and the console link is steady",
+      );
       this.rebuildTelemetry();
       return;
     }
@@ -68,7 +71,10 @@ export class EngineCalibration extends EngineShow {
         ? "the test tone could not be played — check the output device"
         : "raise the mic gain / speaker level or move the mic closer";
       const lvl = levelDb !== null ? `${fixed(levelDb, 0)} dBFS` : "silence";
-      this.assistant.emit("calibration", `calibration heard only ${lvl} at the mic (needs > ${fixed(C.calibration.minLevelDbfs, 0)} dBFS) — ${hint}`);
+      this.assistant.emit(
+        "calibration",
+        `calibration heard only ${lvl} at the mic (needs > ${fixed(C.calibration.minLevelDbfs, 0)} dBFS) — ${hint}`,
+      );
       this.rebuildTelemetry();
       return;
     }

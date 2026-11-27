@@ -57,20 +57,26 @@ const STILL = "lead_vox & harm_vox_l still out of polarity after a flip → chec
 
 test("the default phase and unmask tuning matches the documented values", () => {
   const cfg = configWith();
-  assert.deepEqual({ ...cfg.phase }, { corrMin: 0.45, invertCorr: -0.35, combLagMs: 0.35, maxLagMs: 3, ema: 1 / 16, sustain: 8, actCooldownS: 5, warnIntervalS: 20 });
-  assert.deepEqual({ ...cfg.unmask }, {
-    band: 4,
-    freq: 3000,
-    q: 1.2,
-    depthDb: -4,
-    voxGateDb: -38,
-    attack: 0.3,
-    release: 0.04,
-    writeEpsDb: 0.3,
-    voxEma: 1 / 6,
-    logDb: -1,
-    logIntervalS: 10,
-  });
+  assert.deepEqual(
+    { ...cfg.phase },
+    { corrMin: 0.45, invertCorr: -0.35, combLagMs: 0.35, maxLagMs: 3, ema: 1 / 16, sustain: 8, actCooldownS: 5, warnIntervalS: 20 },
+  );
+  assert.deepEqual(
+    { ...cfg.unmask },
+    {
+      band: 4,
+      freq: 3000,
+      q: 1.2,
+      depthDb: -4,
+      voxGateDb: -38,
+      attack: 0.3,
+      release: 0.04,
+      writeEpsDb: 0.3,
+      voxEma: 1 / 6,
+      logDb: -1,
+      logIntervalS: 10,
+    },
+  );
   assert.equal(cfg.DEFAULT_ENABLED["phase"], false);
   assert.equal(cfg.DEFAULT_ENABLED["unmask"], false);
   assert.deepEqual(cfg.UNMASK_CHANNELS, []);
@@ -78,7 +84,10 @@ test("the default phase and unmask tuning matches the documented values", () => 
 
 test("a new phase job starts with every mapped channel at normal polarity and empty state", () => {
   const { job, h } = phaseRig();
-  assert.deepEqual([...job.polarity], [1, 2, 3, 4, 5, 6, 7, 8].map((c) => [c, false]));
+  assert.deepEqual(
+    [...job.polarity],
+    [1, 2, 3, 4, 5, 6, 7, 8].map((c) => [c, false]),
+  );
   assert.equal(job.ctx, h.ctx);
   assert.equal(job.phaseEma.size, 0);
   assert.equal(job.phaseStatus.size, 0);
@@ -231,11 +240,10 @@ test("an unrelated reading re-arms the pair after a flip but a comb reading does
   job.handle(1, 2, rel(-0.9), 3);
   job.handle(1, 2, rel(-0.9), 4);
   assert.equal(h.mixer.calls.length, 1);
-  assert.deepEqual(h.events.map((e) => e.msg), [
-    `${FLIP} (inverted)`,
-    "lead_vox & harm_vox_l arrive ~1.00 ms apart (comb filtering) → time-align them or move the mic.",
-    STILL,
-  ]);
+  assert.deepEqual(
+    h.events.map((e) => e.msg),
+    [`${FLIP} (inverted)`, "lead_vox & harm_vox_l arrive ~1.00 ms apart (comb filtering) → time-align them or move the mic.", STILL],
+  );
   job.handle(1, 2, rel(0.1), 5);
   assert.equal(job.phaseArmed.get("1,2"), true);
   assert.deepEqual(forgotten, ["phase|1,2"]);
@@ -328,7 +336,10 @@ test("coaching advice is recommended under a key for its pair", () => {
   job.handle(3, 5, rel(-0.9), 0);
   job.handle(3, 6, rel(0.9, 1), 0);
   assert.deepEqual(keys, ["phase|3,5", "phase|3,6"]);
-  assert.deepEqual(h.recs.map((r) => r.ch), [3, 3]);
+  assert.deepEqual(
+    h.recs.map((r) => r.ch),
+    [3, 3],
+  );
 });
 
 test("a settled reading on one pair keeps a real coach's advice for another pair sharing channel a", () => {
@@ -336,14 +347,19 @@ test("a settled reading on one pair keeps a real coach's advice for another pair
   h.state.enabled.phase = true;
   const shown: string[] = [];
   const coach = new Coach(h.cfg, new ManualClock(0, 0), (_kind, msg) => shown.push(msg));
-  const job = new PhaseJob({ ...h.ctx, coaching: () => true, recommend: (...args) => coach.recommend(...args) }, (key) => coach.forget(key));
+  const job = new PhaseJob({ ...h.ctx, coaching: () => true, recommend: (...args) => coach.recommend(...args) }, (key) =>
+    coach.forget(key),
+  );
   job.handle(3, 5, rel(-0.9), 0);
   job.handle(3, 6, rel(0.9, 1), 0);
   assert.equal(coach.snapshot().length, 2);
   job.handle(3, 7, rel(0.9), 1);
   job.handle(3, 6, rel(0.9), 1);
   const left = coach.snapshot();
-  assert.deepEqual(left.map((r) => r.text), ["harm_vox_r & bass_di are OUT OF POLARITY (corr -0.90) → invert phase on bass_di."]);
+  assert.deepEqual(
+    left.map((r) => r.text),
+    ["harm_vox_r & bass_di are OUT OF POLARITY (corr -0.90) → invert phase on bass_di."],
+  );
   assert.deepEqual(left[0]?.["pair"], [3, 5]);
   assert.equal(shown.length, 2);
 });
@@ -402,10 +418,13 @@ isolated("the phase job honours an injected channel map and tuning", () => {
       [11, "vox"],
     ]),
   });
-  assert.deepEqual([...job.polarity], [
-    [10, false],
-    [11, false],
-  ]);
+  assert.deepEqual(
+    [...job.polarity],
+    [
+      [10, false],
+      [11, false],
+    ],
+  );
   job.handle(10, 11, rel(-0.15), 0);
   assert.deepEqual(h.mixer.calls, [{ op: "polarity", ch: 11, inverted: true }]);
   assert.deepEqual(h.events, [{ kind: "phase", msg: "gtr & vox out of polarity → flipped phase on vox (inverted)", ch: 11 }]);
@@ -455,12 +474,18 @@ test("a present vocal ducks every target with the attack coefficient and logs on
   const { h, job } = unmaskRig();
   job.handle(feat({ rmsDbfs: -20 }), 0);
   near(job.duckGain, -1.2);
-  assert.deepEqual(h.mixer.calls, [2, 3, 4, 5, 6, 7].map((c) => eq(c, -1.2)));
+  assert.deepEqual(
+    h.mixer.calls,
+    [2, 3, 4, 5, 6, 7].map((c) => eq(c, -1.2)),
+  );
   assert.deepEqual(h.events, [{ kind: "unmask", msg: "vocal up → ducking 3000 Hz -1.2 dB on 6 instrument(s)", ch: null }]);
   assert.equal(job.lastUnmaskLog, 0);
   job.handle(feat({ rmsDbfs: -20 }), 1);
   near(job.duckGain, -2.04);
-  assert.deepEqual(h.mixer.calls.slice(6), [2, 3, 4, 5, 6, 7].map((c) => eq(c, -2)));
+  assert.deepEqual(
+    h.mixer.calls.slice(6),
+    [2, 3, 4, 5, 6, 7].map((c) => eq(c, -2)),
+  );
   assert.equal(h.events.length, 1);
   near(job.duckApplied.get(2) ?? 0, -2.04);
 });

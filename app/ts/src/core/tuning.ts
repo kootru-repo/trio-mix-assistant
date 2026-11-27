@@ -183,6 +183,9 @@ export function tuningLines(overrides: readonly TuningOverride[] = active): stri
 }
 
 export function tuningTable(): string {
-  const rows = TUNABLE.map((t) => `  ${t.path.padEnd(28)} ${shown(defaultValue(t.path)).padStart(8)}   ${t.min} to ${t.max}${t.int === true ? ", whole numbers" : ""}`);
+  const rows = TUNABLE.map(
+    (t) =>
+      `  ${t.path.padEnd(28)} ${shown(defaultValue(t.path)).padStart(8)}   ${t.min} to ${t.max}${t.int === true ? ", whole numbers" : ""}`,
+  );
   return ["Tuning settings (name, default, allowed range):", ...rows].join("\n");
 }

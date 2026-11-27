@@ -6,8 +6,11 @@
         err.textContent = "";
         let r;
         try {
-            r = await fetch("/api/login", { method: "POST", headers: { "content-type": "application/json" },
-                body: JSON.stringify({ pin: pin.value }) });
+            r = await fetch("/api/login", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ pin: pin.value }),
+            });
         }
         catch (_) {
             err.textContent = "Network error.";

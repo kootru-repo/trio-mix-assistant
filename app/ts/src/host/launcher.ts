@@ -132,7 +132,9 @@ export function buildArgv(
       argv.push("--insecure-open");
       print("  [!] LAN=yes with no PIN and ALLOW_OPEN=yes: anyone on this network can control the console.");
     } else {
-      throw new ConfError("LAN=yes needs a PIN of at least 6 characters in show.conf (PIN=...). Set one, or set LAN=no, or ALLOW_OPEN=yes to allow an open dashboard");
+      throw new ConfError(
+        "LAN=yes needs a PIN of at least 6 characters in show.conf (PIN=...). Set one, or set LAN=no, or ALLOW_OPEN=yes to allow an open dashboard",
+      );
     }
   }
   if (pin) {

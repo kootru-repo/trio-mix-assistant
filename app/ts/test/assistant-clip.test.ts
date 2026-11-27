@@ -17,15 +17,18 @@ const keepsGlobal = (body: () => void): void => {
 
 test("the clip defaults match the expected tuning", () => {
   const { h } = setup();
-  assert.deepEqual({ ...h.cfg.clip }, {
-    peakDbfs: -1.0,
-    trimDb: -2.0,
-    trimCooldownS: 0.25,
-    recoverS: 8.0,
-    recoverDb: 0.5,
-    recoverMarginDb: 6.0,
-    recentS: 1.5,
-  });
+  assert.deepEqual(
+    { ...h.cfg.clip },
+    {
+      peakDbfs: -1.0,
+      trimDb: -2.0,
+      trimCooldownS: 0.25,
+      recoverS: 8.0,
+      recoverDb: 0.5,
+      recoverMarginDb: 6.0,
+      recentS: 1.5,
+    },
+  );
   assert.equal(h.state.enabled["clip"], true);
 });
 

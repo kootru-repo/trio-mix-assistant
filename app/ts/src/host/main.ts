@@ -252,7 +252,9 @@ function buildEmulated(
     source = auto;
   } else if (args.audioDevice !== null) {
     source = deviceSource(args, chanMap, io);
-    io.out("  Listening on a REAL audio device against the emulated desk." + (args.inputGain ? `  (+${fixed(args.inputGain, 0)} dB input)` : ""));
+    io.out(
+      "  Listening on a REAL audio device against the emulated desk." + (args.inputGain ? `  (+${fixed(args.inputGain, 0)} dB input)` : ""),
+    );
   } else {
     source = new RemoteCapture({ connect: () => io.connect("timed"), clock: io.clock, stamp: threadStamp });
   }
@@ -327,7 +329,9 @@ function attachVenue(engine: Engine, args: Args, io: Io): void {
   if (store.lastProblem) io.out(`  [!] Venue '${args.venue}': ${store.lastProblem}`);
   if (model === null) {
     const learns = engine.sessionLog !== null;
-    io.out(`  Venue '${args.venue}': no model yet — ${learns ? "will learn after this show" : "it is not learned while the session log is off"}.`);
+    io.out(
+      `  Venue '${args.venue}': no model yet — ${learns ? "will learn after this show" : "it is not learned while the session log is off"}.`,
+    );
     return;
   }
   engine.applyVenueModel(model);
@@ -370,7 +374,9 @@ async function prepareTls(args: Args, ip: string | null, io: Io): Promise<TlsPla
     }
     return { tls: { key: readFileSync(keyfile, "utf8"), cert: readFileSync(certfile, "utf8") }, caPem };
   } catch (exc) {
-    io.out(`  [!] --https unavailable (${exc instanceof Error ? exc.name : "Error"}: ${exc instanceof Error ? exc.message : String(exc)}); serving over http.`);
+    io.out(
+      `  [!] --https unavailable (${exc instanceof Error ? exc.name : "Error"}: ${exc instanceof Error ? exc.message : String(exc)}); serving over http.`,
+    );
     return { tls: null, caPem: null };
   }
 }
@@ -588,7 +594,14 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     const plan = await prepareTls(args, ip, io);
 
     try {
-      server = createServer({ engine, staticDir: io.layout.staticDir, pin: args.pin, caPem: plan.caPem, tls: plan.tls, allowOpen: args.insecureOpen });
+      server = createServer({
+        engine,
+        staticDir: io.layout.staticDir,
+        pin: args.pin,
+        caPem: plan.caPem,
+        tls: plan.tls,
+        allowOpen: args.insecureOpen,
+      });
     } catch (exc) {
       return fail(io, `  [!] ${exc instanceof Error ? exc.message : String(exc)}`);
     }
@@ -598,7 +611,11 @@ async function runChecked(args: Args, io: Io): Promise<number> {
       server = null;
       const message = exc instanceof Error ? exc.message : String(exc);
       if (exc instanceof OpenDashboardRefused) {
-        return fail(io, `  [!] ${message}`, "      Add --pin <at least 6 characters> (PIN= in show.conf), or --insecure-open to allow it anyway.");
+        return fail(
+          io,
+          `  [!] ${message}`,
+          "      Add --pin <at least 6 characters> (PIN= in show.conf), or --insecure-open to allow it anyway.",
+        );
       }
       return fail(
         io,
@@ -623,10 +640,8 @@ async function runChecked(args: Args, io: Io): Promise<number> {
       network: networkFacts({ ...args, https: plan.tls !== null }, ip),
     });
     const rxLive = args.hardware && engine.meterRx instanceof MeterReceiver ? engine.meterRx : null;
-    engine.vetHost = inAppVet(
-      io,
-      rxLive !== null ? { rx: rxLive, ip: args.consoleIp || C.CONSOLE_IP, port: C.CONSOLE_PORT } : null,
-      () => Promise.resolve(ip),
+    engine.vetHost = inAppVet(io, rxLive !== null ? { rx: rxLive, ip: args.consoleIp || C.CONSOLE_IP, port: C.CONSOLE_PORT } : null, () =>
+      Promise.resolve(ip),
     );
     const url = `${scheme}://${ip}:${args.port}/`;
     const wildcard = WILDCARD_HOSTS.includes(args.host);
@@ -668,14 +683,16 @@ export function setFaultSink(sink: ((detail: string) => void) | null): void {
 }
 
 export function installProcessHandlers(): void {
-  const report = (label: string) => (err: unknown): void => {
-    console.error(`  [!] ${label}: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
-    try {
-      if (faultSink !== null) faultSink(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
-    } catch {
-      return;
-    }
-  };
+  const report =
+    (label: string) =>
+    (err: unknown): void => {
+      console.error(`  [!] ${label}: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+      try {
+        if (faultSink !== null) faultSink(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
+      } catch {
+        return;
+      }
+    };
   process.on("uncaughtException", report("unexpected error (continuing)"));
   process.on("unhandledRejection", report("unexpected rejection (continuing)"));
 }

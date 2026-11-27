@@ -1,16 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Coach } from "../src/core/assistant/coach.ts";
-import {
-  MixState,
-  chanOf,
-  coachKey,
-  need,
-  pairKey,
-  perChannelOf,
-  roleLabelOf,
-  roleOf,
-} from "../src/core/assistant/context.ts";
+import { MixState, chanOf, coachKey, need, pairKey, perChannelOf, roleLabelOf, roleOf } from "../src/core/assistant/context.ts";
 import type { CalibrationStep } from "../src/core/calibration.ts";
 import { ManualClock } from "../src/core/clock.ts";
 import { configWith } from "../src/core/config.ts";
@@ -52,11 +43,14 @@ test("need returns the value for a known channel and throws for an unknown one",
 
 test("perChannelOf builds one entry per configured channel with the same value", () => {
   const m = perChannelOf(smallConfig(), "x");
-  assert.deepEqual([...m], [
-    [3, "x"],
-    [5, "x"],
-    [9, "x"],
-  ]);
+  assert.deepEqual(
+    [...m],
+    [
+      [3, "x"],
+      [5, "x"],
+      [9, "x"],
+    ],
+  );
 });
 
 test("roleOf gives null for no channel and for an unknown channel and the role otherwise", () => {
@@ -93,11 +87,46 @@ test("MixState starts every configured channel at the documented defaults", () =
   const s = new MixState(cfg);
   assert.deepEqual(s.enabled, cfg.DEFAULT_ENABLED);
   assert.notEqual(s.enabled, cfg.DEFAULT_ENABLED);
-  assert.deepEqual([...s.faderDb], [[3, 0], [5, 0], [9, 0]]);
-  assert.deepEqual([...s.gainDb], [[3, 20], [5, 20], [9, 20]]);
-  assert.deepEqual([...s.nominalGain], [[3, 20], [5, 20], [9, 20]]);
-  assert.deepEqual([...s.lastMoveT], [[3, NEG_INF], [5, NEG_INF], [9, NEG_INF]]);
-  assert.deepEqual([...s.manualHoldUntil], [[3, NEG_INF], [5, NEG_INF], [9, NEG_INF]]);
+  assert.deepEqual(
+    [...s.faderDb],
+    [
+      [3, 0],
+      [5, 0],
+      [9, 0],
+    ],
+  );
+  assert.deepEqual(
+    [...s.gainDb],
+    [
+      [3, 20],
+      [5, 20],
+      [9, 20],
+    ],
+  );
+  assert.deepEqual(
+    [...s.nominalGain],
+    [
+      [3, 20],
+      [5, 20],
+      [9, 20],
+    ],
+  );
+  assert.deepEqual(
+    [...s.lastMoveT],
+    [
+      [3, NEG_INF],
+      [5, NEG_INF],
+      [9, NEG_INF],
+    ],
+  );
+  assert.deepEqual(
+    [...s.manualHoldUntil],
+    [
+      [3, NEG_INF],
+      [5, NEG_INF],
+      [9, NEG_INF],
+    ],
+  );
   assert.equal(s.roomConfidence, 1);
 });
 
@@ -339,10 +368,7 @@ test("calibration lists each band and marks the non-room steps as pre-dips", () 
   ];
   coach.calibration(steps);
   const rec = coach.coachRecs.get("calibration|");
-  assert.equal(
-    rec?.text,
-    "Room calibration → set MAIN-BUS PEQ: band 1 123 Hz -3.0 dB (Q 3); band 2 2512 Hz -4.2 dB (Q 6) pre-dip.",
-  );
+  assert.equal(rec?.text, "Room calibration → set MAIN-BUS PEQ: band 1 123 Hz -3.0 dB (Q 3); band 2 2512 Hz -4.2 dB (Q 6) pre-dip.");
   assert.equal(rec?.persist, true);
   assert.deepEqual(rec?.["steps"], [
     { band: 1, hz: 123.5, gain: -3, q: 3, kind: "room" },

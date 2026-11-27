@@ -33,10 +33,7 @@ test("the emulator hint matches the recorded text, and shows a usable address wh
 
 test("defaults match the recorded parser", () => {
   const a = parseCliArgs([]);
-  assert.deepEqual(
-    [a.host, a.port, a.inputGain, a.venue, a.pin, a.template, a.sessionDb],
-    ["127.0.0.1", 8770, 0, "", null, null, null],
-  );
+  assert.deepEqual([a.host, a.port, a.inputGain, a.venue, a.pin, a.template, a.sessionDb], ["127.0.0.1", 8770, 0, "", null, null, null]);
   assert.ok(!a.lan && !a.https && !a.hardware && !a.emulate && !a.trust && !a.auto);
 });
 
@@ -67,7 +64,13 @@ test("mode names", () => {
 });
 
 test("ports and gain are range-checked", () => {
-  for (const bad of [["--port", "0"], ["--port", "99999"], ["--ableset-port", "70000"], ["--input-gain", "Infinity"], ["--input-gain", "0x10"]]) {
+  for (const bad of [
+    ["--port", "0"],
+    ["--port", "99999"],
+    ["--ableset-port", "70000"],
+    ["--input-gain", "Infinity"],
+    ["--input-gain", "0x10"],
+  ]) {
     assert.throws(() => parseCliArgs(bad), UsageError, bad.join(" "));
   }
   assert.equal(parseCliArgs(["--port", "1"]).port, 1);

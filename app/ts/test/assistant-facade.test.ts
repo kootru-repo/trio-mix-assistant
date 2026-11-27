@@ -181,9 +181,7 @@ test("routing by an injected config has real effects on the configured channels 
   assert.deepEqual(mixer.calls, []);
   a.onFeatures(3, feat({ peakDbfs: 0 }), 0);
   assert.deepEqual(mixer.calls, [{ op: "gain", ch: 3, currentDb: 20, deltaDb: -2 }]);
-  assert.deepEqual(events, [
-    { time: "22:13:20", kind: "clip", ch: 3, role: "lead_vox", msg: "lead_vox near clip → preamp -2 dB → 18 dB" },
-  ]);
+  assert.deepEqual(events, [{ time: "22:13:20", kind: "clip", ch: 3, role: "lead_vox", msg: "lead_vox near clip → preamp -2 dB → 18 dB" }]);
   assert.deepEqual(latency, [["clip", 0]]);
 });
 
@@ -225,7 +223,10 @@ test("two assistants with different configs in one test do not interfere", () =>
   assert.equal(two.a.stageBaseline, null);
   assert.deepEqual(one.mixer.calls, []);
   assert.deepEqual(two.mixer.calls, [{ op: "gain", ch: 5, currentDb: 20, deltaDb: -2 }]);
-  assert.deepEqual(two.events.map((e) => e.role), ["bass_di"]);
+  assert.deepEqual(
+    two.events.map((e) => e.role),
+    ["bass_di"],
+  );
   assert.equal(one.events.length, 0);
   one.a.leadTarget = -2;
   assert.equal(two.a.leadTarget, -6);
@@ -258,7 +259,10 @@ test("noteLatency reports the seconds since the block started", () => {
   a.noteLatency("feedback");
   clock.highResolution = () => 7;
   a.noteLatency("clip");
-  assert.deepEqual(latency, [["feedback", 2.5], ["clip", 5.5]]);
+  assert.deepEqual(latency, [
+    ["feedback", 2.5],
+    ["clip", 5.5],
+  ]);
 });
 
 test("the coach inside the facade uses the injected config and clock", () => {
@@ -354,7 +358,14 @@ test("turning coach mode off clears the advice and announces it", () => {
 
 test("setCalibration stores the result and hands its watch list to feedback", () => {
   const { a } = rig();
-  const calib: CalibrationResult = { baseline: new Map(), corrections: [[250, -3]], watchlist: [[2000, 5], [4000, 4]] };
+  const calib: CalibrationResult = {
+    baseline: new Map(),
+    corrections: [[250, -3]],
+    watchlist: [
+      [2000, 5],
+      [4000, 4],
+    ],
+  };
   a.setCalibration(calib);
   assert.equal(a.calib, calib);
   assert.deepEqual(a.feedback.watchFreqs, [2000, 4000]);
@@ -378,7 +389,14 @@ test("noteManual ignores a channel outside the config", () => {
   const { a } = rig();
   a.noteManual(99, 0);
   a.noteManual(1, 0, 3);
-  assert.deepEqual([...a.manualHoldUntil], [[3, NEG_INF], [5, NEG_INF], [9, NEG_INF]]);
+  assert.deepEqual(
+    [...a.manualHoldUntil],
+    [
+      [3, NEG_INF],
+      [5, NEG_INF],
+      [9, NEG_INF],
+    ],
+  );
 });
 
 test("a manual hold stops the vocal ride on that channel", () => {
@@ -396,8 +414,14 @@ test("recommend, coachSnapshot and coachCalibration delegate to the coach", () =
   assert.equal(a.coachRecs, a.coach.coachRecs);
   assert.deepEqual(a.coachRecs.get("phase|5")?.["pair"], [5, 9]);
   clock.advance(9);
-  assert.deepEqual(a.coachSnapshot(0).map((r) => r.text), ["b", "a"]);
-  assert.deepEqual(a.coachSnapshot().map((r) => r.text), ["b"]);
+  assert.deepEqual(
+    a.coachSnapshot(0).map((r) => r.text),
+    ["b", "a"],
+  );
+  assert.deepEqual(
+    a.coachSnapshot().map((r) => r.text),
+    ["b"],
+  );
   a.coachCalibration([]);
   assert.equal(a.coachRecs.get("calibration|")?.text, "Room measured — no problem peaks; leave the main bus flat.");
   a.coachCalibration([{ band: 2, hz: 500, gain: -2, q: 6, kind: "predip" }]);
@@ -598,13 +622,24 @@ test("applyChannelMap with a full spec changes only the target config", () => {
     },
     t,
   );
-  assert.deepEqual([...t.CHANNELS], [[3, "lead_vox"], [5, "guest_SAX"], [9, "meas_mic"], [11, "2nd_gtr"]]);
-  assert.deepEqual([...t.ROLE_LABELS], [
-    ["lead_vox", "Singer"],
-    ["guest_SAX", "Guest Sax"],
-    ["meas_mic", "FOH meas mic"],
-    ["2nd_gtr", "2nd Gtr"],
-  ]);
+  assert.deepEqual(
+    [...t.CHANNELS],
+    [
+      [3, "lead_vox"],
+      [5, "guest_SAX"],
+      [9, "meas_mic"],
+      [11, "2nd_gtr"],
+    ],
+  );
+  assert.deepEqual(
+    [...t.ROLE_LABELS],
+    [
+      ["lead_vox", "Singer"],
+      ["guest_SAX", "Guest Sax"],
+      ["meas_mic", "FOH meas mic"],
+      ["2nd_gtr", "2nd Gtr"],
+    ],
+  );
   assert.equal(t.LEAD_VOCAL_CH, 3);
   assert.equal(t.MEAS_MIC_CH, 9);
   assert.deepEqual(t.BALANCE_CHANNELS, [5]);
@@ -658,7 +693,17 @@ test("applyChannelMap with no fields keeps every value but copies the maps", () 
 test("applyChannelMap with null fields clears the lists and the stage mic but keeps lead and meas", () => {
   const t = configWith({ STAGE_MIC_CH: 6, GUEST_CHANNELS: [2] });
   applyChannelMap(
-    { map: null, labels: null, lead: null, meas_mic: null, balance: null, guest: null, stereo_links: null, stage_mic: null, phase_pairs: null },
+    {
+      map: null,
+      labels: null,
+      lead: null,
+      meas_mic: null,
+      balance: null,
+      guest: null,
+      stereo_links: null,
+      stage_mic: null,
+      phase_pairs: null,
+    },
     t,
   );
   assert.equal(t.CHANNELS.size, 8);
@@ -685,8 +730,22 @@ test("autoChannelMap maps inputs to numbered roles with the last as the measurem
     stage_mic: null,
     phase_pairs: [],
   });
-  assert.deepEqual([...t.CHANNELS], [[1, "in_1"], [2, "in_2"], [3, "meas_mic"]]);
-  assert.deepEqual([...t.ROLE_LABELS], [["in_1", "In 1"], ["in_2", "In 2"], ["meas_mic", "FOH meas mic"]]);
+  assert.deepEqual(
+    [...t.CHANNELS],
+    [
+      [1, "in_1"],
+      [2, "in_2"],
+      [3, "meas_mic"],
+    ],
+  );
+  assert.deepEqual(
+    [...t.ROLE_LABELS],
+    [
+      ["in_1", "In 1"],
+      ["in_2", "In 2"],
+      ["meas_mic", "FOH meas mic"],
+    ],
+  );
   assert.equal(t.LEAD_VOCAL_CH, 1);
   assert.equal(t.MEAS_MIC_CH, 3);
   assert.equal(t.STAGE_MIC_CH, null);
@@ -710,7 +769,13 @@ test("autoChannelMap with one input or fewer makes a single measurement mic that
 test("autoChannelMap truncates a fractional input count", () => {
   const t = configWith();
   autoChannelMap(2.9, t);
-  assert.deepEqual([...t.CHANNELS], [[1, "in_1"], [2, "meas_mic"]]);
+  assert.deepEqual(
+    [...t.CHANNELS],
+    [
+      [1, "in_1"],
+      [2, "meas_mic"],
+    ],
+  );
 });
 
 test("channelMapState copies the maps and lists of the source config", () => {
@@ -740,7 +805,14 @@ test("restoreChannelMapState writes a saved map into the target config only", ()
   const s = channelMapState(configWith({ ...smallConfig(), GUEST_CHANNELS: [5], STEREO_LINKS: [[3, 5]], PHASE_PAIRS: [[3, 9]] }));
   const t = configWith();
   restoreChannelMapState(s, t);
-  assert.deepEqual([...t.CHANNELS], [[3, "lead_vox"], [5, "stage_mic"], [9, "meas_mic"]]);
+  assert.deepEqual(
+    [...t.CHANNELS],
+    [
+      [3, "lead_vox"],
+      [5, "stage_mic"],
+      [9, "meas_mic"],
+    ],
+  );
   assert.notEqual(t.CHANNELS, s.channels);
   assert.notEqual(t.ROLE_LABELS, s.roleLabels);
   assert.equal(t.LEAD_VOCAL_CH, 3);
@@ -769,7 +841,13 @@ test("without a target the channel map helpers act on the global config", () => 
     applyChannelMap({ lead: 2 });
     assert.equal(C.LEAD_VOCAL_CH, 2);
     autoChannelMap(2);
-    assert.deepEqual([...C.CHANNELS], [[1, "in_1"], [2, "meas_mic"]]);
+    assert.deepEqual(
+      [...C.CHANNELS],
+      [
+        [1, "in_1"],
+        [2, "meas_mic"],
+      ],
+    );
   } finally {
     restoreChannelMapState(saved);
   }

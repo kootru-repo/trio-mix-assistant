@@ -80,8 +80,7 @@ export class PhaseJob {
     if (status === "inverted") {
       const armed = this.phaseArmed.get(key) ?? true;
       const ready =
-        (this.phaseStreak.get(key) ?? 0) >= C.phase.sustain &&
-        now - (this.lastPhaseAct.get(key) ?? -1e9) > C.phase.actCooldownS;
+        (this.phaseStreak.get(key) ?? 0) >= C.phase.sustain && now - (this.lastPhaseAct.get(key) ?? -1e9) > C.phase.actCooldownS;
       if (this.ctx.coaching()) {
         this.ctx.recommend(
           "phase",

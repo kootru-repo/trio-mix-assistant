@@ -32,13 +32,7 @@ export function close(actual: number | null, expected: number | null, rel = 1e-4
   assert.ok(Math.abs(actual - expected) <= tol, `${label} expected ${expected}, got ${actual} (tol ${tol})`);
 }
 
-export function closeArray(
-  actual: ArrayLike<number>,
-  expected: ArrayLike<number>,
-  rel = 1e-4,
-  abs = 1e-6,
-  label = "",
-): void {
+export function closeArray(actual: ArrayLike<number>, expected: ArrayLike<number>, rel = 1e-4, abs = 1e-6, label = ""): void {
   assert.equal(actual.length, expected.length, `${label} length`);
   let worst = 0;
   let at = -1;

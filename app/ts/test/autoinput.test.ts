@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { loopbackPort } from "../src/core/capturelink.ts";
 import { C } from "../src/core/config.ts";
-import type { AudioDeviceInfo, AudioInputCallback, AudioInputFactory, AudioInputOptions, AudioInputStream } from "../src/core/devicecapture.ts";
+import type {
+  AudioDeviceInfo,
+  AudioInputCallback,
+  AudioInputFactory,
+  AudioInputOptions,
+  AudioInputStream,
+} from "../src/core/devicecapture.ts";
 import { SystemClock, threadStamp } from "../src/host/clock.ts";
 import { autodetectSource } from "../src/host/main.ts";
 
@@ -56,7 +62,12 @@ const detect = async (fakes: Fake[]) => {
   const factory = new LevelFactory(fakes);
   const clock = new SystemClock();
   const lines: string[] = [];
-  const source = await autodetectSource({ factory, clock, out: (l) => lines.push(l), connect: () => loopbackPort(factory, clock, threadStamp) });
+  const source = await autodetectSource({
+    factory,
+    clock,
+    out: (l) => lines.push(l),
+    connect: () => loopbackPort(factory, clock, threadStamp),
+  });
   return { source, factory, text: lines.join("\n") };
 };
 

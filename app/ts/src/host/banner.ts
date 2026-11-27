@@ -17,7 +17,9 @@ export function trustStepsLines(args: Args, scheme: string, ip: string | null, c
   lines.push("         iOS:     install the profile, then Settings > General > About > Certificate Trust Settings > enable it");
   lines.push("         Android: Settings > Security > Install a certificate > CA certificate");
   lines.push("         macOS:   double-click > Keychain 'System' > set this cert to 'Always Trust'");
-  lines.push("         Windows: rename it to end in .crt, double-click > Install Certificate > Local Machine > 'Trusted Root Certification Authorities'");
+  lines.push(
+    "         Windows: rename it to end in .crt, double-click > Install Certificate > Local Machine > 'Trusted Root Certification Authorities'",
+  );
   lines.push(`    3) Reload  ${scheme}://${hostUrl}:${args.port}/  — trusted, no warning.`);
   return lines;
 }
@@ -37,10 +39,13 @@ export function bannerLines(input: BannerInput): string[] {
   const lines: string[] = [];
   const mode = args.emulate ? "EMULATED-HARDWARE" : args.hardware ? "HARDWARE" : "SIMULATION";
   const open = WILDCARD_HOSTS.includes(args.host);
-  lines.push(`Trio Mix-Assistant${input.version ? ` ${input.version}` : ""} [${mode}] -> ${scheme}://${open ? "127.0.0.1" : args.host}:${args.port}/`);
+  lines.push(
+    `Trio Mix-Assistant${input.version ? ` ${input.version}` : ""} [${mode}] -> ${scheme}://${open ? "127.0.0.1" : args.host}:${args.port}/`,
+  );
   if (args.pin) {
     lines.push("  PIN auth: ON — the dashboard asks for the PIN before it opens.");
-    if (scheme !== "https" && !LOOPBACK_HOSTS.includes(args.host)) lines.push("  [!] PIN over plain http is sniffable on the LAN — add --https.");
+    if (scheme !== "https" && !LOOPBACK_HOSTS.includes(args.host))
+      lines.push("  [!] PIN over plain http is sniffable on the LAN — add --https.");
   } else if (WILDCARD_HOSTS.includes(args.host)) {
     lines.push("  [!] No PIN: anyone on this network can open the dashboard and control the");
     lines.push("      console. On shared WiFi set one (--pin, or PIN= in show.conf).");
@@ -58,7 +63,8 @@ export function bannerLines(input: BannerInput): string[] {
     if (alts.length) {
       lines.push("  If that's unreachable, try: " + alts.map((a) => `${scheme}://${a}:${args.port}/`).join(", "));
     }
-    if (scheme === "https" && !args.trust) lines.push("  (self-signed: accept the certificate warning once on each device; it returns on a new network)");
+    if (scheme === "https" && !args.trust)
+      lines.push("  (self-signed: accept the certificate warning once on each device; it returns on a new network)");
     if (input.qr) {
       lines.push("  Scan with the phone or tablet camera:");
       lines.push(...input.qr);

@@ -14,7 +14,17 @@ import { EmulatedDesk } from "../src/core/emulator.ts";
 import { MemNetwork } from "../src/core/memtransport.ts";
 import { MeterReceiver } from "../src/core/metersrv.ts";
 import { decodePacket } from "../src/core/oscwire.ts";
-import { Desk, VetLog, measureSound, soundVerdict, summaryLines, tableLines, traceLines, vetConsole, vetSequence } from "../src/core/vet.ts";
+import {
+  Desk,
+  VetLog,
+  measureSound,
+  soundVerdict,
+  summaryLines,
+  tableLines,
+  traceLines,
+  vetConsole,
+  vetSequence,
+} from "../src/core/vet.ts";
 import type { VetRow } from "../src/core/vet.ts";
 import { activeTuning, parseOverride, setTuning } from "../src/core/tuning.ts";
 import { parseCliArgs } from "../src/host/args.ts";
@@ -64,7 +74,11 @@ async function rig(proof: "emulator" | "real console" = "emulator", answer = tru
   };
 }
 
-const failed = (rows: VetRow[]): string => rows.filter((r) => r.status === "fail").map((r) => `${r.id}: ${r.detail}`).join("\n");
+const failed = (rows: VetRow[]): string =>
+  rows
+    .filter((r) => r.status === "fail")
+    .map((r) => `${r.id}: ${r.detail}`)
+    .join("\n");
 
 const source = (name: string): string => readFileSync(fileURLToPath(new URL(`../src/${name}`, import.meta.url)), "utf8");
 
@@ -79,14 +93,24 @@ test("the full sequence passes against the emulator and leaves the channel map a
     r.close();
   }
   assert.equal(failed(rows), "");
-  assert.deepEqual(rows.filter((x) => x.status === "skip").map((x) => x.id), []);
+  assert.deepEqual(
+    rows.filter((x) => x.status === "skip").map((x) => x.id),
+    [],
+  );
   assert.ok(rows.every((x) => x.proof === "emulator"));
   assert.deepEqual(channelMapState(), before);
 });
 
 test("the job steps run with the default tuning even when the app is tuned, and the tuning is put back", async () => {
   const r = await rig();
-  const tuned = ["feedback.ringDb=30", "feedback.sustainBlocks=20", "clip.peakDbfs=0", "ride.toleranceDb=6", "unmask.voxGateDb=-10", "manual.holdS=60"];
+  const tuned = [
+    "feedback.ringDb=30",
+    "feedback.sustainBlocks=20",
+    "clip.peakDbfs=0",
+    "ride.toleranceDb=6",
+    "unmask.voxGateDb=-10",
+    "manual.holdS=60",
+  ];
   setTuning(tuned.map((t) => parseOverride(t, "test")));
   const rows: VetRow[] = [];
   try {
@@ -110,13 +134,33 @@ test("every console method, engine command and job has a row", async () => {
     r.close();
   }
   const covered = new Set(rows.filter((x) => x.status === "pass").flatMap((x) => x.covers));
-  const lifecycle = new Set(["constructor", "close", "cancelRamps", "flushRamps", "record", "send", "bumpRamp", "writeFader", "runRamp", "eqBand", "withLane", "pump", "storming", "clearRepeats", "cancelRamp", "lastWritten", "live", "abortRamp"]);
+  const lifecycle = new Set([
+    "constructor",
+    "close",
+    "cancelRamps",
+    "flushRamps",
+    "record",
+    "send",
+    "bumpRamp",
+    "writeFader",
+    "runRamp",
+    "eqBand",
+    "withLane",
+    "pump",
+    "storming",
+    "clearRepeats",
+    "cancelRamp",
+    "lastWritten",
+    "live",
+    "abortRamp",
+  ]);
   const methods = Object.getOwnPropertyNames(ConsoleBase.prototype).filter((m) => !lifecycle.has(m));
   assert.ok(methods.length >= 15, methods.join(","));
   for (const m of methods) assert.ok(covered.has(`console:${m}`), `no passing row covers the console method ${m}`);
   const commands = [...source("core/engine/core.ts").matchAll(/if \(t === "([a-z_]+)"\)/g)].map((m) => m[1]!);
   assert.ok(commands.length >= 16, commands.join(","));
-  for (const c of commands.filter((x) => x !== "vet")) assert.ok(covered.has(`command:${c}`), `no passing row covers the engine command ${c}`);
+  for (const c of commands.filter((x) => x !== "vet"))
+    assert.ok(covered.has(`command:${c}`), `no passing row covers the engine command ${c}`);
   for (const job of Object.keys(C.DEFAULT_ENABLED)) assert.ok(covered.has(`job:${job}`), `no passing row covers the job ${job}`);
 });
 
@@ -129,7 +173,10 @@ test("a console that answers nothing is never written to", async () => {
     r.close();
   }
   assert.equal(rows[0]!.status, "fail");
-  assert.ok(rows.slice(1).every((x) => x.status === "skip"), failed(rows));
+  assert.ok(
+    rows.slice(1).every((x) => x.status === "skip"),
+    failed(rows),
+  );
   const sent = r.log.lines.filter((l) => l.includes("] send ")).map((l) => l.split("] send ")[1]!.trim());
   assert.deepEqual(sent, ["/xinfo"]);
 });
@@ -142,12 +189,18 @@ test("on a real console nothing is written unless asked, a scene is never recall
     await vetConsole(rows, r.desk, "Console", { channel: null, main: false, gain: false });
     const writes = r.log.lines.filter((l) => /\] send \/\S+ \S/.test(l) && !l.includes("/batchsubscribe"));
     assert.deepEqual(writes, []);
-    assert.deepEqual(rows.filter((x) => x.status === "pass").map((x) => x.id), ["con_identity", "con_meters"]);
+    assert.deepEqual(
+      rows.filter((x) => x.status === "pass").map((x) => x.id),
+      ["con_identity", "con_meters"],
+    );
     rows.length = 0;
     const seeded = new Map([...r.emu.params].map(([k, v]) => [k, JSON.stringify(v)]));
     await vetConsole(rows, r.desk, "Console", { channel: 3, main: true, gain: true });
     assert.equal(failed(rows), "");
-    assert.deepEqual(rows.filter((x) => x.status === "skip").map((x) => x.id), ["con_scene"]);
+    assert.deepEqual(
+      rows.filter((x) => x.status === "skip").map((x) => x.id),
+      ["con_scene"],
+    );
     assert.equal(r.emu.scene, null);
     for (const [k, v] of seeded) assert.equal(JSON.stringify(r.emu.params.get(k)), v, k);
     assert.ok(before.size > 0);
@@ -223,7 +276,10 @@ test("the sound check needs the noise to be heard above the room", async () => {
     };
   };
   assert.match(soundVerdict(await measureSound(src(0.0005, 0.1), new Float32Array(8), 1)), /heard -23 dBFS during the noise, 46 dB above/);
-  await assert.rejects(async () => soundVerdict(await measureSound(src(0.0005, 0.1, false), new Float32Array(8), 1)), /could not be played/);
+  await assert.rejects(
+    async () => soundVerdict(await measureSound(src(0.0005, 0.1, false), new Float32Array(8), 1)),
+    /could not be played/,
+  );
   await assert.rejects(async () => soundVerdict(await measureSound(src(0.0005, 0.001), new Float32Array(8), 1)), /heard only/);
   await assert.rejects(async () => soundVerdict(await measureSound(src(0.09, 0.1), new Float32Array(8), 1)), /rose only/);
 });
@@ -240,20 +296,59 @@ test("the scrubber hides device names, addresses, show names and the console's o
     "18 input devices found, 48000 Hz",
   ].join("\n");
   const out = scrub(input);
-  for (const gone of ["Andrew", "S22", "Behringer", "Grace", "192.168", "aa:bb", "FOH", "MixAssist"]) assert.ok(!out.includes(gone), `${gone} survived: ${out}`);
-  for (const kept of ["(1 in, 44100 Hz, MME)", "(18 in, 48000 Hz, ASIO)", "127.0.0.1", "4.06-8", "18 input devices found, 48000 Hz", "x.x.x.x"]) assert.ok(out.includes(kept), `${kept} lost: ${out}`);
+  for (const gone of ["Andrew", "S22", "Behringer", "Grace", "192.168", "aa:bb", "FOH", "MixAssist"])
+    assert.ok(!out.includes(gone), `${gone} survived: ${out}`);
+  for (const kept of [
+    "(1 in, 44100 Hz, MME)",
+    "(18 in, 48000 Hz, ASIO)",
+    "127.0.0.1",
+    "4.06-8",
+    "18 input devices found, 48000 Hz",
+    "x.x.x.x",
+  ])
+    assert.ok(out.includes(kept), `${kept} lost: ${out}`);
 });
 
 test("the copied trace keeps only failed steps and steps proved on a real console", () => {
-  const row = (id: string, status: "pass" | "fail" | "skip", proof: VetRow["proof"]): VetRow => ({ id, area: "a", title: id, status, proof, detail: "", covers: [] });
+  const row = (id: string, status: "pass" | "fail" | "skip", proof: VetRow["proof"]): VetRow => ({
+    id,
+    area: "a",
+    title: id,
+    status,
+    proof,
+    detail: "",
+    covers: [],
+  });
   const lines = [
-    "[    0.001] --- a: A", "[    0.002] send /x", "[    0.003] === a: PASS (emulator): ok",
-    "[    0.004] --- b: B", "[    0.005] send /y", "[    0.006] === b: FAIL (emulator): bad",
-    "[    0.007] --- c: C", "[    0.008] send /z", "[    0.009] === c: PASS (real console): ok",
-    "[    0.010] --- d: D", "[    0.011] send /w", "[    0.012] === d: SKIP: no",
+    "[    0.001] --- a: A",
+    "[    0.002] send /x",
+    "[    0.003] === a: PASS (emulator): ok",
+    "[    0.004] --- b: B",
+    "[    0.005] send /y",
+    "[    0.006] === b: FAIL (emulator): bad",
+    "[    0.007] --- c: C",
+    "[    0.008] send /z",
+    "[    0.009] === c: PASS (real console): ok",
+    "[    0.010] --- d: D",
+    "[    0.011] send /w",
+    "[    0.012] === d: SKIP: no",
   ];
-  const out = traceLines(lines, [row("a", "pass", "emulator"), row("b", "fail", "emulator"), row("c", "pass", "real console"), row("d", "skip", "real console")]);
-  assert.deepEqual(out.map((l) => l.replace(/^\s*\[[^\]]*\] /, "").split(" ").slice(0, 2).join(" ")), ["--- b:", "send /y", "=== b:", "--- c:", "send /z", "=== c:"]);
+  const out = traceLines(lines, [
+    row("a", "pass", "emulator"),
+    row("b", "fail", "emulator"),
+    row("c", "pass", "real console"),
+    row("d", "skip", "real console"),
+  ]);
+  assert.deepEqual(
+    out.map((l) =>
+      l
+        .replace(/^\s*\[[^\]]*\] /, "")
+        .split(" ")
+        .slice(0, 2)
+        .join(" "),
+    ),
+    ["--- b:", "send /y", "=== b:", "--- c:", "send /z", "=== c:"],
+  );
 });
 
 const idle = { stopped: () => false, takeover: () => false };
@@ -298,7 +393,12 @@ test("--vet passes on this computer, covers every dashboard address and writes a
     assert.ok(!text.includes("secret-show-pin"));
     assert.ok(text.includes("PIN=(set)") && text.includes("MODE=sim") && text.includes("Audio devices:"), text);
     assert.ok(!/"pin"/.test(log));
-    assert.deepEqual(readdirSync(home).filter((n) => !n.startsWith("vet-")).sort(), ["show.conf"]);
+    assert.deepEqual(
+      readdirSync(home)
+        .filter((n) => !n.startsWith("vet-"))
+        .sort(),
+      ["show.conf"],
+    );
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
@@ -361,11 +461,17 @@ test("the sound and phone layers run only when asked, and say what they need", a
     assert.equal(snd.status, "pass", snd.detail);
     assert.match(snd.detail, /nothing was applied/);
     assert.ok(stopped);
-    assert.ok(lines.some((l) => l.includes("SOUND: pink noise plays")), lines.join("\n"));
+    assert.ok(
+      lines.some((l) => l.includes("SOUND: pink noise plays")),
+      lines.join("\n"),
+    );
     const ph = out.rows.find((x) => x.id === "phone_login")!;
     assert.equal(ph.status, "skip");
     assert.match(ph.detail, /--lan --pin/);
-    const none = await runVet(parseCliArgs(["--vet", "--vet-sound"]), vetIo([], home), { openSource: null, lanIp: () => Promise.resolve(null) });
+    const none = await runVet(parseCliArgs(["--vet", "--vet-sound"]), vetIo([], home), {
+      openSource: null,
+      lanIp: () => Promise.resolve(null),
+    });
     assert.equal(none.rows.find((x) => x.id === "sound_noise")!.status, "skip");
   } finally {
     rmSync(home, { recursive: true, force: true });
@@ -464,7 +570,18 @@ test("the dashboard test gives the same result with harsh tuning and lists the t
     await emu.start();
     const rx = new MeterReceiver(udp, { ip: "127.0.0.1", port: C.LOCAL_PORT, allowFrom: "127.0.0.1" });
     await rx.start();
-    const harsh = ["feedback.ringDb=30", "feedback.sustainBlocks=20", "clip.peakDbfs=0", "ride.toleranceDb=6", "calibration.peakThreshDb=12", "calibration.predipCount=0", "phase.corrMin=0.9", "phase.sustain=50", "unmask.voxGateDb=-10", "manual.holdS=60"];
+    const harsh = [
+      "feedback.ringDb=30",
+      "feedback.sustainBlocks=20",
+      "clip.peakDbfs=0",
+      "ride.toleranceDb=6",
+      "calibration.peakThreshDb=12",
+      "calibration.predipCount=0",
+      "phase.corrMin=0.9",
+      "phase.sustain=50",
+      "unmask.voxGateDb=-10",
+      "manual.holdS=60",
+    ];
     try {
       const io: Io = { ...vetIo([], home), clock };
       io.factory = await io.audio();
@@ -501,20 +618,35 @@ test("the dashboard test reaches a real console through the app's own socket and
       const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null));
       assert.ok(host.console);
       const seen: number[] = [];
-      const out = await host.run({ channel: 3, gain: true, main: true, identify: false }, { ...idle, progress: (done: number): void => { seen.push(done); } });
+      const out = await host.run(
+        { channel: 3, gain: true, main: true, identify: false },
+        {
+          ...idle,
+          progress: (done: number): void => {
+            seen.push(done);
+          },
+        },
+      );
       const text = out.text;
       const at = text.lastIndexOf("\n\n  Checksum: ");
       assert.ok(at > 0, "no checksum line");
       assert.equal(text.slice(at).trim().split(": ").pop(), createHash("sha256").update(text.slice(0, at), "utf8").digest("hex"));
       assert.match(text, /\n {2}Run: {4}\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ \(UTC\)\n/);
-      assert.deepEqual(seen, [...seen].sort((x, y) => x - y));
+      assert.deepEqual(
+        seen,
+        [...seen].sort((x, y) => x - y),
+      );
       assert.equal(seen[seen.length - 1], VET_EXPECTED_STEPS_WITH_CONSOLE, "update VET_EXPECTED_STEPS_WITH_CONSOLE in core/ports.ts");
       assert.match(out.summary, /^\d+ passed \(\d+ on the real console\), \d+ failed, \d+ skipped$/, text);
       const realPart = text.slice(text.indexOf("  Real console\n"));
       assert.ok(!realPart.includes("[FAIL]"), realPart);
       assert.ok(text.includes("Real console"), text);
       const traced = text.slice(text.indexOf("What was sent to and received from the console"));
-      assert.ok(/\] send \/ch\/03\/mix\/fader/.test(traced) && /\] recv \/ch\/03\/mix\/fader/.test(traced), "the copied report has no console trace");      assert.ok(text.includes("[PASS] Channel 3 fader: set  (proved on: real console)"), text);
+      assert.ok(
+        /\] send \/ch\/03\/mix\/fader/.test(traced) && /\] recv \/ch\/03\/mix\/fader/.test(traced),
+        "the copied report has no console trace",
+      );
+      assert.ok(text.includes("[PASS] Channel 3 fader: set  (proved on: real console)"), text);
       assert.ok(text.includes("[PASS] Main fader  (proved on: real console)"), text);
       assert.ok(rx.running && rx.onMessage === null);
       const plain = await host.run({ channel: null, gain: false, main: false, identify: false }, idle);

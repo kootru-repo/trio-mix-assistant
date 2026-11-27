@@ -73,7 +73,18 @@ test("rehearse forces the emulator", () => {
 });
 
 test("optional settings are mapped and a relative template resolves against the app folder", () => {
-  const p = plan({ MODE: "hardware", CONSOLE_IP: "1.2.3.4", TEMPLATE: "set.json", VENUE: "Bar", INPUT_GAIN: "20", OUTPUT_DEVICE: "PA", ABLESET_PORT: "39051", ADVISOR: "yes", PORT: "9000", PIN: "123456" });
+  const p = plan({
+    MODE: "hardware",
+    CONSOLE_IP: "1.2.3.4",
+    TEMPLATE: "set.json",
+    VENUE: "Bar",
+    INPUT_GAIN: "20",
+    OUTPUT_DEVICE: "PA",
+    ABLESET_PORT: "39051",
+    ADVISOR: "yes",
+    PORT: "9000",
+    PIN: "123456",
+  });
   assert.equal(after(p.argv, "--template"), join(base, "set.json"));
   assert.equal(after(p.argv, "--venue"), "Bar");
   assert.equal(after(p.argv, "--input-gain"), "20");
@@ -147,7 +158,16 @@ test("TRUST=yes turns on the trusted certificate mode", () => {
 test("a bare --vet takes the console and the test options from show.conf", async () => {
   const { vetArgv } = await import("../src/host/launcher.ts");
   const { parseCliArgs } = await import("../src/host/args.ts");
-  const cfg: Conf = { MODE: "hardware", CONSOLE_IP: "10.0.0.9", AUDIO_DEVICE: "3", LAN: "no", VET_CHANNEL: "12", VET_GAIN: "yes", VET_MAIN: "yes", VET_SOUND: "yes" };
+  const cfg: Conf = {
+    MODE: "hardware",
+    CONSOLE_IP: "10.0.0.9",
+    AUDIO_DEVICE: "3",
+    LAN: "no",
+    VET_CHANNEL: "12",
+    VET_GAIN: "yes",
+    VET_MAIN: "yes",
+    VET_SOUND: "yes",
+  };
   const argv = vetArgv(cfg, plan(cfg), () => undefined);
   const a = parseCliArgs(argv);
   assert.ok(a.vet && a.hardware);

@@ -83,7 +83,9 @@ test("the calibrator analyses at the injected sample rate", () => {
   assert.ok(new Calibrator(new SimConsole()).analyze(tone).corrections.length > 0);
   const deaf = configWith({ calibration: Object.freeze({ ...defaultConfig().calibration, peakThreshDb: 1000 }) });
   assert.deepEqual(new Calibrator(new SimConsole(), deaf).analyze(tone).corrections, []);
-  const fewBands = configWith({ calibration: Object.freeze({ ...defaultConfig().calibration, octaveBands: Object.freeze([500, 1000, 2000]) }) });
+  const fewBands = configWith({
+    calibration: Object.freeze({ ...defaultConfig().calibration, octaveBands: Object.freeze([500, 1000, 2000]) }),
+  });
   assert.deepEqual([...new Calibrator(new SimConsole(), fewBands).analyze(tone).baseline.keys()], [500, 1000, 2000]);
   assert.equal(snapshot(C), before);
 });

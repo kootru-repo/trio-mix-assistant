@@ -4,7 +4,9 @@ import { fixed, percent, roundTo } from "../numfmt.ts";
 import type { JobContext } from "./context.ts";
 
 export function roomConfidence(cfg: Config, levelDb: number, contrastDb: number): number {
-  const quiet = cfg.room.quietDb, loudDb = cfg.room.loudDb, floor = cfg.room.loudMin;
+  const quiet = cfg.room.quietDb,
+    loudDb = cfg.room.loudDb,
+    floor = cfg.room.loudMin;
   const loud = levelDb <= quiet ? 1 : levelDb >= loudDb ? floor : 1 - ((1 - floor) * (levelDb - quiet)) / (loudDb - quiet);
   const flat = contrastDb >= cfg.feedback.ringDb ? 1 : Math.max(cfg.room.flatMin, contrastDb / cfg.feedback.ringDb);
   return roundTo(loud * flat, 3);
@@ -29,11 +31,7 @@ export class RoomModel {
     this.ctx.state.roomConfidence = conf;
     if (conf < C.room.lowConf && now - this.lastLowconfWarn > C.room.lowConfWarnS) {
       this.lastLowconfWarn = now;
-      this.ctx.emit(
-        "system",
-        `room-mic SNR low (conf ${percent(conf, 0)}) — feedback detection is being more conservative`,
-        C.MEAS_MIC_CH,
-      );
+      this.ctx.emit("system", `room-mic SNR low (conf ${percent(conf, 0)}) — feedback detection is being more conservative`, C.MEAS_MIC_CH);
     }
   }
 }

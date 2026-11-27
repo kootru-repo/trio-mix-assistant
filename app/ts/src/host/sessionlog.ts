@@ -77,19 +77,14 @@ export class SessionLog implements SessionLogPort {
     db.exec("PRAGMA busy_timeout=2000");
     db.exec("PRAGMA journal_mode=WAL");
     db.exec(SCHEMA);
-    this.insertEvent = db.prepare(
-      "INSERT INTO events(session_id,t,kind,level,ch,role,msg) VALUES (?,?,?,?,?,?,?)",
-    );
+    this.insertEvent = db.prepare("INSERT INTO events(session_id,t,kind,level,ch,role,msg) VALUES (?,?,?,?,?,?,?)");
     this.t0 = this.monotonic();
   }
 
   startSession(venue: string = "", template: string = "", mode: string = ""): number {
-    const res = this.conn().prepare("INSERT INTO sessions(started, venue, template, mode) VALUES (?,?,?,?)").run(
-      this.now(),
-      venue,
-      template,
-      mode,
-    );
+    const res = this.conn()
+      .prepare("INSERT INTO sessions(started, venue, template, mode) VALUES (?,?,?,?)")
+      .run(this.now(), venue, template, mode);
     this.sessionId = Number(res.lastInsertRowid);
     return this.sessionId;
   }
@@ -115,18 +110,14 @@ export class SessionLog implements SessionLogPort {
   summary(sessionId: number | null = null): Record<string, number> {
     const sid = sessionId ?? this.sessionId;
     if (sid === null) return {};
-    return countsOf(
-      this.conn().prepare("SELECT kind, COUNT(*) AS n FROM events WHERE session_id=? GROUP BY kind").all(sid),
-    );
+    return countsOf(this.conn().prepare("SELECT kind, COUNT(*) AS n FROM events WHERE session_id=? GROUP BY kind").all(sid));
   }
 
   recent(n: number = 20, sessionId: number | null = null): EventRow[] {
     const sid = sessionId ?? this.sessionId;
     if (sid === null) return [];
     const rows = this.conn()
-      .prepare(
-        "SELECT t, kind, level, ch, role, msg FROM events WHERE session_id=? ORDER BY rowid DESC LIMIT ?",
-      )
+      .prepare("SELECT t, kind, level, ch, role, msg FROM events WHERE session_id=? ORDER BY rowid DESC LIMIT ?")
       .all(sid, Math.trunc(n));
     return rows.reverse().map((r) => ({
       t: r["t"] as number | null,
@@ -146,9 +137,7 @@ export class SessionLog implements SessionLogPort {
       .map((r) => r["id"] as number);
     if (sids.length === 0) return [];
     const ph = sids.map(() => "?").join(",");
-    const rows = db
-      .prepare(`SELECT msg FROM events WHERE kind='feedback' AND session_id IN (${ph})`)
-      .all(...sids);
+    const rows = db.prepare(`SELECT msg FROM events WHERE kind='feedback' AND session_id IN (${ph})`).all(...sids);
     return rows.map((r) => r["msg"] as string | null).filter((m): m is string => typeof m === "string" && m !== "");
   }
 
@@ -159,9 +148,7 @@ export class SessionLog implements SessionLogPort {
 
   venueHistory(venue: string, limit: number = 10): VenueHistoryEntry[] {
     const db = this.conn();
-    const sess = db
-      .prepare("SELECT id, started FROM sessions WHERE venue=? ORDER BY id DESC LIMIT ?")
-      .all(venue, Math.trunc(limit));
+    const sess = db.prepare("SELECT id, started FROM sessions WHERE venue=? ORDER BY id DESC LIMIT ?").all(venue, Math.trunc(limit));
     const counts = db.prepare("SELECT kind, COUNT(*) AS n FROM events WHERE session_id=? GROUP BY kind");
     return sess.map((s) => ({
       session_id: s["id"] as number,

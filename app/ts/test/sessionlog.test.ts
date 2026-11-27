@@ -198,7 +198,11 @@ test("a database written by TypeScript has the recorded schema", async () => {
     await sl.flush();
     sl.close();
     const db = new DatabaseSync(path);
-    const cols = (t: string): string[] => db.prepare(`PRAGMA table_info(${t})`).all().map((r) => String(r["name"]));
+    const cols = (t: string): string[] =>
+      db
+        .prepare(`PRAGMA table_info(${t})`)
+        .all()
+        .map((r) => String(r["name"]));
     assert.deepEqual(cols("sessions"), ["id", "started", "venue", "template", "mode"]);
     assert.deepEqual(cols("events"), ["session_id", "t", "kind", "level", "ch", "role", "msg"]);
     const row = db.prepare("SELECT typeof(started) AS a, typeof(ch) AS b FROM sessions, events").get()!;

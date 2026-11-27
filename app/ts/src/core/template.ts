@@ -111,7 +111,7 @@ function parseChannels(spec: Json): ChannelMapSpec | null {
 
 function parseTuning(spec: Json, name: string): TuningOverride[] {
   if (spec === null || spec === undefined) return [];
-  if (!isObject(spec)) throw new TemplateError("'tuning' must be an object of sections, for example {\"feedback\": {\"ringDb\": 10}}");
+  if (!isObject(spec)) throw new TemplateError('\'tuning\' must be an object of sections, for example {"feedback": {"ringDb": 10}}');
   const out: TuningOverride[] = [];
   for (const [section, keys] of Object.entries(spec)) {
     if (!isObject(keys)) throw new TemplateError(`tuning.${section} must be an object of settings`);

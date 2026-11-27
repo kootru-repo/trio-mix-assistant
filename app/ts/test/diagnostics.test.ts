@@ -12,7 +12,13 @@ import { ManualClock } from "../src/core/clock.ts";
 import { C, channelMapState, restoreChannelMapState } from "../src/core/config.ts";
 import { OscConsole } from "../src/core/console.ts";
 import type { DatagramSink } from "../src/core/console.ts";
-import type { AudioDeviceInfo, AudioInputCallback, AudioInputFactory, AudioInputOptions, AudioInputStream } from "../src/core/devicecapture.ts";
+import type {
+  AudioDeviceInfo,
+  AudioInputCallback,
+  AudioInputFactory,
+  AudioInputOptions,
+  AudioInputStream,
+} from "../src/core/devicecapture.ts";
 import { LevelWindow, buildReport, evaluate, redact } from "../src/core/diagnostics.ts";
 import type { AudioFacts, Check, DiagFacts, DiagHost, DiagReport } from "../src/core/diagnostics.ts";
 import { emptyFeatures } from "../src/core/dsp.ts";
@@ -158,14 +164,34 @@ test("a quiet channel or one missing from the map is a warning that lists every 
   );
   assert.equal(c.status, "warn");
   assert.equal(c.detail, "1 channel showed no signal; 1 channel missing from the channel map");
-  assert.deepEqual(c.rows, ["ch 1 Lead vocal: -30 dBFS", "ch 2 Harmony vox L: -96 dBFS (no signal)", "ch 3 Harmony vox R: not in the channel map"]);
+  assert.deepEqual(c.rows, [
+    "ch 1 Lead vocal: -30 dBFS",
+    "ch 2 Harmony vox L: -96 dBFS (no signal)",
+    "ch 3 Harmony vox R: not in the channel map",
+  ]);
   assert.match(c.fix ?? "", /Make sound on each quiet channel/);
   assert.match(c.fix ?? "", /Add the missing channels/);
 });
 
 test("the console check tells a busy port from a console that does not answer", () => {
   const con = (over: Partial<NonNullable<DiagFacts["console"]>>): Check =>
-    byId(evaluate(facts({ console: { emulated: false, address: "192.168.1.50", listening: true, listenError: null, windowS: 8, packets: 70, meters: 16, ...over } })), "console");
+    byId(
+      evaluate(
+        facts({
+          console: {
+            emulated: false,
+            address: "192.168.1.50",
+            listening: true,
+            listenError: null,
+            windowS: 8,
+            packets: 70,
+            meters: 16,
+            ...over,
+          },
+        }),
+      ),
+      "console",
+    );
   assert.equal(con({}).detail, "70 meter packets from 192.168.1.50 (16 meters each)");
   const silent = con({ packets: 0 });
   assert.equal(silent.status, "fail");
@@ -196,7 +222,9 @@ test("tablet access needs a PIN, prefers HTTPS and is skipped when the dashboard
 });
 
 test("simulation skips everything that needs real gear", () => {
-  const s = statuses(facts({ audio: null, audioSkipped: "simulation mode", console: null, network: { lan: false, url: null, pin: false, https: false } }));
+  const s = statuses(
+    facts({ audio: null, audioSkipped: "simulation mode", console: null, network: { lan: false, url: null, pin: false, https: false } }),
+  );
   assert.deepEqual(s, { module: "pass", input: "skip", flow: "skip", signal: "skip", channels: "skip", console: "skip", network: "skip" });
 });
 
@@ -208,7 +236,10 @@ test("the report never contains the PIN", () => {
 
 test("the level window keeps the loudest reading per channel", () => {
   const w = new LevelWindow();
-  const block = (rms: number, peak: number): AnalysedBlock => ({ feats: new Map([[1, { ...emptyFeatures(), rmsDbfs: rms, peakDbfs: peak }]]), phases: [] });
+  const block = (rms: number, peak: number): AnalysedBlock => ({
+    feats: new Map([[1, { ...emptyFeatures(), rmsDbfs: rms, peakDbfs: peak }]]),
+    phases: [],
+  });
   w.add(block(-40, -30));
   w.add(block(-20, -10));
   w.add(block(-50, -45));
@@ -266,7 +297,8 @@ const loudBlock = (): AnalysedBlock => ({
   phases: [],
 });
 
-const diagOf = (e: Engine): { status: string; report: DiagReport | null } => e.snapshot()["diagnostics"] as { status: string; report: DiagReport | null };
+const diagOf = (e: Engine): { status: string; report: DiagReport | null } =>
+  e.snapshot()["diagnostics"] as { status: string; report: DiagReport | null };
 
 test("the engine's check run measures the running source and console feed and publishes the report", async () => {
   const clock = new FeedingClock(100, 1_700_000_000);
@@ -489,7 +521,11 @@ test("the home folder is taken out of every line of the report", () => {
   const report = buildReport(
     facts({
       home,
-      audioModule: { ok: false, inputs: 0, error: "could not load C:\\Users\\someone\\AppData\\Local\\TrioMixAssistant\\runtime\\x\\naudiodon.node" },
+      audioModule: {
+        ok: false,
+        inputs: 0,
+        error: "could not load C:\\Users\\someone\\AppData\\Local\\TrioMixAssistant\\runtime\\x\\naudiodon.node",
+      },
       audio: goodAudio({ link: "down", lastError: "open failed at C:/Users/someone/dev" }),
     }),
   );
@@ -559,7 +595,11 @@ async function diagnoseInputs(fakes: FakeInput[], argv: string[]): Promise<{ cod
   const lines: string[] = [];
   const io = testIo(lines, 1.5);
   try {
-    const code = await run(argv, { ...io, audio: () => Promise.resolve(factory), connect: () => loopbackPort(factory, io.clock, threadStamp) });
+    const code = await run(argv, {
+      ...io,
+      audio: () => Promise.resolve(factory),
+      connect: () => loopbackPort(factory, io.clock, threadStamp),
+    });
     return { code, text: lines.join("\n") };
   } finally {
     restoreChannelMapState(saved);
@@ -596,7 +636,9 @@ test("--diagnose reports an input that does not exist or is too small for the sh
   assert.ok(gone.text.includes("[FAIL] Chosen input opens"), gone.text);
   assert.ok(gone.text.includes("[SKIP] Audio is arriving"), gone.text);
   assert.equal(gone.code, 1);
-  const small = await withEmulatorPorts(() => diagnoseInputs([{ name: "USB mic", inputs: 2, level: 0.05 }], ["--diagnose", "--emulate", "--audio-device", "0"]));
+  const small = await withEmulatorPorts(() =>
+    diagnoseInputs([{ name: "USB mic", inputs: 2, level: 0.05 }], ["--diagnose", "--emulate", "--audio-device", "0"]),
+  );
   assert.ok(/\[FAIL\] Chosen input opens: .*has 2 input channel\(s\) but this setup needs 8/.test(small.text), small.text);
   assert.ok(small.text.includes("To test a small input on its own"), small.text);
   assert.equal(small.code, 1);

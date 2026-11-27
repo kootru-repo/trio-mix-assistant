@@ -13,7 +13,8 @@ const OPERATOR_REARM: readonly HoldReason[] = ["write-storm", "internal-error"];
 const HOLD_TEXT: Record<HoldReason, string> = {
   unsynced: "reading the desk's faders, preamp gains and polarity before the automatic jobs start",
   link: "the console link went quiet; the automatic jobs are paused until it is back and the desk has been read again",
-  "no-feedback": "the console's reply port could not be opened, so the app cannot read the desk; the automatic jobs stay off (manual controls still work)",
+  "no-feedback":
+    "the console's reply port could not be opened, so the app cannot read the desk; the automatic jobs stay off (manual controls still work)",
   resume: "the computer was asleep or the app stalled; the desk is read again before the automatic jobs continue",
   "write-storm": "the app tried to send more changes to the console than it safely can; press TAKEOVER and release it to re-arm",
   "internal-error": "the app hit an unexpected error; manual controls still work; press TAKEOVER and release it to re-arm",
@@ -58,7 +59,11 @@ export class EngineHold extends EngineBase {
   protected outsideMove(ch: number, now: number): void {
     this.con.cancelRamp(ch);
     if (this.outside.noteOutside(ch, now)) {
-      this.assistant.emit("system", `ch${ch} moved by hand ${C.safety.lockMoves} times in ${C.safety.lockWindowS} s: the automatic jobs leave it alone until TAKEOVER is pressed and released`, ch);
+      this.assistant.emit(
+        "system",
+        `ch${ch} moved by hand ${C.safety.lockMoves} times in ${C.safety.lockWindowS} s: the automatic jobs leave it alone until TAKEOVER is pressed and released`,
+        ch,
+      );
     }
   }
 
@@ -146,7 +151,10 @@ export class EngineHold extends EngineBase {
       if (this.failedAt === null) {
         this.failedAt = now;
         this.syncFailures += 1;
-        this.assistant.emit("system", `could not read the desk (${this.sync.missing().length} value(s) unanswered) — trying again in ${C.link.resyncS} s`);
+        this.assistant.emit(
+          "system",
+          `could not read the desk (${this.sync.missing().length} value(s) unanswered) — trying again in ${C.link.resyncS} s`,
+        );
       } else if (now - this.failedAt >= C.link.resyncS) {
         this.failedAt = null;
         this.sync.begin(now);
@@ -206,11 +214,20 @@ export class EngineHold extends EngineBase {
     const [base, mode] = super.alertsAndMode(now, connected);
     const locked = this.outside === undefined ? [] : this.outside.lockedChannels();
     const alerts: Alert[] = locked.length
-      ? [{ level: "warn", msg: `automatic jobs leave ch${locked.join(", ch")} alone after repeated hand moves; press TAKEOVER and release it to hand ${locked.length === 1 ? "it" : "them"} back` }, ...base]
+      ? [
+          {
+            level: "warn",
+            msg: `automatic jobs leave ch${locked.join(", ch")} alone after repeated hand moves; press TAKEOVER and release it to hand ${locked.length === 1 ? "it" : "them"} back`,
+          },
+          ...base,
+        ]
       : base;
     if (!this.held) return [alerts, mode];
     const critical = (r: HoldReason): boolean => r === "no-feedback" || OPERATOR_REARM.includes(r);
-    const hold: Alert[] = [...this.holdReasons].map((r) => ({ level: critical(r) ? "critical" : "warn", msg: `jobs on hold — ${HOLD_TEXT[r]}` }));
+    const hold: Alert[] = [...this.holdReasons].map((r) => ({
+      level: critical(r) ? "critical" : "warn",
+      msg: `jobs on hold — ${HOLD_TEXT[r]}`,
+    }));
     return [[...hold, ...alerts], mode === "auto" || mode === "coach" ? "alert" : mode];
   }
 }

@@ -119,7 +119,10 @@ test("a safety read cancels a queued automatic write to that address but keeps a
   assert.equal(gov.backlog(), queued - 1);
   gov.pump(100);
   assert.deepEqual(out.filter((d) => d.address === "/m/hand").at(-1), { address: "/m/hand", args: f(5) });
-  assert.deepEqual(out.filter((d) => d.address === "/m/job"), [{ address: "/m/job", args: [] }]);
+  assert.deepEqual(
+    out.filter((d) => d.address === "/m/job"),
+    [{ address: "/m/job", args: [] }],
+  );
 });
 
 test("a safety write cancels a queued write to the same address and becomes the latest value", () => {

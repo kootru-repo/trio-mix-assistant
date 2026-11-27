@@ -1,4 +1,3 @@
-
 type FbState = "ok" | "building" | "notched";
 type AlertLevel = "info" | "notice" | "warn" | "critical";
 
@@ -33,8 +32,15 @@ interface ShowT {
   index: number | null;
 }
 
-interface AlertT { level: AlertLevel; msg: string; }
-interface SceneT { index: number; name: string; current: boolean; }
+interface AlertT {
+  level: AlertLevel;
+  msg: string;
+}
+interface SceneT {
+  index: number;
+  name: string;
+  current: boolean;
+}
 
 interface CaptureT {
   kind: "audio" | "simulation" | "none" | string;
@@ -60,8 +66,18 @@ interface CoachRecT {
   [extra: string]: unknown;
 }
 
-interface EqBandT { band: number; hz: number; gain: number; q: number; on: boolean; }
-interface LatencyT { last: number; ema: number; [extra: string]: number; }
+interface EqBandT {
+  band: number;
+  hz: number;
+  gain: number;
+  q: number;
+  on: boolean;
+}
+interface LatencyT {
+  last: number;
+  ema: number;
+  [extra: string]: number;
+}
 
 interface LogEntryT {
   time: string;
@@ -72,7 +88,14 @@ interface LogEntryT {
 }
 
 type CheckStatusT = "pass" | "warn" | "fail" | "skip";
-interface CheckT { id: string; title: string; status: CheckStatusT; detail: string; rows: string[]; fix: string | null; }
+interface CheckT {
+  id: string;
+  title: string;
+  status: CheckStatusT;
+  detail: string;
+  rows: string[];
+  fix: string | null;
+}
 interface DiagnosticsT {
   status: "idle" | "running" | "done";
   report: { result: CheckStatusT; summary: string; checks: CheckT[]; text: string } | null;

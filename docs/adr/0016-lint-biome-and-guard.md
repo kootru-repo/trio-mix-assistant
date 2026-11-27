@@ -11,7 +11,7 @@ The project has rules that were enforced only by review: no `any` in app code, n
 
 `npm run lint` runs `tools/guard.ts`, which runs two checks.
 
-- **Biome** 2.6.7, a dev dependency, configured in `app/biome.json`. Only chosen rules are on, all of which the code already passed: no explicit `any` (allowed in tests), no ts-ignore, no focused or skipped tests, no debugger, no `==`, no `var`, `const` where possible, no unused imports or variables, no duplicate keys, no switch fall-through, and no `effect` imports. The formatter is off.
+- **Biome** 2.6.7, a dev dependency, configured in `app/biome.json`. Only chosen rules are on, all of which the code already passed: no explicit `any` (allowed in tests), no ts-ignore, no focused or skipped tests, no debugger, no `==`, no `var`, `const` where possible, no unused imports or variables, no duplicate keys, no switch fall-through, and no `effect` imports. The formatter is on (2-space indent, 140-character lines, fixtures excluded), and `npm run lint` fails on unformatted code. Run `node_modules/.bin/biome format --write ..` from `app/ts` to fix layout.
 - **The guard** scans tracked sources in `app/ts/src`, `app/ts/test`, `app/ts/tools` and `app/web/src` line by line. It reports comment lines, `as unknown as`, TypeScript and lint suppressions, and skipped or focused tests. It also reports any Effect package in `app/ts/package.json` or `app/web/package.json`.
 
 The `lint` job in CI runs it, and `ci-ok` needs it (0015).

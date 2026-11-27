@@ -140,7 +140,15 @@ function request(log: VetLog, target: Target, method: string, path: string, opts
 function firstEvent(target: Target, cookie: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { host: "127.0.0.1", port: target.port, method: "GET", path: "/events", headers: { Cookie: cookie }, agent: false, timeout: HTTP_TIMEOUT_MS },
+      {
+        host: "127.0.0.1",
+        port: target.port,
+        method: "GET",
+        path: "/events",
+        headers: { Cookie: cookie },
+        agent: false,
+        timeout: HTTP_TIMEOUT_MS,
+      },
       (res) => {
         let text = "";
         res.on("data", (c: Buffer) => {
@@ -232,7 +240,9 @@ async function thisComputer(ctx: Ctx): Promise<void> {
     parseCliArgs(plan.argv);
     parseCliArgs(buildArgv(cfg, io.layout.appDir, true).argv);
     const warned = notes.filter((n) => n.includes("[!]")).length;
-    return `mode ${plan.mode}, dashboard port ${plan.port}` + (warned ? `, ${warned} warning${warned === 1 ? "" : "s"} when it starts` : "");
+    return (
+      `mode ${plan.mode}, dashboard port ${plan.port}` + (warned ? `, ${warned} warning${warned === 1 ? "" : "s"} when it starts` : "")
+    );
   });
   await local(ctx, "conf_templates", HERE, "Show templates load", ["feature:templates"], async () => {
     const dir = join(io.layout.appDir, "templates");
@@ -306,39 +316,49 @@ const WEB = "Dashboard";
 
 async function emulatorExtras(ctx: Ctx, emu: EmulatedDesk): Promise<void> {
   const spec = (id: string, title: string, covers: string[]): StepSpec => ({ id, area: EMU, title, proof: "this computer", covers });
-  await step(ctx.rows, ctx.log, spec("emu_editor", "The emulator answers a mixer app's questions", ["feature:emulator-editor"]), async () => {
-    const ep = await ctx.io.udp.bind(0, "127.0.0.1");
-    const seen = new Set<string>();
-    ep.onMessage((data) => {
-      const m = decodeReply(data);
-      if (m === null) return;
-      seen.add(m.address);
-      ctx.log.note(`recv (mixer-app socket) ${m.address}`);
-    });
-    try {
-      const to = { host: "127.0.0.1", port: emu.listenPort };
-      for (const addr of ["/info", "/xinfo", "/status", "/ch/01/config/name"]) {
-        ctx.log.note(`send (mixer-app socket) ${addr}`);
-        ep.send(encodeMessage(addr, []), to);
+  await step(
+    ctx.rows,
+    ctx.log,
+    spec("emu_editor", "The emulator answers a mixer app's questions", ["feature:emulator-editor"]),
+    async () => {
+      const ep = await ctx.io.udp.bind(0, "127.0.0.1");
+      const seen = new Set<string>();
+      ep.onMessage((data) => {
+        const m = decodeReply(data);
+        if (m === null) return;
+        seen.add(m.address);
+        ctx.log.note(`recv (mixer-app socket) ${m.address}`);
+      });
+      try {
+        const to = { host: "127.0.0.1", port: emu.listenPort };
+        for (const addr of ["/info", "/xinfo", "/status", "/ch/01/config/name"]) {
+          ctx.log.note(`send (mixer-app socket) ${addr}`);
+          ep.send(encodeMessage(addr, []), to);
+        }
+        ctx.log.note("send (mixer-app socket) /node ch/01/config");
+        ep.send(encodeMessage("/node", [oscStr("ch/01/config")]), to);
+        const t0 = ctx.clock.monotonic();
+        while (seen.size < 5 && ctx.clock.monotonic() - t0 < 1) await ctx.clock.sleep(0.02);
+        for (const addr of ["/info", "/xinfo", "/status", "/ch/01/config/name", "node"]) must(seen.has(addr), `no answer to ${addr}`);
+        return "identity, status, a channel name and a node request were all answered";
+      } finally {
+        ep.close();
       }
-      ctx.log.note("send (mixer-app socket) /node ch/01/config");
-      ep.send(encodeMessage("/node", [oscStr("ch/01/config")]), to);
-      const t0 = ctx.clock.monotonic();
-      while (seen.size < 5 && ctx.clock.monotonic() - t0 < 1) await ctx.clock.sleep(0.02);
-      for (const addr of ["/info", "/xinfo", "/status", "/ch/01/config/name", "node"]) must(seen.has(addr), `no answer to ${addr}`);
-      return "identity, status, a channel name and a node request were all answered";
-    } finally {
-      ep.close();
-    }
-  });
+    },
+  );
   await step(ctx.rows, ctx.log, spec("show_ableset", "An AbleSet song message is received", ["feature:ableset"]), async () => {
     const probe = await ctx.io.udp.bind(0, "127.0.0.1");
     const port = probe.port;
     probe.close();
     let got: ShowState | null = null;
-    const rx = new AbleSetReceiver(ctx.io.udp, (s) => {
-      got = s;
-    }, "127.0.0.1", port);
+    const rx = new AbleSetReceiver(
+      ctx.io.udp,
+      (s) => {
+        got = s;
+      },
+      "127.0.0.1",
+      port,
+    );
     await rx.start();
     const ep = await ctx.io.udp.bind(0, "127.0.0.1");
     try {
@@ -361,7 +381,12 @@ const cookieOf = (r: Reply): string => {
   return first ? first.split(";", 1)[0]! : "";
 };
 
-async function withServer<T>(opts: Parameters<typeof createServer>[0], secure: boolean, ca: string | null, body: (t: Target, s: DashboardServer) => Promise<T>): Promise<T> {
+async function withServer<T>(
+  opts: Parameters<typeof createServer>[0],
+  secure: boolean,
+  ca: string | null,
+  body: (t: Target, s: DashboardServer) => Promise<T>,
+): Promise<T> {
   const server = createServer(opts);
   const { port } = await server.start(0, "127.0.0.1");
   try {
@@ -377,7 +402,8 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
   const pin = randomBytes(6).toString("hex");
   const staticDir = io.layout.staticDir;
   const main = `/${C.MAIN_BUS}`;
-  const W = (id: string, title: string, covers: string[], body: () => Promise<string>): Promise<void> => local(ctx, id, WEB, title, covers, body);
+  const W = (id: string, title: string, covers: string[], body: () => Promise<string>): Promise<void> =>
+    local(ctx, id, WEB, title, covers, body);
   await withServer({ engine, staticDir, pin }, false, null, async (t) => {
     let cookie = "";
     await W("web_login_page", "Without the PIN the login page is shown", ["route:/", "route:/login.js"], async () => {
@@ -388,7 +414,12 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
       return "the login page was served, not the dashboard";
     });
     await W("web_auth_required", "Without the PIN the state, live updates and commands are refused", ["feature:pin-required"], async () => {
-      for (const [method, path] of [["GET", "/state"], ["GET", "/events"], ["POST", "/api/toggle"], ["POST", "/api/command"]] as const) {
+      for (const [method, path] of [
+        ["GET", "/state"],
+        ["GET", "/events"],
+        ["POST", "/api/toggle"],
+        ["POST", "/api/command"],
+      ] as const) {
         const r = await request(log, t, method, path, method === "POST" ? { json: {} } : {});
         must(r.status === 401, `${method} ${path} answered ${r.status}, expected 401`);
       }
@@ -402,19 +433,27 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
       must(right.status === 200 && cookie.startsWith("mixauth="), `the right PIN answered ${right.status}`);
       return "wrong PIN refused; right PIN accepted";
     });
-    await W("web_pages", "The dashboard page and its files are served", ["route:/index.html", "route:/dashboard.js", "route:/manifest.webmanifest", "route:/icon.svg", "route:/favicon.ico"], async () => {
-      must(cookie !== "", "sign-in did not work, so this could not be checked");
-      for (const path of ["/", "/index.html"]) {
-        const page = await request(log, t, "GET", path, { cookie });
-        must(page.status === 200 && page.body.includes("dashboard.js"), `${path} did not serve the dashboard (status ${page.status})`);
-        must(!page.body.includes("__INITIAL_STATE__") && !page.body.includes("__NONCE__"), `${path} was served with unfilled placeholders`);
-      }
-      for (const path of ["/dashboard.js", "/manifest.webmanifest", "/icon.svg", "/favicon.ico"]) {
-        must((await request(log, t, "GET", path, { cookie })).status === 200, `${path} was not served`);
-      }
-      must((await request(log, t, "GET", "/nope", { cookie })).status === 404, "an unknown page did not answer 404");
-      return "the page, its script, the app manifest and the icon were served";
-    });
+    await W(
+      "web_pages",
+      "The dashboard page and its files are served",
+      ["route:/index.html", "route:/dashboard.js", "route:/manifest.webmanifest", "route:/icon.svg", "route:/favicon.ico"],
+      async () => {
+        must(cookie !== "", "sign-in did not work, so this could not be checked");
+        for (const path of ["/", "/index.html"]) {
+          const page = await request(log, t, "GET", path, { cookie });
+          must(page.status === 200 && page.body.includes("dashboard.js"), `${path} did not serve the dashboard (status ${page.status})`);
+          must(
+            !page.body.includes("__INITIAL_STATE__") && !page.body.includes("__NONCE__"),
+            `${path} was served with unfilled placeholders`,
+          );
+        }
+        for (const path of ["/dashboard.js", "/manifest.webmanifest", "/icon.svg", "/favicon.ico"]) {
+          must((await request(log, t, "GET", path, { cookie })).status === 200, `${path} was not served`);
+        }
+        must((await request(log, t, "GET", "/nope", { cookie })).status === 404, "an unknown page did not answer 404");
+        return "the page, its script, the app manifest and the icon were served";
+      },
+    );
     await W("web_state", "The state snapshot is served", ["route:/state"], async () => {
       const r = await request(log, t, "GET", "/state", { cookie });
       const state: unknown = r.status === 200 ? JSON.parse(r.body) : null;
@@ -432,45 +471,59 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
       const t0 = ctx.clock.monotonic();
       while (engine.assistant.leadTarget !== -19 && ctx.clock.monotonic() - t0 < 1) await ctx.clock.sleep(0.02);
       must(engine.assistant.leadTarget === -19, "a command sent over the live connection did not reach the engine");
-      must((await request(log, t, "GET", "/ws", { cookie })).status === 400, "a plain request to the live connection address was not refused");
+      must(
+        (await request(log, t, "GET", "/ws", { cookie })).status === 400,
+        "a plain request to the live connection address was not refused",
+      );
       return "a text message arrived and a lead-target command took effect";
     });
-    await W("web_api", "Every control address answers", [
-      "route:/api/toggle",
-      "route:/api/lead_target",
-      "route:/api/balance_capture",
-      "route:/api/reset_notches",
-      "route:/api/scene",
-      "route:/api/panic",
-      "route:/api/calibrate",
-      "route:/api/command",
-    ], async () => {
-      const post = async (path: string, json: unknown): Promise<void> => {
-        const r = await request(log, t, "POST", path, { cookie, json });
-        must(r.status === 200, `${path} answered ${r.status}`);
-      };
-      await post("/api/toggle", { job: "clip", on: false });
-      must(engine.assistant.enabled["clip"] === false, "/api/toggle did not switch the job");
-      await post("/api/toggle", { job: "clip", on: true });
-      await post("/api/lead_target", { db: -17 });
-      must(engine.assistant.leadTarget === -17, "/api/lead_target did not set the target");
-      await post("/api/balance_capture", {});
-      await post("/api/reset_notches", {});
-      await post("/api/scene", { index: 21 });
-      await desk.expect("/-show/prepos/current", 21);
-      await post("/api/panic", { on: true });
-      await desk.expect(`${main}/mix/on`, 0);
-      await post("/api/panic", { on: false });
-      await desk.expect(`${main}/mix/on`, 1);
-      await post("/api/command", { type: "fader", ch: 1, db: -9 });
-      await desk.expect("/ch/01/mix/fader", dbToFader(-9));
-      await post("/api/calibrate", {});
-      must(engine.calibrationTask !== null, "/api/calibrate did not start a calibration");
-      await engine.calibrationTask;
-      must(engine.events.some((e) => e.kind === "calibration"), "calibration left no message");
-      must((await request(log, t, "POST", "/api/nope", { cookie, json: {} })).status === 404, "an unknown control address did not answer 404");
-      return "eight control addresses answered; scene, takeover and fader were read back from the emulated console";
-    });
+    await W(
+      "web_api",
+      "Every control address answers",
+      [
+        "route:/api/toggle",
+        "route:/api/lead_target",
+        "route:/api/balance_capture",
+        "route:/api/reset_notches",
+        "route:/api/scene",
+        "route:/api/panic",
+        "route:/api/calibrate",
+        "route:/api/command",
+      ],
+      async () => {
+        const post = async (path: string, json: unknown): Promise<void> => {
+          const r = await request(log, t, "POST", path, { cookie, json });
+          must(r.status === 200, `${path} answered ${r.status}`);
+        };
+        await post("/api/toggle", { job: "clip", on: false });
+        must(engine.assistant.enabled["clip"] === false, "/api/toggle did not switch the job");
+        await post("/api/toggle", { job: "clip", on: true });
+        await post("/api/lead_target", { db: -17 });
+        must(engine.assistant.leadTarget === -17, "/api/lead_target did not set the target");
+        await post("/api/balance_capture", {});
+        await post("/api/reset_notches", {});
+        await post("/api/scene", { index: 21 });
+        await desk.expect("/-show/prepos/current", 21);
+        await post("/api/panic", { on: true });
+        await desk.expect(`${main}/mix/on`, 0);
+        await post("/api/panic", { on: false });
+        await desk.expect(`${main}/mix/on`, 1);
+        await post("/api/command", { type: "fader", ch: 1, db: -9 });
+        await desk.expect("/ch/01/mix/fader", dbToFader(-9));
+        await post("/api/calibrate", {});
+        must(engine.calibrationTask !== null, "/api/calibrate did not start a calibration");
+        await engine.calibrationTask;
+        must(
+          engine.events.some((e) => e.kind === "calibration"),
+          "calibration left no message",
+        );
+        must(
+          (await request(log, t, "POST", "/api/nope", { cookie, json: {} })).status === 404,
+          "an unknown control address did not answer 404",
+        );
+        return "eight control addresses answered; scene, takeover and fader were read back from the emulated console";
+      },
+    );
     await W("web_origin", "A request from another website is refused", ["feature:origin-guard"], async () => {
       const r = await request(log, t, "POST", "/api/toggle", { cookie, json: { job: "clip", on: false }, origin: "http://evil.example" });
       must(r.status === 403, `a cross-site request answered ${r.status}, expected 403`);
@@ -516,19 +569,24 @@ async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
         return "a certificate was made, the dashboard answered over https with that exact certificate and the cookie is Secure";
       });
     });
-    await W("tls_trusted", "Trusted HTTPS: the local root signs a certificate that verifies against it", ["feature:trust", "route:/ca.pem", "route:/ca.crt"], async () => {
-      const [certfile, keyfile, cafile] = ensureTrustedCert(join(dir, "trusted"), hosts);
-      const caPem = readFileSync(cafile, "utf8");
-      const tls = { key: readFileSync(keyfile, "utf8"), cert: readFileSync(certfile, "utf8") };
-      return withServer({ engine, staticDir, pin, tls, caPem }, true, caPem, async (t) => {
-        must((await request(log, t, "GET", "/")).status === 200, "the page was not served over trusted https");
-        for (const path of ["/ca.pem", "/ca.crt"]) {
-          const r = await request(log, t, "GET", path);
-          must(r.status === 200 && r.body === caPem, `${path} did not serve the root certificate`);
-        }
-        return "the connection verified against the local root with no override, and the root is downloadable";
-      });
-    });
+    await W(
+      "tls_trusted",
+      "Trusted HTTPS: the local root signs a certificate that verifies against it",
+      ["feature:trust", "route:/ca.pem", "route:/ca.crt"],
+      async () => {
+        const [certfile, keyfile, cafile] = ensureTrustedCert(join(dir, "trusted"), hosts);
+        const caPem = readFileSync(cafile, "utf8");
+        const tls = { key: readFileSync(keyfile, "utf8"), cert: readFileSync(certfile, "utf8") };
+        return withServer({ engine, staticDir, pin, tls, caPem }, true, caPem, async (t) => {
+          must((await request(log, t, "GET", "/")).status === 200, "the page was not served over trusted https");
+          for (const path of ["/ca.pem", "/ca.crt"]) {
+            const r = await request(log, t, "GET", path);
+            must(r.status === 200 && r.body === caPem, `${path} did not serve the root certificate`);
+          }
+          return "the connection verified against the local root with no override, and the root is downloadable";
+        });
+      },
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -546,7 +604,15 @@ async function emulated(ctx: Ctx): Promise<void> {
         return { host: "127.0.0.1", port: emu.listenPort };
       });
     } catch (e) {
-      ctx.rows.push({ id: "emu_start", area: EMU, title: "The emulator starts", status: "fail", proof: "this computer", detail: errText(e), covers: [] });
+      ctx.rows.push({
+        id: "emu_start",
+        area: EMU,
+        title: "The emulator starts",
+        status: "fail",
+        proof: "this computer",
+        detail: errText(e),
+        covers: [],
+      });
       return;
     }
     const desk = box.emu;
@@ -565,7 +631,13 @@ const REAL = "Real console";
 
 function liveLink(ctx: Ctx, live: LiveConsole): Link {
   const target: Peer = { host: live.ip, port: live.port };
-  const desk = new Desk({ transmit: (data) => live.rx.send(data, target), clock: ctx.clock, log: ctx.log, proof: "real console", stopped: ctx.stopped });
+  const desk = new Desk({
+    transmit: (data) => live.rx.send(data, target),
+    clock: ctx.clock,
+    log: ctx.log,
+    proof: "real console",
+    stopped: ctx.stopped,
+  });
   live.rx.onMessage = (addr, args) => desk.receive(addr, args);
   if (ctx.hooks.control) desk.holdMain = ctx.hooks.control.takeover;
   return { desk, rx: live.rx };
@@ -588,7 +660,12 @@ async function realConsole(ctx: Ctx): Promise<void> {
   const live = ctx.hooks.live ?? null;
   let made: Link;
   try {
-    made = live !== null ? liveLink(ctx, live) : await link(ctx, "0.0.0.0", ctx.hooks.localPort ?? C.LOCAL_PORT, isIP(ip) !== 0 ? ip : null, "real console", () => Promise.resolve({ host: ip, port: C.CONSOLE_PORT }));
+    made =
+      live !== null
+        ? liveLink(ctx, live)
+        : await link(ctx, "0.0.0.0", ctx.hooks.localPort ?? C.LOCAL_PORT, isIP(ip) !== 0 ? ip : null, "real console", () =>
+            Promise.resolve({ host: ip, port: C.CONSOLE_PORT }),
+          );
   } catch (e) {
     ctx.rows.push({
       id: "con_listen",
@@ -612,7 +689,13 @@ async function realConsole(ctx: Ctx): Promise<void> {
 const SOUND = "Sound path";
 
 async function sound(ctx: Ctx): Promise<void> {
-  const spec: StepSpec = { id: "sound_noise", area: SOUND, title: "Test noise from the speakers reaches the measurement input", proof: "this computer", covers: ["feature:sound-path"] };
+  const spec: StepSpec = {
+    id: "sound_noise",
+    area: SOUND,
+    title: "Test noise from the speakers reaches the measurement input",
+    proof: "this computer",
+    covers: ["feature:sound-path"],
+  };
   const open = ctx.hooks.openSource;
   if (open === null) {
     skipRow(ctx.rows, ctx.log, spec, "needs an input: add --audio-device <number> (and --output-device for the PA)");
@@ -648,7 +731,13 @@ const PHONE = "Phone";
 
 async function phone(ctx: Ctx): Promise<void> {
   const { args, io } = ctx;
-  const spec: StepSpec = { id: "phone_login", area: PHONE, title: "A device on the network signs in", proof: "this computer", covers: ["feature:phone-login"] };
+  const spec: StepSpec = {
+    id: "phone_login",
+    area: PHONE,
+    title: "A device on the network signs in",
+    proof: "this computer",
+    covers: ["feature:phone-login"],
+  };
   if (!args.pin || !args.lan) {
     skipRow(ctx.rows, ctx.log, spec, "needs the network and a PIN: add --lan --pin <at least 6 characters> (and --https to test that too)");
     return;
@@ -678,7 +767,9 @@ async function phone(ctx: Ctx): Promise<void> {
     const wait = ctx.hooks.phoneSeconds ?? PHONE_WAIT_S;
     try {
       io.out("");
-      io.out(`  PHONE: open ${tls ? "https" : "http"}://${ip}:${args.port}/ on the phone and enter the PIN. Waiting up to ${wait} seconds.`);
+      io.out(
+        `  PHONE: open ${tls ? "https" : "http"}://${ip}:${args.port}/ on the phone and enter the PIN. Waiting up to ${wait} seconds.`,
+      );
       if (tls) io.out("         If the phone shows a certificate warning, accept it to continue.");
       const t0 = ctx.clock.monotonic();
       while (who === null && !ctx.stopped() && ctx.clock.monotonic() - t0 < wait) await ctx.clock.sleep(0.25);
@@ -686,7 +777,10 @@ async function phone(ctx: Ctx): Promise<void> {
       await server.stop();
     }
     if (who === null && ctx.stopped()) throw new VetSkip("stopped before a phone signed in");
-    must(who !== null, `no phone signed in within ${wait} seconds; check it is on the same network and that this computer's firewall allows port ${args.port}`);
+    must(
+      who !== null,
+      `no phone signed in within ${wait} seconds; check it is on the same network and that this computer's firewall allows port ${args.port}`,
+    );
     return `a device at ${String(who)} signed in over ${tls ? "https" : "http"}`;
   });
 }
@@ -707,9 +801,16 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
       }
       const lines: string[] = [];
       const scrub = req.identify ? (text: string): string => text : scrubberFor(io);
-      const out = await runVet(parseCliArgs(flags), { ...io, out: (l) => lines.push(l.replace(/\r/g, "")) }, { openSource: null, lanIp, live, control });
+      const out = await runVet(
+        parseCliArgs(flags),
+        { ...io, out: (l) => lines.push(l.replace(/\r/g, "")) },
+        { openSource: null, lanIp, live, control },
+      );
       if (control.appState !== undefined) lines.push(...scrub(redact(control.appState().join("\n"), systemFacts().home)).split("\n"));
-      lines.push("", `  Checksum: SHA-256 of every line above, joined with line breaks: ${createHash("sha256").update(lines.join("\n"), "utf8").digest("hex")}`);
+      lines.push(
+        "",
+        `  Checksum: SHA-256 of every line above, joined with line breaks: ${createHash("sha256").update(lines.join("\n"), "utf8").digest("hex")}`,
+      );
       const count = (st: string): number => out.rows.filter((r) => r.status === st).length;
       return {
         text: lines.join("\n"),
@@ -822,7 +923,10 @@ export async function runVet(args: Args, ioIn: Io, hooks: VetHooks): Promise<Vet
     }
   };
   const setup = scrub(redact((await setupLines(io, hooks.lanIp)).join("\n"), sys.home)).split("\n");
-  write([...head, ...setup, "", "--- every step, with the console commands sent and the replies received (meter data is not logged) ---"], true);
+  write(
+    [...head, ...setup, "", "--- every step, with the console commands sent and the replies received (meter data is not logged) ---"],
+    true,
+  );
   const log = new VetLog(io.clock, (line) => write([line]));
   let stop = false;
   void io.waitForStop().then(() => {
@@ -844,12 +948,23 @@ export async function runVet(args: Args, ioIn: Io, hooks: VetHooks): Promise<Vet
     if (args.vetSound) await sound(ctx);
     if (args.vetPhone) await phone(ctx);
   } catch (e) {
-    ctx.rows.push({ id: "vet_crash", area: "Test run", title: "The test run itself", status: "fail", proof: "nothing", detail: `stopped on an unexpected error: ${errText(e)}`, covers: [] });
+    ctx.rows.push({
+      id: "vet_crash",
+      area: "Test run",
+      title: "The test run itself",
+      status: "fail",
+      proof: "nothing",
+      detail: `stopped on an unexpected error: ${errText(e)}`,
+      covers: [],
+    });
   } finally {
     process.off("SIGINT", holdInterrupt);
   }
   const pending: [boolean, string][] = [
-    [!args.hardware, "A real console was not tested: add --hardware --console-ip <address>, then --vet-channel <number> to test control on one channel."],
+    [
+      !args.hardware,
+      "A real console was not tested: add --hardware --console-ip <address>, then --vet-channel <number> to test control on one channel.",
+    ],
     [!args.vetSound, "The sound path was not tested: add --vet-sound --audio-device <number> (this plays noise)."],
     [!args.vetPhone, "A phone was not tested: add --vet-phone --lan --pin <PIN>."],
   ];

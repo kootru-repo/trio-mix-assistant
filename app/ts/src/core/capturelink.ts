@@ -471,8 +471,20 @@ export class RemoteCapture extends CaptureSourceBase {
   }
 
   override status(): CaptureStatus {
-    const base: CaptureStatus = this.last?.status ?? { kind: "audio", name: null, device: this.device === null ? "default" : String(this.device) };
-    return { ...base, dead: this.dead(), silent: this.silent(), lastError: this.lastError ?? base["lastError"] ?? null, stale: this.stale, lag_ms: Math.round(this.lagMs * 10) / 10, link: this.state };
+    const base: CaptureStatus = this.last?.status ?? {
+      kind: "audio",
+      name: null,
+      device: this.device === null ? "default" : String(this.device),
+    };
+    return {
+      ...base,
+      dead: this.dead(),
+      silent: this.silent(),
+      lastError: this.lastError ?? base["lastError"] ?? null,
+      stale: this.stale,
+      lag_ms: Math.round(this.lagMs * 10) / 10,
+      link: this.state,
+    };
   }
 }
 

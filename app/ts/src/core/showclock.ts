@@ -103,7 +103,11 @@ export const MAX_SHOW_TEXT = 120;
 
 const asStr = (args: OscArg[]): string => (args.length ? argText(args[0]!).trim().slice(0, MAX_SHOW_TEXT) : "");
 
-const hostKey = (host: string): string => host.trim().toLowerCase().replace(/^::ffff:/, "");
+const hostKey = (host: string): string =>
+  host
+    .trim()
+    .toLowerCase()
+    .replace(/^::ffff:/, "");
 
 const SHOW_ADDRESSES = new Set([
   "/setlist/activeSongName",

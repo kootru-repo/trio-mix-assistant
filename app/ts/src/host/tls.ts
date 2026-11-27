@@ -117,13 +117,7 @@ function certCovers(cert: X509Certificate, hosts: readonly string[]): boolean {
 }
 
 function serverExtensions(hosts: readonly string[], extra: readonly Buffer[]): Buffer[] {
-  return [
-    subjectAltNameExt(hosts),
-    basicConstraintsExt(false, null),
-    keyUsageExt("server"),
-    serverAuthExt(),
-    ...extra,
-  ];
+  return [subjectAltNameExt(hosts), basicConstraintsExt(false, null), keyUsageExt("server"), serverAuthExt(), ...extra];
 }
 
 export function certIsCurrent(certfile: string, hosts: readonly string[] = []): boolean {
@@ -177,14 +171,7 @@ export function ensureTrustedCert(certdir: string, allHosts: readonly string[]):
   const certfile = join(certdir, "cert.pem");
   const keyfile = join(certdir, "key.pem");
   ensureCa(cafile, cakey);
-  if (
-    !(
-      existsSync(certfile) &&
-      existsSync(keyfile) &&
-      certIsCurrent(certfile, hosts) &&
-      issuedBy(certfile, cafile)
-    )
-  ) {
+  if (!(existsSync(certfile) && existsSync(keyfile) && certIsCurrent(certfile, hosts) && issuedBy(certfile, cafile))) {
     generateLeafFromCa(certfile, keyfile, hosts, cafile, cakey);
   }
   restrict(keyfile);
@@ -242,13 +229,7 @@ function ensureCa(cafile: string, cakey: string): void {
   writeFileSync(cafile, toPem(der, "CERTIFICATE"));
 }
 
-function generateLeafFromCa(
-  certfile: string,
-  keyfile: string,
-  hosts: readonly string[],
-  cafile: string,
-  cakey: string,
-): void {
+function generateLeafFromCa(certfile: string, keyfile: string, hosts: readonly string[], cafile: string, cakey: string): void {
   const ca = loadCert(cafile);
   const caKey = createPrivateKey(readFileSync(cakey));
   if (caKey.asymmetricKeyType !== "rsa") {
@@ -256,9 +237,7 @@ function generateLeafFromCa(
   }
   const bits = caKey.asymmetricKeyDetails?.modulusLength ?? 0;
   if (bits < MIN_KEY_BITS) {
-    throw new TLSUnavailable(
-      `the local root CA key is ${bits} bits, below the ${MIN_KEY_BITS}-bit minimum; delete .certs to rebuild`,
-    );
+    throw new TLSUnavailable(`the local root CA key is ${bits} bits, below the ${MIN_KEY_BITS}-bit minimum; delete .certs to rebuild`);
   }
   const key = generateRsa();
   const t = now();

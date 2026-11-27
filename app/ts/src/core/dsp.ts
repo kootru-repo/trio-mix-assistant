@@ -181,12 +181,7 @@ export interface PhaseRelation {
 
 const noPhase = (): PhaseRelation => ({ zeroCorr: 0, bestCorr: 0, lagSamples: 0, lagMs: 0 });
 
-export function phaseRelation(
-  a: Samples,
-  b: Samples,
-  sr: number = C.SAMPLE_RATE,
-  maxLagMs: number = C.phase.maxLagMs,
-): PhaseRelation {
+export function phaseRelation(a: Samples, b: Samples, sr: number = C.SAMPLE_RATE, maxLagMs: number = C.phase.maxLagMs): PhaseRelation {
   const n = Math.min(a.length, b.length);
   if (n < 16) return noPhase();
   const x = new Float64Array(n);

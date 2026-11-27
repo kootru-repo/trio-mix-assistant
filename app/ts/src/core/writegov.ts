@@ -56,10 +56,13 @@ function argEqual(x: OscArg, y: OscArg): boolean {
 }
 
 export function sameArgs(a: readonly OscArg[], b: readonly OscArg[]): boolean {
-  return a.length === b.length && a.every((x, i) => {
-    const y = b[i];
-    return y !== undefined && argEqual(x, y);
-  });
+  return (
+    a.length === b.length &&
+    a.every((x, i) => {
+      const y = b[i];
+      return y !== undefined && argEqual(x, y);
+    })
+  );
 }
 
 export class WriteGovernor {

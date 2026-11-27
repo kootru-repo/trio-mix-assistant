@@ -14,7 +14,17 @@ const RULES: readonly Rule[] = [
   { name: "a comment line (the project keeps code free of comments)", pattern: /^\s*(\/\/|\/\*)/ },
   { name: "a double cast through unknown", pattern: /\bas\s+unknown\s+as\b/ },
   { name: "a TypeScript error suppression", pattern: /@ts-(ignore|expect-error|nocheck)/ },
-  { name: "a lint suppression", pattern: new RegExp([["biome", "ignore"], ["eslint", "disable"]].map((w) => w.join("-")).join("|")) },
+  {
+    name: "a lint suppression",
+    pattern: new RegExp(
+      [
+        ["biome", "ignore"],
+        ["eslint", "disable"],
+      ]
+        .map((w) => w.join("-"))
+        .join("|"),
+    ),
+  },
   { name: "a skipped or focused test", pattern: /\b(it|test|describe)\.(skip|only|todo)\s*\(|\bskip:\s*true\b/ },
 ];
 
@@ -52,7 +62,7 @@ function bannedPackages(): Finding[] {
 
 function biome(): number {
   const bin = join(appDir, "ts", "node_modules", "@biomejs", "biome", "bin", "biome");
-  const r = spawnSync(process.execPath, [bin, "lint", "."], { cwd: appDir, stdio: "inherit" });
+  const r = spawnSync(process.execPath, [bin, "check", "."], { cwd: appDir, stdio: "inherit" });
   return r.status ?? 1;
 }
 

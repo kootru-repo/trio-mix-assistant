@@ -8,8 +8,6 @@ export interface Clock {
   hhmmss(): string;
 }
 
-
-
 export function formatHhmmss(epochSeconds: number, utc: boolean): string {
   const d = new Date(epochSeconds * 1000);
   return utc

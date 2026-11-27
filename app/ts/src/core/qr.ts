@@ -131,11 +131,7 @@ function isAlphaNum(b: number): boolean {
   return b < 128 && ALPHA_NUM.includes(String.fromCharCode(b));
 }
 
-function splitRuns(
-  data: number[],
-  cls: (b: number) => boolean,
-  anchored: boolean,
-): { hit: boolean; chunk: number[] }[] {
+function splitRuns(data: number[], cls: (b: number) => boolean, anchored: boolean): { hit: boolean; chunk: number[] }[] {
   const out: { hit: boolean; chunk: number[] }[] = [];
   let rest = data;
   while (rest.length > 0) {
@@ -437,18 +433,8 @@ function lostPoint(m: boolean[][]): number {
           !get(k, i + 5) &&
           get(k, i + 6) &&
           !get(k, i + 9) &&
-          ((get(k, i) &&
-            get(k, i + 2) &&
-            get(k, i + 3) &&
-            !get(k, i + 7) &&
-            !get(k, i + 8) &&
-            !get(k, i + 10)) ||
-            (!get(k, i) &&
-              !get(k, i + 2) &&
-              !get(k, i + 3) &&
-              get(k, i + 7) &&
-              get(k, i + 8) &&
-              get(k, i + 10)))
+          ((get(k, i) && get(k, i + 2) && get(k, i + 3) && !get(k, i + 7) && !get(k, i + 8) && !get(k, i + 10)) ||
+            (!get(k, i) && !get(k, i + 2) && !get(k, i + 3) && get(k, i + 7) && get(k, i + 8) && get(k, i + 10)))
         ) {
           lost += 40;
         }
@@ -494,8 +480,7 @@ function blankModules(version: number): Cell[][] {
       if (modules[row]![col] !== null) continue;
       for (let r = -2; r <= 2; r++) {
         for (let c = -2; c <= 2; c++) {
-          modules[row + r]![col + c] =
-            r === -2 || r === 2 || c === -2 || c === 2 || (r === 0 && c === 0);
+          modules[row + r]![col + c] = r === -2 || r === 2 || c === -2 || c === 2 || (r === 0 && c === 0);
         }
       }
     }
@@ -512,13 +497,7 @@ function blankModules(version: number): Cell[][] {
   return modules;
 }
 
-function makeImpl(
-  version: number,
-  data: number[],
-  test: boolean,
-  mask: number,
-  blank: Cell[][],
-): Cell[][] {
+function makeImpl(version: number, data: number[], test: boolean, mask: number, blank: Cell[][]): Cell[][] {
   const n = version * 4 + 17;
   const modules = blank.map((r) => r.slice());
 

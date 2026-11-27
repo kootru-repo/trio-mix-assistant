@@ -20,7 +20,14 @@ export class Coach {
     this.emit = emit;
   }
 
-  recommend(kind: string, ch: number | null, text: string, persist: boolean = false, meta: Record<string, unknown> = {}, key: string = coachKey(kind, ch)): void {
+  recommend(
+    kind: string,
+    ch: number | null,
+    text: string,
+    persist: boolean = false,
+    meta: Record<string, unknown> = {},
+    key: string = coachKey(kind, ch),
+  ): void {
     this.coachSeq += 1;
     this.coachRecs.set(key, {
       ...meta,

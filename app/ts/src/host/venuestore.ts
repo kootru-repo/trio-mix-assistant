@@ -91,7 +91,8 @@ export class VenueStore implements VenueStorePort {
         if (!isRecord(f)) return this.setAside(path);
         const hz = f["hz"];
         const count = f["count"];
-        if (typeof hz !== "number" || typeof count !== "number" || !Number.isFinite(hz) || !Number.isFinite(count)) return this.setAside(path);
+        if (typeof hz !== "number" || typeof count !== "number" || !Number.isFinite(hz) || !Number.isFinite(count))
+          return this.setAside(path);
         entries.push({ hz, count });
       }
       const named = "venue" in d ? d["venue"] : venue;

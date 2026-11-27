@@ -104,12 +104,7 @@ function two(n: number): string {
 export function time(d: Date): Buffer {
   const year = d.getUTCFullYear();
   const rest =
-    two(d.getUTCMonth() + 1) +
-    two(d.getUTCDate()) +
-    two(d.getUTCHours()) +
-    two(d.getUTCMinutes()) +
-    two(d.getUTCSeconds()) +
-    "Z";
+    two(d.getUTCMonth() + 1) + two(d.getUTCDate()) + two(d.getUTCHours()) + two(d.getUTCMinutes()) + two(d.getUTCSeconds()) + "Z";
   if (year >= 1950 && year < 2050) return tlv(0x17, Buffer.from(two(year % 100) + rest, "ascii"));
   return tlv(0x18, Buffer.from(String(year).padStart(4, "0") + rest, "ascii"));
 }

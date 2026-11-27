@@ -10,9 +10,7 @@ interface Case {
   ascii: string;
 }
 
-const fixture = JSON.parse(
-  readFileSync(new URL("../fixtures/qr.json", import.meta.url), "utf8"),
-) as { cases: Case[] };
+const fixture = JSON.parse(readFileSync(new URL("../fixtures/qr.json", import.meta.url), "utf8")) as { cases: Case[] };
 
 const rows = (m: boolean[][]): string[] => m.map((r) => r.map((v) => (v ? "1" : "0")).join(""));
 

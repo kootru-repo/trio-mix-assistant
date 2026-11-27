@@ -87,9 +87,17 @@ test("the simulation starts, serves the dashboard and state, and guards control 
     assert.ok(page.body.includes("/dashboard.js"));
     assert.equal((await get(base, "/dashboard.js")).status, 200);
     const payload = JSON.stringify({ on: true });
-    const cross = await get(base, "/api/panic", { method: "POST", body: payload, headers: { Origin: "https://evil.example", "Content-Type": "text/plain" } });
+    const cross = await get(base, "/api/panic", {
+      method: "POST",
+      body: payload,
+      headers: { Origin: "https://evil.example", "Content-Type": "text/plain" },
+    });
     assert.equal(cross.status, 403);
-    const same = await get(base, "/api/panic", { method: "POST", body: payload, headers: { Origin: base, "Content-Type": "application/json" } });
+    const same = await get(base, "/api/panic", {
+      method: "POST",
+      body: payload,
+      headers: { Origin: base, "Content-Type": "application/json" },
+    });
     assert.equal(same.status, 200);
     assert.equal(JSON.parse(same.body).status, "takeover");
     await new Promise((r) => setTimeout(r, 1000));
@@ -188,7 +196,8 @@ test("the app hears a console that replies only to the port the request came fro
       for (const m of decodePacket(new Uint8Array(data))) {
         asked.add(m.address);
         if (m.address !== "/batchsubscribe") continue;
-        for (let i = 0; i < 5; i++) desk.send(encodeMessage("/meters/1", [oscBlob(encodeMeterBlob([0.1, 0.2, 0.3, 0.4]))]), from.port, from.address);
+        for (let i = 0; i < 5; i++)
+          desk.send(encodeMessage("/meters/1", [oscBlob(encodeMeterBlob([0.1, 0.2, 0.3, 0.4]))]), from.port, from.address);
       }
     });
     await new Promise<void>((resolve, reject) => {

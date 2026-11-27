@@ -76,7 +76,9 @@ export class FeedbackJob {
         const hz = fixed(feat.fbFreq, 0);
         if (ch === C.MEAS_MIC_CH) {
           const coaching = this.ctx.coaching();
-          const band = coaching ? this.allocBusBand([...new Set([...this.fbBusBands, ...this.coachBusBands])], this.coachBusUsed) : this.allocBusBand();
+          const band = coaching
+            ? this.allocBusBand([...new Set([...this.fbBusBands, ...this.coachBusBands])], this.coachBusUsed)
+            : this.allocBusBand();
           if (band < 0) {
             this.ctx.emit("system", "no free main-bus band for a feedback notch");
           } else if (coaching) {

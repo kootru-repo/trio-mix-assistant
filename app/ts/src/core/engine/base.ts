@@ -399,7 +399,10 @@ export class EngineBase {
       error: this.vetError,
       status: this.vetStatus,
       done: this.vetDone,
-      expected: Math.max(this.vetHost !== null && this.vetHost.console ? VET_EXPECTED_STEPS_WITH_CONSOLE : VET_EXPECTED_STEPS, this.vetDone + 1),
+      expected: Math.max(
+        this.vetHost !== null && this.vetHost.console ? VET_EXPECTED_STEPS_WITH_CONSOLE : VET_EXPECTED_STEPS,
+        this.vetDone + 1,
+      ),
       title: this.vetTitle,
       available: this.vetHost !== null,
       console: this.vetHost !== null && this.vetHost.console,

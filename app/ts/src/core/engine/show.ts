@@ -43,13 +43,10 @@ export class EngineShow extends EngineControls {
     const coach = this.assistant.coachMode;
     if (song.scene !== null && this.status !== "takeover") {
       if (coach) {
-        this.assistant.recommend(
-          "scene",
-          null,
-          `Song '${song.name}' → recall scene ${song.scene} on the console.`,
-          true,
-          { scene: song.scene, song: song.name },
-        );
+        this.assistant.recommend("scene", null, `Song '${song.name}' → recall scene ${song.scene} on the console.`, true, {
+          scene: song.scene,
+          song: song.name,
+        });
       } else if (!validScene(song.scene) || !this.safeRecall(song.scene)) {
         this.show.scene = null;
       }
@@ -139,5 +136,4 @@ export class EngineShow extends EngineControls {
       return null;
     }
   }
-
 }

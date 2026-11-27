@@ -14,16 +14,7 @@ import { Hub } from "./server/hub.ts";
 import type { Sink } from "./server/hub.ts";
 import { BadMessage, decodeUtf8, jsonForHtml, jsonText, strOf, strictLoads } from "./server/json.ts";
 import { AddressCounter, CommandBudget, GLOBAL_COMMAND_KEY, LoginLimiter, globalCommandBudget, limiterKey } from "./server/limiter.ts";
-import {
-  CLOSE_INTERNAL,
-  WsAssembler,
-  WsParser,
-  closeCodeOf,
-  wsAccept,
-  wsCloseFrame,
-  wsFrame,
-  wsKeyValid,
-} from "./server/ws.ts";
+import { CLOSE_INTERNAL, WsAssembler, WsParser, closeCodeOf, wsAccept, wsCloseFrame, wsFrame, wsKeyValid } from "./server/ws.ts";
 import type { WsFrame } from "./server/ws.ts";
 import { appVersion } from "./version.ts";
 
@@ -235,8 +226,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
   };
 
   const hostOk = (req: IncomingMessage): boolean => hostAllowed(headerOf(req, "host"));
-  const originOk = (req: IncomingMessage): boolean =>
-    originAllowed(headerOf(req, "origin") ?? null, headerOf(req, "host"));
+  const originOk = (req: IncomingMessage): boolean => originAllowed(headerOf(req, "origin") ?? null, headerOf(req, "host"));
 
   const fail = (res: ServerResponse, e: unknown): void => {
     try {

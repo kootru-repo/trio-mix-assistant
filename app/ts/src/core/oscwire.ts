@@ -1,8 +1,4 @@
-export type OscArg =
-  | { t: "i"; v: number }
-  | { t: "f"; v: number }
-  | { t: "s"; v: string }
-  | { t: "b"; v: Uint8Array };
+export type OscArg = { t: "i"; v: number } | { t: "f"; v: number } | { t: "s"; v: string } | { t: "b"; v: Uint8Array };
 
 export interface OscMessage {
   address: string;

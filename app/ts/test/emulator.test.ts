@@ -449,17 +449,11 @@ test("showdump, show-file slots and setlist scene names", async () => {
     };
     assert.ok((await ask("/showdump")).startsWith("/-show/showfile/show "));
     assert.equal(await ask("/node", oscStr("-show/showfile/cue/494")), '/-show/showfile/cue/494 0 "" 0 0 0 0 0 0 0\n');
-    assert.equal(
-      await ask("/node", oscStr("-show/showfile/scene/099")),
-      '/-show/showfile/scene/099 "" "" %000000000 0\n',
-    );
+    assert.equal(await ask("/node", oscStr("-show/showfile/scene/099")), '/-show/showfile/scene/099 "" "" %000000000 0\n');
     assert.equal(await ask("/node", oscStr("-show/showfile/snippet/000")), '/-show/showfile/snippet/000 "" 0 0 0 0 0\n');
     assert.ok((await ask("/node", oscStr("-show/showfile/show"))).startsWith("/-show/showfile/show "));
     r.desk.sceneNames = new Map([[2, "Bloom"]]);
-    assert.equal(
-      await ask("/node", oscStr("-show/showfile/scene/002")),
-      '/-show/showfile/scene/002 "Bloom" "" %111111111 1\n',
-    );
+    assert.equal(await ask("/node", oscStr("-show/showfile/scene/002")), '/-show/showfile/scene/002 "Bloom" "" %111111111 1\n');
   } finally {
     r.stop();
   }

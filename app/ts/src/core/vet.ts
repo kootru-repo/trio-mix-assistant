@@ -314,7 +314,8 @@ async function writeCheck(rows: VetRow[], desk: Desk, area: string, wc: WriteCas
     if (typeof result === "string") throw new VetSkip(result);
     if (problems.length) throw new VetFailure(problems.join("; "));
     const n = result === null ? 0 : result.size;
-    if (held) return `set ${n} value${n === 1 ? "" : "s"} and read ${n === 1 ? "it" : "each"} back; the main bus was left muted because TAKEOVER is holding it`;
+    if (held)
+      return `set ${n} value${n === 1 ? "" : "s"} and read ${n === 1 ? "it" : "each"} back; the main bus was left muted because TAKEOVER is holding it`;
     return `set ${n} value${n === 1 ? "" : "s"}, read ${n === 1 ? "it" : "each"} back, then put back what was there`;
   });
 }
@@ -362,7 +363,8 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       act: (b) => {
         const db = faderToDb(b.get(fader)!);
         const t = lowered(db, C.limits.faderMinDb, C.limits.faderMaxDb);
-        if (t === null) return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.limits.faderMinDb} dB); raise it and run this again`;
+        if (t === null)
+          return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.limits.faderMinDb} dB); raise it and run this again`;
         return one(fader, dbToFader(con.setFaderDb(ch, t)));
       },
     },
@@ -375,7 +377,8 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       act: (b) => {
         const db = faderToDb(b.get(fader)!);
         const t = lowered(db, C.limits.faderMinDb, C.limits.faderMaxDb);
-        if (t === null) return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.limits.faderMinDb} dB); raise it and run this again`;
+        if (t === null)
+          return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.limits.faderMinDb} dB); raise it and run this again`;
         return one(fader, dbToFader(con.rampFaderDb(ch, db, t, 120, 4)));
       },
     },
@@ -551,12 +554,18 @@ const GROUP_OFF: Record<WriteCase["group"], string> = {
 export async function vetConsole(rows: VetRow[], desk: Desk, area: string, opts: ConsoleVetOptions): Promise<void> {
   const emulated = desk.proof === "emulator";
   let alive = false;
-  await step(rows, desk.log, { id: "con_identity", area, title: "Console answers", proof: desk.proof, covers: ["feature:console-reply", "console:query"] }, async () => {
-    const got = await desk.ask("/xinfo", true);
-    if (got === null) throw new VetFailure("no answer to an identity request; check the address, the cable or Wi-Fi, and that no firewall blocks UDP");
-    alive = true;
-    return `answered: ${argsText(got)}`;
-  });
+  await step(
+    rows,
+    desk.log,
+    { id: "con_identity", area, title: "Console answers", proof: desk.proof, covers: ["feature:console-reply", "console:query"] },
+    async () => {
+      const got = await desk.ask("/xinfo", true);
+      if (got === null)
+        throw new VetFailure("no answer to an identity request; check the address, the cable or Wi-Fi, and that no firewall blocks UDP");
+      alive = true;
+      return `answered: ${argsText(got)}`;
+    },
+  );
   const meters: StepSpec = { id: "con_meters", area, title: "Meters arrive", proof: desk.proof, covers: ["console:subscribeMeters"] };
   if (!alive) skipRow(rows, desk.log, meters, "the console did not answer");
   else {
@@ -754,47 +763,72 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       const before = await desk.num(headampAddr(4));
       e.assistant.onFeatures(4, feat({ peakDbfs: 0 }), T());
       const after = await desk.num(headampAddr(4));
-      must(before !== null && after !== null && near(before, after), "the preamp gain changed, or could not be read, while coach mode was on");
+      must(
+        before !== null && after !== null && near(before, after),
+        "the preamp gain changed, or could not be read, while coach mode was on",
+      );
       must(e.assistant.coachRecs.size > 0, "no recommendation was made for a clipping channel");
       e.command({ type: "coach", on: false });
       must(!e.assistant.coachMode, "coach mode did not switch off");
       return "a clipping channel produced a recommendation and its preamp gain did not change";
     });
-    await S("cmd_panic", "Takeover mutes the main, holds the jobs, blocks scenes, then releases", ["command:panic", "feature:takeover"], async () => {
-      e.command({ type: "panic", on: true });
-      await desk.expect(`${main}/mix/on`, 0);
-      must(e.status === "takeover", `status is '${e.status}', not takeover`);
-      must(Object.values(e.assistant.enabled).every((on) => !on), "a job stayed on during takeover");
-      const scene = await desk.num(SCENE_ADDR);
-      e.command({ type: "scene", index: 9 });
-      const after = await desk.num(SCENE_ADDR);
-      must(scene !== null && after !== null && near(scene, after), "a scene was recalled, or could not be read, during takeover");
-      e.command({ type: "panic", on: false });
-      await desk.expect(`${main}/mix/on`, 1);
-      must(e.status === "live", `status is '${e.status}' after release`);
-      must(e.assistant.enabled["clip"] === true, "the jobs were not restored after release");
-      return "main muted and unmuted; scene recall refused in between";
-    });
+    await S(
+      "cmd_panic",
+      "Takeover mutes the main, holds the jobs, blocks scenes, then releases",
+      ["command:panic", "feature:takeover"],
+      async () => {
+        e.command({ type: "panic", on: true });
+        await desk.expect(`${main}/mix/on`, 0);
+        must(e.status === "takeover", `status is '${e.status}', not takeover`);
+        must(
+          Object.values(e.assistant.enabled).every((on) => !on),
+          "a job stayed on during takeover",
+        );
+        const scene = await desk.num(SCENE_ADDR);
+        e.command({ type: "scene", index: 9 });
+        const after = await desk.num(SCENE_ADDR);
+        must(scene !== null && after !== null && near(scene, after), "a scene was recalled, or could not be read, during takeover");
+        e.command({ type: "panic", on: false });
+        await desk.expect(`${main}/mix/on`, 1);
+        must(e.status === "live", `status is '${e.status}' after release`);
+        must(e.assistant.enabled["clip"] === true, "the jobs were not restored after release");
+        return "main muted and unmuted; scene recall refused in between";
+      },
+    );
     await S("cmd_balance_capture", "Balance capture", ["command:balance_capture"], async () => {
-      e.onPushedBlock({ feats: new Map([[4, feat({})], [5, feat({})]]), phases: [] }, 0);
+      e.onPushedBlock(
+        {
+          feats: new Map([
+            [4, feat({})],
+            [5, feat({})],
+          ]),
+          phases: [],
+        },
+        0,
+      );
       e.command({ type: "balance_capture" });
       must(e.assistant.balanceTargets.size === 2, `captured ${e.assistant.balanceTargets.size} targets, expected 2`);
       return "captured a target for both balance channels";
     });
-    await S("cmd_calibrate", "Calibration analyses a built-in test recording and writes the main-bus EQ", ["command:calibrate", "feature:calibration"], async () => {
-      e.command({ type: "calibrate" });
-      must(e.calibrationTask !== null, "calibration did not start");
-      await e.calibrationTask;
-      must(e.calibStatus === "done" && e.calib !== null, `calibration ended as '${e.calibStatus}'`);
-      const plan = e.calib === null ? [] : e.calibrator.plan(e.calib);
-      must(plan.length > 0, "the built-in test room produced no corrections");
-      for (const s of plan) {
-        await desk.expect(`${main}/eq/${s.band}/f`, freqToEqParam(s.hz));
-        await desk.expect(`${main}/eq/${s.band}/g`, clamp((s.gain + 15) / 30, 0, 1));
-      }
-      await desk.expect(`${main}/eq/on`, 1);
-      return `${plan.length} main-bus band(s) written from a built-in test recording (no sound was played)`;
-    });
+    await S(
+      "cmd_calibrate",
+      "Calibration analyses a built-in test recording and writes the main-bus EQ",
+      ["command:calibrate", "feature:calibration"],
+      async () => {
+        e.command({ type: "calibrate" });
+        must(e.calibrationTask !== null, "calibration did not start");
+        await e.calibrationTask;
+        must(e.calibStatus === "done" && e.calib !== null, `calibration ended as '${e.calibStatus}'`);
+        const plan = e.calib === null ? [] : e.calibrator.plan(e.calib);
+        must(plan.length > 0, "the built-in test room produced no corrections");
+        for (const s of plan) {
+          await desk.expect(`${main}/eq/${s.band}/f`, freqToEqParam(s.hz));
+          await desk.expect(`${main}/eq/${s.band}/g`, clamp((s.gain + 15) / 30, 0, 1));
+        }
+        await desk.expect(`${main}/eq/on`, 1);
+        return `${plan.length} main-bus band(s) written from a built-in test recording (no sound was played)`;
+      },
+    );
     await S("cmd_diagnose", "Run checks produces a report", ["command:diagnose"], async () => {
       e.diagHost = () => ({
         app: "vet",
@@ -877,7 +911,16 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       return `lead fader raised to ${fixed(now, 1)} dB`;
     });
     await S("job_balance", "Balance job: the fader of a channel that drops is raised", ["job:balance"], async () => {
-      j.onPushedBlock({ feats: new Map([[4, feat({})], [5, feat({})]]), phases: [] }, 0);
+      j.onPushedBlock(
+        {
+          feats: new Map([
+            [4, feat({})],
+            [5, feat({})],
+          ]),
+          phases: [],
+        },
+        0,
+      );
       j.setEnabled("balance", true);
       const start = j.assistant.faderDb.get(5) ?? 0;
       j.assistant.onFeatures(5, feat({ rmsDbfs: -55 }), T(2));
@@ -897,18 +940,23 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       j.setEnabled("phase", false);
       return "channel 6 polarity was inverted";
     });
-    await S("job_unmask", "Unmask job: another channel (2) dips while the lead vocal is up, and is released when the job is switched off", ["job:unmask"], async () => {
-      j.setEnabled("unmask", true);
-      for (let i = 0; i < 20; i++) j.assistant.onFeatures(C.LEAD_VOCAL_CH, feat({ rmsDbfs: -20 }), T());
-      const applied = j.assistant.duckApplied.get(2);
-      must(applied !== undefined && applied < -1, "no dip was applied while the vocal was up");
-      const addr = `/ch/02/eq/${C.unmask.band}/g`;
-      const held = await desk.num(addr);
-      must(held !== null && held < 0.5 - 1 / 30, `the dip did not reach the console (${held === null ? "no answer" : fixed(held, 3)})`);
-      j.setEnabled("unmask", false);
-      await desk.expect(addr, 0.5);
-      return "channel 2 EQ band dipped by more than 1 dB while the lead vocal was up, then returned to flat";
-    });
+    await S(
+      "job_unmask",
+      "Unmask job: another channel (2) dips while the lead vocal is up, and is released when the job is switched off",
+      ["job:unmask"],
+      async () => {
+        j.setEnabled("unmask", true);
+        for (let i = 0; i < 20; i++) j.assistant.onFeatures(C.LEAD_VOCAL_CH, feat({ rmsDbfs: -20 }), T());
+        const applied = j.assistant.duckApplied.get(2);
+        must(applied !== undefined && applied < -1, "no dip was applied while the vocal was up");
+        const addr = `/ch/02/eq/${C.unmask.band}/g`;
+        const held = await desk.num(addr);
+        must(held !== null && held < 0.5 - 1 / 30, `the dip did not reach the console (${held === null ? "no answer" : fixed(held, 3)})`);
+        j.setEnabled("unmask", false);
+        await desk.expect(addr, 0.5);
+        return "channel 2 EQ band dipped by more than 1 dB while the lead vocal was up, then returned to flat";
+      },
+    );
 
     const src = new VetSource();
     const a = make(src);
@@ -949,15 +997,28 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       a.setEnabled("clip", false);
       return "full-scale samples went through the analyser; channel 5 preamp trimmed";
     });
-    await S("audio_phase", "Test audio: an inverted pair is detected in the samples and flipped", ["feature:audio-to-polarity"], async () => {
-      desk.send("/ch/06/preamp/invert", oscInt(0));
-      a.setEnabled("phase", true);
-      const flipped = (): boolean => a.assistant.polarity.get(6) === true;
-      run(() => new Map([[5, tone(220, 0.2)], [6, tone(220, 0.2, -1)]]), C.phase.sustain + 8, flipped);
-      must(flipped(), "an inverted pair in the samples was not flipped");
-      await desk.expect("/ch/06/preamp/invert", 1);
-      return "inverted samples went through the analyser; channel 6 polarity flipped";
-    });
+    await S(
+      "audio_phase",
+      "Test audio: an inverted pair is detected in the samples and flipped",
+      ["feature:audio-to-polarity"],
+      async () => {
+        desk.send("/ch/06/preamp/invert", oscInt(0));
+        a.setEnabled("phase", true);
+        const flipped = (): boolean => a.assistant.polarity.get(6) === true;
+        run(
+          () =>
+            new Map([
+              [5, tone(220, 0.2)],
+              [6, tone(220, 0.2, -1)],
+            ]),
+          C.phase.sustain + 8,
+          flipped,
+        );
+        must(flipped(), "an inverted pair in the samples was not flipped");
+        await desk.expect("/ch/06/preamp/invert", 1);
+        return "inverted samples went through the analyser; channel 6 polarity flipped";
+      },
+    );
 
     const s = make();
     await S("show_song", "Song change: recalls the scene, sets the lead target, mutes the guest", ["feature:song-change"], async () => {
@@ -978,7 +1039,13 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       s.setCoachMode(false);
       return "the scene stayed at 12 and a recommendation was made";
     });
-    const moved: StepSpec = { id: "show_console_move", area, title: "A fader moved on the console is picked up", proof: desk.proof, covers: ["feature:console-fader-sync"] };
+    const moved: StepSpec = {
+      id: "show_console_move",
+      area,
+      title: "A fader moved on the console is picked up",
+      proof: desk.proof,
+      covers: ["feature:console-fader-sync"],
+    };
     const move = opts.externalMove;
     if (move === null) {
       skipRow(rows, desk.log, moved, "needs a hand on the console: move a fader and watch the dashboard follow");
@@ -1034,10 +1101,19 @@ export function soundVerdict(r: SoundResult): string {
   must(r.played, "the test noise could not be played; check the output device");
   must(r.noiseDb !== null, "nothing was captured from the measurement input");
   const noise = r.noiseDb ?? 0;
-  must(noise > SOUND_MIN_DBFS, `the microphone heard only ${fixed(noise, 0)} dBFS during the noise (needs more than ${SOUND_MIN_DBFS}); raise the speaker or mic level`);
+  must(
+    noise > SOUND_MIN_DBFS,
+    `the microphone heard only ${fixed(noise, 0)} dBFS during the noise (needs more than ${SOUND_MIN_DBFS}); raise the speaker or mic level`,
+  );
   const rise = r.ambientDb === null ? null : noise - r.ambientDb;
-  must(rise === null || rise >= SOUND_MIN_RISE_DB, `the level rose only ${fixed(rise ?? 0, 1)} dB when the noise played, so the microphone may not be hearing the speakers`);
-  return `heard ${fixed(noise, 0)} dBFS during the noise` + (rise === null ? " (the room level before the noise was not measured)" : `, ${fixed(rise, 0)} dB above the room before it`);
+  must(
+    rise === null || rise >= SOUND_MIN_RISE_DB,
+    `the level rose only ${fixed(rise ?? 0, 1)} dB when the noise played, so the microphone may not be hearing the speakers`,
+  );
+  return (
+    `heard ${fixed(noise, 0)} dBFS during the noise` +
+    (rise === null ? " (the room level before the noise was not measured)" : `, ${fixed(rise, 0)} dB above the room before it`)
+  );
 }
 
 const TAG: Record<VetStatus, string> = { pass: "PASS", fail: "FAIL", skip: "SKIP" };

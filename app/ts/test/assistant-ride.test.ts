@@ -18,18 +18,21 @@ const ride = (job: RideJob, ch: number, rms: number, target: number, now: number
 
 test("the ride and limit defaults match the expected tuning", () => {
   const { h } = setup();
-  assert.deepEqual({ ...h.cfg.ride }, {
-    leadTargetDb: -6.0,
-    toleranceDb: 2.0,
-    leadTargetMinDb: -40.0,
-    leadTargetMaxDb: 10.0,
-    maxStepDb: 1.0,
-    rampMs: 350,
-    ema: 1 / 24,
-    minMoveDb: 0.05,
-    vocalIntervalS: 0.25,
-    balanceIntervalS: 1.0,
-  });
+  assert.deepEqual(
+    { ...h.cfg.ride },
+    {
+      leadTargetDb: -6.0,
+      toleranceDb: 2.0,
+      leadTargetMinDb: -40.0,
+      leadTargetMaxDb: 10.0,
+      maxStepDb: 1.0,
+      rampMs: 350,
+      ema: 1 / 24,
+      minMoveDb: 0.05,
+      vocalIntervalS: 0.25,
+      balanceIntervalS: 1.0,
+    },
+  );
   assert.equal(h.cfg.limits.faderMinDb, -12);
   assert.equal(h.cfg.limits.faderMaxDb, 6);
   assert.equal(h.cfg.LEAD_VOCAL_CH, 1);
@@ -41,7 +44,10 @@ test("the ride and limit defaults match the expected tuning", () => {
 test("a new job takes the lead target from config and starts with empty per channel state", () => {
   const { job } = setup();
   assert.equal(job.leadTarget, -6);
-  assert.deepEqual([...job.inEma.entries()], [1, 2, 3, 4, 5, 6, 7, 8].map((c) => [c, null]));
+  assert.deepEqual(
+    [...job.inEma.entries()],
+    [1, 2, 3, 4, 5, 6, 7, 8].map((c) => [c, null]),
+  );
   assert.ok([...job.lastRideT.values()].every((v) => v === NEG_INF));
   assert.equal(job.balanceTargets.size, 0);
 });
@@ -324,8 +330,19 @@ test("capturing balance prefers the level average, falls back to given levels an
   job.inEma.set(5, -20);
   h.state.faderDb.set(5, 2);
   h.state.faderDb.set(7, -1.5);
-  job.captureBalance(new Map([[5, -99], [7, -25]]));
-  assert.deepEqual([...job.balanceTargets.entries()], [[5, -18], [7, -26.5]]);
+  job.captureBalance(
+    new Map([
+      [5, -99],
+      [7, -25],
+    ]),
+  );
+  assert.deepEqual(
+    [...job.balanceTargets.entries()],
+    [
+      [5, -18],
+      [7, -26.5],
+    ],
+  );
   assert.deepEqual(h.events, [{ kind: "balance", msg: "captured balance targets: bass_di -18.0, keys_aux -26.5", ch: null }]);
   assert.deepEqual(h.mixer.calls, []);
 });
@@ -338,7 +355,10 @@ test("capturing balance skips channels with no average and no level and replaces
   assert.deepEqual([...job.balanceTargets.entries()], [[7, -10]]);
   job.captureBalance(new Map());
   assert.equal(job.balanceTargets.size, 0);
-  assert.deepEqual(h.events.map((e) => e.msg), ["captured balance targets: keys_aux -10.0", "captured balance targets: "]);
+  assert.deepEqual(
+    h.events.map((e) => e.msg),
+    ["captured balance targets: keys_aux -10.0", "captured balance targets: "],
+  );
 });
 
 test("capturing balance skips a configured channel the job has never tracked", () => {

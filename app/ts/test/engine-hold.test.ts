@@ -49,7 +49,11 @@ const isRead = (address: string): boolean => FADER.test(address) || GAIN.test(ad
 const pad = (n: number, width: number): string => String(n).padStart(width, "0");
 
 const deskAddresses = (): string[] =>
-  [...C.CHANNELS.keys()].flatMap((ch) => [`/ch/${pad(ch, 2)}/mix/fader`, `/headamp/${pad(ch - 1, 3)}/gain`, `/ch/${pad(ch, 2)}/preamp/invert`]);
+  [...C.CHANNELS.keys()].flatMap((ch) => [
+    `/ch/${pad(ch, 2)}/mix/fader`,
+    `/headamp/${pad(ch - 1, 3)}/gain`,
+    `/ch/${pad(ch, 2)}/preamp/invert`,
+  ]);
 
 const quietReceiver = (): MeterReceiverPort => ({ start: () => Promise.resolve(), stop: () => undefined });
 
@@ -63,7 +67,10 @@ const makeRig = async (opts: { console?: SimConsole; rx?: MeterReceiverPort | nu
 };
 
 const readsSince = (con: SimConsole, from: number): string[] =>
-  con.wireLog.slice(from).filter((w) => w.length === 1 && isRead(w[0])).map((w) => w[0]);
+  con.wireLog
+    .slice(from)
+    .filter((w) => w.length === 1 && isRead(w[0]))
+    .map((w) => w[0]);
 
 const countSent = (con: SimConsole, address: string, from = 0): number =>
   con.wireLog.slice(from).filter((w) => w.length === 1 && w[0] === address).length;
@@ -124,7 +131,10 @@ const msgs = (e: Engine): string[] => e.events.map((ev) => ev.msg);
 const count = (e: Engine, prefix: string): number => msgs(e).filter((m) => m.startsWith(prefix)).length;
 
 const noErrors = (e: Engine): void => {
-  assert.deepEqual(msgs(e).filter((m) => m.startsWith("engine error")), []);
+  assert.deepEqual(
+    msgs(e).filter((m) => m.startsWith("engine error")),
+    [],
+  );
 };
 
 const isAlert = (x: unknown): x is Alert =>
@@ -268,7 +278,10 @@ test("a fader reply that completes the desk read does not count as a hand move",
     await drive(r, 0.3, true);
     const now = r.clock.monotonic();
     near(r.e.assistant.faderDb.get(3), -10);
-    assert.deepEqual(msgs(r.e).filter((m) => m.includes("moved on console")), []);
+    assert.deepEqual(
+      msgs(r.e).filter((m) => m.includes("moved on console")),
+      [],
+    );
     assert.ok((r.e.assistant.manualHoldUntil.get(3) ?? -1e9) < now, "the final fader reply of the read put ch3 on a manual hold");
   } finally {
     await r.e.stop();
@@ -452,7 +465,9 @@ test("a receiver that fails to start holds the jobs for no-feedback with a criti
   try {
     assert.equal(r.e.meterRx, null);
     assert.deepEqual(holdOf(r.e), { held: true, reasons: ["no-feedback"] });
-    assert.ok(alertsOf(r.e).some((a) => a.level === "critical" && a.msg.startsWith("jobs on hold — the console's reply port could not be opened")));
+    assert.ok(
+      alertsOf(r.e).some((a) => a.level === "critical" && a.msg.startsWith("jobs on hold — the console's reply port could not be opened")),
+    );
     assert.deepEqual(readsSince(r.con, 0), []);
     await drive(r, 2.0, false);
     assert.equal(r.e.held, true);

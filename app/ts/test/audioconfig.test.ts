@@ -63,12 +63,28 @@ test("dsp takes its ring threshold, FFT size, lag limit and octave bands as para
 test("analysisConfig reads the given config, and the analyser uses its sample rate, ring threshold and lag limit", () =>
   untouched(() => {
     const cfg = tuned(
-      { CHANNELS: new Map([[2, "lead_vox"], [5, "meas_mic"]]), MEAS_MIC_CH: 5, PHASE_PAIRS: [[2, 5]], SAMPLE_RATE: 24000 },
+      {
+        CHANNELS: new Map([
+          [2, "lead_vox"],
+          [5, "meas_mic"],
+        ]),
+        MEAS_MIC_CH: 5,
+        PHASE_PAIRS: [[2, 5]],
+        SAMPLE_RATE: 24000,
+      },
       { ringDb: 7, detectFft: 2048 },
       { maxLagMs: 1.5 },
     );
     const got = analysisConfig(cfg);
-    assert.deepEqual(got, { channels: [2, 5], measCh: 5, phasePairs: [[2, 5]], sampleRate: 24000, ringDb: 7, detectFft: 2048, maxLagMs: 1.5 });
+    assert.deepEqual(got, {
+      channels: [2, 5],
+      measCh: 5,
+      phasePairs: [[2, 5]],
+      sampleRate: 24000,
+      ringDb: 7,
+      detectFft: 2048,
+      maxLagMs: 1.5,
+    });
     assert.deepEqual(currentAnalysisConfig(), analysisConfig(C));
     const ring = tone(4096, 2500, 48000);
     const fast = new BlockAnalyser().analyse(new Map([[5, ring]]), { ...got, sampleRate: 48000 });
@@ -79,7 +95,12 @@ test("analysisConfig reads the given config, and the analyser uses its sample ra
     assert.ok(f24 !== null && Math.abs(f24 - 1250) < 30, `the ring detector follows the analysis sample rate: ${f24}`);
     const deaf = new BlockAnalyser().analyse(new Map([[5, ring]]), { ...got, ringDb: 500 });
     assert.equal(deaf.feats.get(5)!.fbFreq, null);
-    const fallback = new BlockAnalyser(tuned({}, { ringDb: 500 })).analyse(new Map([[5, ring]]), { channels: [5], measCh: 5, phasePairs: [], sampleRate: 48000 });
+    const fallback = new BlockAnalyser(tuned({}, { ringDb: 500 })).analyse(new Map([[5, ring]]), {
+      channels: [5],
+      measCh: 5,
+      phasePairs: [],
+      sampleRate: 48000,
+    });
     assert.equal(fallback.feats.get(5)!.fbFreq, null, "missing analysis fields come from the analyser's config");
   }));
 
@@ -87,7 +108,10 @@ test("SimCapture and the simulated room use the injected block size, sample rate
   untouched(() => {
     const cfg = configWith({ BLOCK: 256, SAMPLE_RATE: 24000, CHANNELS: new Map([[3, "lead_vox"]]), MEAS_MIC_CH: 12 });
     const frame = new SimCapture(new SimConsole(), 7, null, cfg).block();
-    assert.deepEqual([...frame.keys()].sort((a, b) => a - b), [3, 12]);
+    assert.deepEqual(
+      [...frame.keys()].sort((a, b) => a - b),
+      [3, 12],
+    );
     assert.ok([...frame.values()].every((x) => x.length === 256));
     const room = simRoomCapture(new SeededRng(1), cfg);
     assert.equal(room.length, cfg.calibration.durationS * 24000);
@@ -108,20 +132,55 @@ test("timed audio takes its sample rate, block and room-mic column from the inje
 
 test("DeviceCapture falls back to the injected config for rate, block, room mic and channel map", () =>
   untouched(() => {
-    const cfg = configWith({ SAMPLE_RATE: 44100, BLOCK: 512, MEAS_MIC_CH: 4, CHANNELS: new Map([[4, "meas_mic"], [2, "lead_vox"]]) });
+    const cfg = configWith({
+      SAMPLE_RATE: 44100,
+      BLOCK: 512,
+      MEAS_MIC_CH: 4,
+      CHANNELS: new Map([
+        [4, "meas_mic"],
+        [2, "lead_vox"],
+      ]),
+    });
     const cap = new DeviceCapture({ factory: new TimedAudioFactory(new SystemClock()), clock: new ManualClock(0), cfg });
     assert.equal(cap.samplerate, 44100);
     assert.equal(cap.blocksize, 512);
     assert.equal(cap.measCh, 4);
-    assert.deepEqual([...cap.channelMap], [[2, 1], [4, 3]]);
+    assert.deepEqual(
+      [...cap.channelMap],
+      [
+        [2, 1],
+        [4, 3],
+      ],
+    );
   }));
 
 test("RemoteCapture builds what it sends the audio thread from its injected config", () =>
   untouched(() => {
-    const cfg = tuned({ SAMPLE_RATE: 44100, BLOCK: 256, MEAS_MIC_CH: 3, CHANNELS: new Map([[1, "lead_vox"], [3, "meas_mic"]]) }, { ringDb: 9 });
-    const rc = new RemoteCapture({ connect: () => { throw new Error("not used"); }, clock: new ManualClock(), stamp: () => 0, cfg });
+    const cfg = tuned(
+      {
+        SAMPLE_RATE: 44100,
+        BLOCK: 256,
+        MEAS_MIC_CH: 3,
+        CHANNELS: new Map([
+          [1, "lead_vox"],
+          [3, "meas_mic"],
+        ]),
+      },
+      { ringDb: 9 },
+    );
+    const rc = new RemoteCapture({
+      connect: () => {
+        throw new Error("not used");
+      },
+      clock: new ManualClock(),
+      stamp: () => 0,
+      cfg,
+    });
     const sent = rc.config();
-    assert.deepEqual(sent.channelMap, [[1, 0], [3, 2]]);
+    assert.deepEqual(sent.channelMap, [
+      [1, 0],
+      [3, 2],
+    ]);
     assert.equal(sent.measCh, 3);
     assert.equal(sent.sampleRate, 44100);
     assert.equal(sent.block, 256);
@@ -130,14 +189,39 @@ test("RemoteCapture builds what it sends the audio thread from its injected conf
 
 test("the capture host opens timed audio with its own config and never writes the shared settings", () =>
   untouched(async () => {
-    const cfg = configWith({ MEAS_MIC_CH: 2, CHANNELS: new Map([[1, "lead_vox"], [2, "meas_mic"]]) });
+    const cfg = configWith({
+      MEAS_MIC_CH: 2,
+      CHANNELS: new Map([
+        [1, "lead_vox"],
+        [2, "meas_mic"],
+      ]),
+    });
     const clock = new SystemClock();
     const got: FromCapture[] = [];
-    const host = new CaptureHost(new TimedAudioFactory(clock, 64, cfg), clock, (m) => got.push(m), () => Date.now(), cfg);
+    const host = new CaptureHost(
+      new TimedAudioFactory(clock, 64, cfg),
+      clock,
+      (m) => got.push(m),
+      () => Date.now(),
+      cfg,
+    );
     const analysis = analysisConfig(cfg);
     host.handle({
       type: "open",
-      config: { device: null, outputDevice: null, channelMap: [[1, 0], [2, 1]], measCh: 2, gainDb: 0, sampleRate: 48000, block: 1024, analysis, tuning: [] },
+      config: {
+        device: null,
+        outputDevice: null,
+        channelMap: [
+          [1, 0],
+          [2, 1],
+        ],
+        measCh: 2,
+        gainDb: 0,
+        sampleRate: 48000,
+        block: 1024,
+        analysis,
+        tuning: [],
+      },
     });
     for (let i = 0; i < 100 && got.filter((m) => m.type === "block").length < 40; i++) await sleep(20);
     host.shutdown();

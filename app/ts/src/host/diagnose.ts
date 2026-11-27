@@ -95,7 +95,8 @@ export class AudioProbe {
   facts(mapped: readonly number[] | null): AudioFacts {
     const elapsed = Math.max(this.clock.monotonic() - this.t0, 1e-3);
     const facts = audioFacts(this.before, this.source.status(), this.window, elapsed, C.SAMPLE_RATE / C.BLOCK, channelLabels(), mapped);
-    if (this.openError !== null) return { ...facts, link: facts.link === "open" ? "down" : facts.link, lastError: facts.lastError ?? this.openError };
+    if (this.openError !== null)
+      return { ...facts, link: facts.link === "open" ? "down" : facts.link, lastError: facts.lastError ?? this.openError };
     return facts;
   }
 

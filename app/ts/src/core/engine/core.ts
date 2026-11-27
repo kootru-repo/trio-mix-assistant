@@ -38,10 +38,7 @@ export class Engine extends EngineCalibration {
         await this.meterRx.start();
       } catch (exc) {
         const name = exc instanceof Error ? exc.name : "Error";
-        this.assistant.emit(
-          "system",
-          `meter port busy (${name}) — console fader moves won't sync (another instance running?)`,
-        );
+        this.assistant.emit("system", `meter port busy (${name}) — console fader moves won't sync (another instance running?)`);
         this.rebuildTelemetry();
         this.meterRx = null;
         this.enterHold("no-feedback");
@@ -63,7 +60,10 @@ export class Engine extends EngineCalibration {
           this.rebuildTelemetry();
         }
       } catch (exc) {
-        const detail = exc instanceof CaptureError ? exc.message : `${exc instanceof Error ? exc.name : "Error"}: ${String(exc instanceof Error ? exc.message : exc)}`;
+        const detail =
+          exc instanceof CaptureError
+            ? exc.message
+            : `${exc instanceof Error ? exc.name : "Error"}: ${String(exc instanceof Error ? exc.message : exc)}`;
         this.assistant.emit("system", `audio capture off — ${detail} — retrying`);
         this.rebuildTelemetry();
       }
@@ -142,7 +142,10 @@ export class Engine extends EngineCalibration {
         const frame = this.source.block();
         this.assistant.blockT0 = this.clock.highResolution();
         const wantPhases = Boolean(this.assistant.enabled["phase"]);
-        this.consume(this.analyser.analyse(frame, currentAnalysisConfig(), (exc) => this.noteError(exc), wantPhases), now);
+        this.consume(
+          this.analyser.analyse(frame, currentAnalysisConfig(), (exc) => this.noteError(exc), wantPhases),
+          now,
+        );
       }
       this.tickSafety(now);
       this.tickHold(now);
@@ -268,7 +271,9 @@ export class Engine extends EngineCalibration {
       "",
       "  App state when the test finished",
       `    Mode: ${this.sim ? "simulation" : "live-hardware"}, ${this.currentStatus()}`,
-      `    Automatic jobs before the test: ${Object.entries(jobs).map(([k, v]) => `${k} ${v ? "on" : "off"}`).join(", ")}`,
+      `    Automatic jobs before the test: ${Object.entries(jobs)
+        .map(([k, v]) => `${k} ${v ? "on" : "off"}`)
+        .join(", ")}`,
       `    Audio input: ${compact(this.source ? this.source.status() : { kind: "none" })}`,
       `    Console feed: ${compact(t["console"])}`,
       `    Loop timing: ${compact(t["perf"])}`,
@@ -276,9 +281,13 @@ export class Engine extends EngineCalibration {
       `    Room: ${compact(t["room"])}`,
       "    Recent decision log (newest first):",
     ];
-    for (const e of this.events.slice(-40).reverse()) out.push(`      ${e.time} ${e.kind}${e.ch !== null ? ` ch${e.ch}` : ""}: ${e.kind === "show" && !identify ? "(song and scene details hidden)" : e.msg}`);
+    for (const e of this.events.slice(-40).reverse())
+      out.push(
+        `      ${e.time} ${e.kind}${e.ch !== null ? ` ch${e.ch}` : ""}: ${e.kind === "show" && !identify ? "(song and scene details hidden)" : e.msg}`,
+      );
     out.push("", "  Latest Run checks report (audio input, console feed, network)");
-    if (this.diagReport === null) out.push("    Run checks has not been run since the app started. Press Run checks in Settings and send its report as well.");
+    if (this.diagReport === null)
+      out.push("    Run checks has not been run since the app started. Press Run checks in Settings and send its report as well.");
     else for (const l of this.diagReport.text.split("\n")) out.push(`    ${l}`);
     return out;
   }
@@ -301,7 +310,10 @@ export class Engine extends EngineCalibration {
     this.vetDone = 0;
     this.vetTitle = "Starting";
     this.vetStatus = "running";
-    this.assistant.emit("system", "full test running: the automatic jobs are paused and other controls are ignored until it finishes (TAKEOVER still works)");
+    this.assistant.emit(
+      "system",
+      "full test running: the automatic jobs are paused and other controls are ignored until it finishes (TAKEOVER still works)",
+    );
     this.rebuildTelemetry();
     this.telemetryFrozen = true;
     const control = {
@@ -393,14 +405,14 @@ export class Engine extends EngineCalibration {
       else if (t === "coach") this.setCoachMode(bool("on"));
       else if (t === "panic") this.panic(bool("on"));
       else if (t === "calibrate") this.runCalibration();
-      else if (t === "diagnose") void this.runDiagnostics(Engine.DIAG_WINDOW_S, Object.hasOwn(d, "identify") && d["identify"] !== null ? bool("identify") : false);
+      else if (t === "diagnose")
+        void this.runDiagnostics(Engine.DIAG_WINDOW_S, Object.hasOwn(d, "identify") && d["identify"] !== null ? bool("identify") : false);
       else if (t === "vet") {
         const channel = Object.hasOwn(d, "channel") && d["channel"] !== null ? int("channel") : null;
         if (channel !== null && (channel < 1 || channel > 32)) throw new BadCommand("channel must be 1 to 32");
         const flag = (k: string): boolean => (Object.hasOwn(d, k) && d[k] !== null ? bool(k) : false);
         void this.runVet({ channel, gain: flag("gain"), main: flag("main"), identify: flag("identify") });
-      }
-      else if (t === "lead_target") this.setLeadTarget(num("db"));
+      } else if (t === "lead_target") this.setLeadTarget(num("db"));
       else if (t === "balance_capture") this.captureBalanceNow();
       else if (t === "reset_notches") this.resetNotches();
       else if (t === "scene") this.recallSceneManual(need("index"));

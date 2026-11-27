@@ -1,72 +1,74 @@
 {
-	"$schema": "./ts/node_modules/@biomejs/biome/configuration_schema.json",
-	"vcs": {
-		"enabled": false
-	},
-	"files": {
-		"includes": [
-			"ts/src/**",
-			"ts/test/**",
-			"ts/tools/**",
-			"web/src/**",
-			"!**/node_modules/**",
-			"!**/dist/**",
-			"!static/**"
-		]
-	},
-	"formatter": {
-		"enabled": false
-	},
-	"assist": {
-		"enabled": false
-	},
-	"linter": {
-		"enabled": true,
-		"rules": {
-			"preset": "none",
-			"suspicious": {
-				"noExplicitAny": "error",
-				"noTsIgnore": "error",
-				"noFocusedTests": "error",
-				"noSkippedTests": "error",
-				"noDebugger": "error",
-				"noDoubleEquals": "error",
-				"noDuplicateObjectKeys": "error",
-				"noFallthroughSwitchClause": "error",
-				"noSelfCompare": "error",
-				"noShadowRestrictedNames": "error",
-				"noVar": "error"
-			},
-			"correctness": {
-				"noUnsafeFinally": "error",
-				"noUnusedImports": "error",
-				"noUnusedVariables": "error"
-			},
-			"style": {
-				"useConst": "error",
-				"noRestrictedImports": {
-					"level": "error",
-					"options": {
-						"paths": {
-							"effect": "The Effect library is not used in this project."
-						}
-					}
-				}
-			}
-		}
-	},
-	"overrides": [
-		{
-			"includes": [
-				"ts/test/**"
-			],
-			"linter": {
-				"rules": {
-					"suspicious": {
-						"noExplicitAny": "off"
-					}
-				}
-			}
-		}
-	]
+  "$schema": "./ts/node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": false
+  },
+  "files": {
+    "includes": [
+      "ts/src/**",
+      "ts/test/**",
+      "ts/tools/**",
+      "web/src/**",
+      "!**/node_modules/**",
+      "!**/dist/**",
+      "!static/**",
+      "!**/fixtures/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 140
+  },
+  "assist": {
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "none",
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noTsIgnore": "error",
+        "noFocusedTests": "error",
+        "noSkippedTests": "error",
+        "noDebugger": "error",
+        "noDoubleEquals": "error",
+        "noDuplicateObjectKeys": "error",
+        "noFallthroughSwitchClause": "error",
+        "noSelfCompare": "error",
+        "noShadowRestrictedNames": "error",
+        "noVar": "error"
+      },
+      "correctness": {
+        "noUnsafeFinally": "error",
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error"
+      },
+      "style": {
+        "useConst": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "effect": "The Effect library is not used in this project."
+            }
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["ts/test/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    }
+  ]
 }
