@@ -7,7 +7,8 @@ import { hostname, tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { Calibrator } from "../core/calibration.ts";
 import type { Clock } from "../core/clock.ts";
-import { C } from "../core/config.ts";
+import { copyConfig } from "../core/config.ts";
+import type { Config } from "../core/config.ts";
 import { SimConsole, dbToFader } from "../core/console.ts";
 import { makeScrubber, redact } from "../core/diagnostics.ts";
 import { listAudioDevices } from "../core/devicecapture.ts";
@@ -77,6 +78,7 @@ export interface VetHooks {
   lanIp: () => Promise<string | null>;
   phoneSeconds?: number;
   localPort?: number;
+  cfg: Config;
 }
 
 interface Ctx {
@@ -87,6 +89,7 @@ interface Ctx {
   log: VetLog;
   clock: Clock;
   stopped: () => boolean;
+  cfg: Config;
 }
 
 interface Reply {
@@ -255,7 +258,7 @@ async function thisComputer(ctx: Ctx): Promise<void> {
     const bad: string[] = [];
     for (const n of names) {
       try {
-        fromObject(JSON.parse(readFileSync(join(dir, n), "utf8")));
+        fromObject(JSON.parse(readFileSync(join(dir, n), "utf8")), ctx.cfg);
       } catch (e) {
         bad.push(`${n}: ${errText(e)}`);
       }
@@ -297,7 +300,7 @@ async function link(
   proof: VetProof,
   reach: (localPort: number) => Promise<Peer>,
 ): Promise<Link> {
-  const rx = new MeterReceiver(ctx.io.udp, { ip: listenIp, port, allowFrom });
+  const rx = new MeterReceiver(ctx.io.udp, { ip: listenIp, port, allowFrom, cfg: ctx.cfg });
   await rx.start();
   let target: Peer;
   try {
@@ -306,7 +309,14 @@ async function link(
     rx.stop();
     throw e;
   }
-  const desk = new Desk({ transmit: (data) => rx.send(data, target), clock: ctx.clock, log: ctx.log, proof, stopped: ctx.stopped });
+  const desk = new Desk({
+    transmit: (data) => rx.send(data, target),
+    clock: ctx.clock,
+    log: ctx.log,
+    proof,
+    stopped: ctx.stopped,
+    cfg: ctx.cfg,
+  });
   rx.onMessage = (addr, args) => desk.receive(addr, args);
   return { desk, rx };
 }
@@ -353,6 +363,7 @@ async function emulatorExtras(ctx: Ctx, emu: EmulatedDesk): Promise<void> {
     let got: ShowState | null = null;
     const rx = new AbleSetReceiver(
       ctx.io.udp,
+      ctx.cfg,
       (s) => {
         got = s;
       },
@@ -398,10 +409,10 @@ async function withServer<T>(
 
 async function dashboard(ctx: Ctx, desk: Desk): Promise<void> {
   const { io, log } = ctx;
-  const engine = new Engine({ console: desk.con, sim: false, source: null, tick: 0.02, clock: ctx.clock });
+  const engine = new Engine({ console: desk.con, sim: false, source: null, tick: 0.02, clock: ctx.clock, cfg: ctx.cfg });
   const pin = randomBytes(6).toString("hex");
   const staticDir = io.layout.staticDir;
-  const main = `/${C.MAIN_BUS}`;
+  const main = `/${ctx.cfg.MAIN_BUS}`;
   const W = (id: string, title: string, covers: string[], body: () => Promise<string>): Promise<void> =>
     local(ctx, id, WEB, title, covers, body);
   await withServer({ engine, staticDir, pin }, false, null, async (t) => {
@@ -598,7 +609,7 @@ async function emulated(ctx: Ctx): Promise<void> {
   try {
     try {
       made = await link(ctx, "127.0.0.1", 0, "127.0.0.1", "emulator", async (localPort) => {
-        const emu = new EmulatedDesk(ctx.io.udp, ctx.clock, { listenPort: 0, listenHost: "127.0.0.1", appPort: localPort });
+        const emu = new EmulatedDesk(ctx.io.udp, ctx.clock, { listenPort: 0, listenHost: "127.0.0.1", appPort: localPort, cfg: ctx.cfg });
         box.emu = emu;
         await emu.start();
         return { host: "127.0.0.1", port: emu.listenPort };
@@ -637,6 +648,7 @@ function liveLink(ctx: Ctx, live: LiveConsole): Link {
     log: ctx.log,
     proof: "real console",
     stopped: ctx.stopped,
+    cfg: ctx.cfg,
   });
   live.rx.onMessage = (addr, args) => desk.receive(addr, args);
   if (ctx.hooks.control) desk.holdMain = ctx.hooks.control.takeover;
@@ -645,7 +657,7 @@ function liveLink(ctx: Ctx, live: LiveConsole): Link {
 
 async function realConsole(ctx: Ctx): Promise<void> {
   const { args, io } = ctx;
-  const ip = args.consoleIp || C.CONSOLE_IP;
+  const ip = args.consoleIp || ctx.cfg.CONSOLE_IP;
   const writes = [
     args.vetChannel !== null ? `channel ${args.vetChannel}` : null,
     args.vetChannel !== null && args.vetGain ? `the preamp gain of channel ${args.vetChannel}` : null,
@@ -663,8 +675,8 @@ async function realConsole(ctx: Ctx): Promise<void> {
     made =
       live !== null
         ? liveLink(ctx, live)
-        : await link(ctx, "0.0.0.0", ctx.hooks.localPort ?? C.LOCAL_PORT, isIP(ip) !== 0 ? ip : null, "real console", () =>
-            Promise.resolve({ host: ip, port: C.CONSOLE_PORT }),
+        : await link(ctx, "0.0.0.0", ctx.hooks.localPort ?? ctx.cfg.LOCAL_PORT, isIP(ip) !== 0 ? ip : null, "real console", () =>
+            Promise.resolve({ host: ip, port: ctx.cfg.CONSOLE_PORT }),
           );
   } catch (e) {
     ctx.rows.push({
@@ -673,7 +685,7 @@ async function realConsole(ctx: Ctx): Promise<void> {
       title: "This computer can listen for the console",
       status: "fail",
       proof: "this computer",
-      detail: `could not open UDP port ${ctx.hooks.localPort ?? C.LOCAL_PORT} (${errText(e)}); close the app if it is running and try again`,
+      detail: `could not open UDP port ${ctx.hooks.localPort ?? ctx.cfg.LOCAL_PORT} (${errText(e)}); close the app if it is running and try again`,
       covers: [],
     });
     return;
@@ -703,7 +715,7 @@ async function sound(ctx: Ctx): Promise<void> {
   }
   await step(ctx.rows, ctx.log, spec, async () => {
     if (ctx.stopped()) throw new VetSkip("stopped before this step ran");
-    const seconds = C.calibration.durationS;
+    const seconds = ctx.cfg.calibration.durationS;
     ctx.io.out("");
     ctx.io.out(`  SOUND: pink noise plays through the output device for ${seconds} seconds.`);
     const source = open();
@@ -711,13 +723,13 @@ async function sound(ctx: Ctx): Promise<void> {
       source.start();
       await within(source.ready(), ctx.clock, OPEN_WAIT_S, "opening the audio device");
       const result = await within(
-        measureSound(source, generatePinkNoise(seconds, new SeededRng(1)), seconds),
+        measureSound(source, generatePinkNoise(seconds, new SeededRng(1), ctx.cfg.SAMPLE_RATE, ctx.cfg.calibration.noiseDbfs), seconds),
         ctx.clock,
         seconds * 2 + 20,
         "playing and recording the test noise",
       );
       const verdict = soundVerdict(result);
-      const found = result.capture === null ? null : new Calibrator(new SimConsole()).analyze(result.capture);
+      const found = result.capture === null ? null : new Calibrator(new SimConsole({ cfg: ctx.cfg }), ctx.cfg).analyze(result.capture);
       const cuts = found === null ? 0 : found.corrections.length;
       return `${verdict}; the room analysis found ${cuts} band${cuts === 1 ? "" : "s"} that stand${cuts === 1 ? "s" : ""} out (nothing was applied)`;
     } finally {
@@ -752,7 +764,7 @@ async function phone(ctx: Ctx): Promise<void> {
       tls = { key: readFileSync(keyfile, "utf8"), cert: readFileSync(certfile, "utf8") };
     }
     let who: string | null = null;
-    const engine = new Engine({ sim: true, clock: ctx.clock });
+    const engine = new Engine({ sim: true, clock: ctx.clock, cfg: ctx.cfg });
     const server = createServer({
       engine,
       staticDir: io.layout.staticDir,
@@ -785,7 +797,7 @@ async function phone(ctx: Ctx): Promise<void> {
   });
 }
 
-export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<string | null>): VetHostPort {
+export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<string | null>, cfg: Config): VetHostPort {
   return {
     console: live !== null,
     async run(req: VetRequest, control: VetControl): Promise<VetSummary> {
@@ -804,7 +816,7 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
       const out = await runVet(
         parseCliArgs(flags),
         { ...io, out: (l) => lines.push(l.replace(/\r/g, "")) },
-        { openSource: null, lanIp, live, control },
+        { openSource: null, lanIp, live, control, cfg },
       );
       if (control.appState !== undefined) lines.push(...scrub(redact(control.appState().join("\n"), systemFacts().home)).split("\n"));
       lines.push(
@@ -845,7 +857,7 @@ export function scrubberFor(io: Io): (text: string) => string {
 
 const SECRET_KEY = /PIN|PASS|SECRET|TOKEN|KEY/i;
 
-export async function setupLines(io: Io, lanIp: () => Promise<string | null>): Promise<string[]> {
+export async function setupLines(io: Io, lanIp: () => Promise<string | null>, cfg: Config): Promise<string[]> {
   const out: string[] = ["", "  Setup"];
   out.push(`    Settings folder: ${io.layout.appDir}`);
   try {
@@ -859,7 +871,7 @@ export async function setupLines(io: Io, lanIp: () => Promise<string | null>): P
   } catch (e) {
     out.push(`    show.conf could not be read: ${errText(e)}`);
   }
-  const tuned = tuningLines();
+  const tuned = tuningLines(cfg.TUNED);
   if (tuned.length === 0) out.push("    Tuning: all defaults");
   else {
     out.push("    Tuning changed from the defaults (the full test's job steps run with the defaults):");
@@ -922,7 +934,7 @@ export async function runVet(args: Args, ioIn: Io, hooks: VetHooks): Promise<Vet
       logError = errText(e);
     }
   };
-  const setup = scrub(redact((await setupLines(io, hooks.lanIp)).join("\n"), sys.home)).split("\n");
+  const setup = scrub(redact((await setupLines(io, hooks.lanIp, hooks.cfg)).join("\n"), sys.home)).split("\n");
   write(
     [...head, ...setup, "", "--- every step, with the console commands sent and the replies received (meter data is not logged) ---"],
     true,
@@ -937,7 +949,16 @@ export async function runVet(args: Args, ioIn: Io, hooks: VetHooks): Promise<Vet
   process.on("SIGINT", holdInterrupt);
   const control = hooks.control ?? null;
   if (control !== null && control.progress !== undefined) log.onProgress = (done, title) => control.progress?.(done, title);
-  const ctx: Ctx = { args, io, hooks, rows: [], log, clock: io.clock, stopped: () => stop || (control !== null && control.stopped()) };
+  const ctx: Ctx = {
+    args,
+    io,
+    hooks,
+    rows: [],
+    log,
+    clock: io.clock,
+    stopped: () => stop || (control !== null && control.stopped()),
+    cfg: copyConfig(hooks.cfg),
+  };
   for (const l of head) io.out(l);
   for (const l of setup) io.out(l);
   io.out("  Testing this computer and the built-in emulator. No sound is played and no real console is touched in this part.");

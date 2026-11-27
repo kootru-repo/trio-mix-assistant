@@ -47,7 +47,7 @@ export class FeedbackJob {
   }
 
   handle(ch: number, feat: ChannelFeatures): void {
-    const { cfg: C, state, mixer } = this.ctx;
+    const { cfg, state, mixer } = this.ctx;
     if (!state.enabled["feedback"]) {
       need(this.fbStreak, ch);
       this.fbStreak.set(ch, 0);
@@ -57,14 +57,14 @@ export class FeedbackJob {
     }
     if (feat.fbFreq) {
       const prev = need(this.fbLastFreq, ch);
-      const stable = prev !== null && Math.abs(feat.fbFreq - prev) / feat.fbFreq < C.feedback.stableTol;
-      const rising = feat.rmsDbfs > need(this.fbLastLevel, ch) + C.feedback.riseDb;
+      const stable = prev !== null && Math.abs(feat.fbFreq - prev) / feat.fbFreq < cfg.feedback.stableTol;
+      const rising = feat.rmsDbfs > need(this.fbLastLevel, ch) + cfg.feedback.riseDb;
       const near = this.isNearWatch(feat.fbFreq);
-      let needed = Math.max(1, C.feedback.sustainBlocks - (near ? 1 : 0));
+      let needed = Math.max(1, cfg.feedback.sustainBlocks - (near ? 1 : 0));
       const harm = feat.harmonicity ?? 0;
-      if (harm > 0) needed += roundHalfEven(harm * C.feedback.harmonicSustain);
-      if (ch === C.MEAS_MIC_CH && state.roomConfidence < C.feedback.lowConf) {
-        needed = Math.max(needed, roundHalfEven(needed / Math.max(C.feedback.confFloor, state.roomConfidence)));
+      if (harm > 0) needed += roundHalfEven(harm * cfg.feedback.harmonicSustain);
+      if (ch === cfg.MEAS_MIC_CH && state.roomConfidence < cfg.feedback.lowConf) {
+        needed = Math.max(needed, roundHalfEven(needed / Math.max(cfg.feedback.confFloor, state.roomConfidence)));
       }
 
       const grew = stable && rising;
@@ -74,7 +74,7 @@ export class FeedbackJob {
       if (grew && need(this.fbStreak, ch) >= needed) {
         const flag = near ? " [watch-list]" : "";
         const hz = fixed(feat.fbFreq, 0);
-        if (ch === C.MEAS_MIC_CH) {
+        if (ch === cfg.MEAS_MIC_CH) {
           const coaching = this.ctx.coaching();
           const band = coaching
             ? this.allocBusBand([...new Set([...this.fbBusBands, ...this.coachBusBands])], this.coachBusUsed)
@@ -87,41 +87,41 @@ export class FeedbackJob {
             this.ctx.recommend(
               "feedback",
               ch,
-              `Feedback ${hz} Hz in the room → cut the MAIN BUS at ${hz} Hz by ${fixed(C.feedback.notchGainDb, 0)} dB ` +
-                `(Q ${fixed(C.feedback.notchQ, 0)}); e.g. main PEQ band ${band}.${flag}`,
+              `Feedback ${hz} Hz in the room → cut the MAIN BUS at ${hz} Hz by ${fixed(cfg.feedback.notchGainDb, 0)} dB ` +
+                `(Q ${fixed(cfg.feedback.notchQ, 0)}); e.g. main PEQ band ${band}.${flag}`,
               false,
               {
                 freq: roundTo(feat.fbFreq, 1),
-                gain_db: C.feedback.notchGainDb,
-                q: C.feedback.notchQ,
+                gain_db: cfg.feedback.notchGainDb,
+                q: cfg.feedback.notchQ,
                 target: "main-bus",
                 band,
               },
             );
           } else {
-            mixer.setBusEq(band, feat.fbFreq, C.feedback.notchGainDb, C.feedback.notchQ);
+            mixer.setBusEq(band, feat.fbFreq, cfg.feedback.notchGainDb, cfg.feedback.notchQ);
             if (!this.fbBusBands.includes(band)) this.fbBusBands.push(band);
             this.usedBusNotchBand += 1;
-            this.ctx.emit("feedback", `${hz} Hz on ${chanOf(C, ch)} → main-bus band ${band}${flag}`, ch);
+            this.ctx.emit("feedback", `${hz} Hz on ${chanOf(cfg, ch)} → main-bus band ${band}${flag}`, ch);
             this.ctx.noteLatency("feedback");
           }
         } else {
           const coaching = this.ctx.coaching();
           const counter = coaching ? this.coachNotchBand : this.usedNotchBand;
-          let band = ((coaching ? need(counter, ch) || need(this.usedNotchBand, ch) : need(counter, ch)) % C.CHANNEL_EQ_BANDS) + 1;
-          if (state.enabled["unmask"] && band === C.unmask.band && C.CHANNEL_EQ_BANDS > 1) band = (band % C.CHANNEL_EQ_BANDS) + 1;
+          let band = ((coaching ? need(counter, ch) || need(this.usedNotchBand, ch) : need(counter, ch)) % cfg.CHANNEL_EQ_BANDS) + 1;
+          if (state.enabled["unmask"] && band === cfg.unmask.band && cfg.CHANNEL_EQ_BANDS > 1) band = (band % cfg.CHANNEL_EQ_BANDS) + 1;
           if (coaching) {
             this.coachNotchBand.set(ch, band);
             this.ctx.recommend(
               "feedback",
               ch,
-              `Feedback ${hz} Hz on ${chanOf(C, ch)} → notch input EQ band ${band} at ${hz} Hz, ` +
-                `${fixed(C.feedback.notchGainDb, 0)} dB (Q ${fixed(C.feedback.notchQ, 0)}).${flag}`,
+              `Feedback ${hz} Hz on ${chanOf(cfg, ch)} → notch input EQ band ${band} at ${hz} Hz, ` +
+                `${fixed(cfg.feedback.notchGainDb, 0)} dB (Q ${fixed(cfg.feedback.notchQ, 0)}).${flag}`,
               false,
               {
                 freq: roundTo(feat.fbFreq, 1),
-                gain_db: C.feedback.notchGainDb,
-                q: C.feedback.notchQ,
+                gain_db: cfg.feedback.notchGainDb,
+                q: cfg.feedback.notchQ,
                 target: `ch${ch}`,
                 band,
               },
@@ -129,7 +129,7 @@ export class FeedbackJob {
           } else {
             mixer.setEqNotch(ch, band, feat.fbFreq);
             this.usedNotchBand.set(ch, band);
-            this.ctx.emit("feedback", `${hz} Hz on ${chanOf(C, ch)} → notch band ${band}${flag}`, ch);
+            this.ctx.emit("feedback", `${hz} Hz on ${chanOf(cfg, ch)} → notch band ${band}${flag}`, ch);
             this.ctx.noteLatency("feedback");
           }
         }
@@ -145,9 +145,9 @@ export class FeedbackJob {
   }
 
   resetNotches(): void {
-    const C = this.ctx.cfg;
+    const cfg = this.ctx.cfg;
     let cleared = 0;
-    for (const ch of C.CHANNELS.keys()) {
+    for (const ch of cfg.CHANNELS.keys()) {
       if (need(this.usedNotchBand, ch)) {
         this.ctx.mixer.clearChannelEq(ch);
         this.usedNotchBand.set(ch, 0);
@@ -157,7 +157,7 @@ export class FeedbackJob {
       this.coachNotchBand.set(ch, 0);
     }
     for (const band of this.fbBusBands) {
-      this.ctx.mixer.setBusEq(band, C.EQ_FLAT_FREQ, 0.0, C.EQ_FLAT_Q);
+      this.ctx.mixer.setBusEq(band, cfg.EQ_FLAT_FREQ, 0.0, cfg.EQ_FLAT_Q);
       cleared++;
     }
     this.fbBusBands = [];

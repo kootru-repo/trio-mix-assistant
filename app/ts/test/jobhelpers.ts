@@ -1,4 +1,4 @@
-import { C, configWith, defaultTuning } from "../src/core/config.ts";
+import { configWith, defaultTuning } from "../src/core/config.ts";
 import type { Config } from "../src/core/config.ts";
 import { MixState } from "../src/core/assistant/context.ts";
 import type { JobContext, MixerPort } from "../src/core/assistant/context.ts";
@@ -104,19 +104,3 @@ export const feat = (over: Partial<ChannelFeatures> = {}): ChannelFeatures => ({
   spectrum: new Float64Array(0),
   ...over,
 });
-
-export function globalSnapshot(): string {
-  return JSON.stringify({
-    channels: [...C.CHANNELS],
-    lead: C.LEAD_VOCAL_CH,
-    meas: C.MEAS_MIC_CH,
-    stage: C.STAGE_MIC_CH,
-    balance: C.BALANCE_CHANNELS,
-    labels: [...C.ROLE_LABELS],
-    guest: C.GUEST_CHANNELS,
-    links: C.STEREO_LINKS,
-    pairs: C.PHASE_PAIRS,
-    unmask: C.UNMASK_CHANNELS,
-    tuning: Object.fromEntries(Object.keys(defaultTuning()).map((k) => [k, Reflect.get(C, k)])),
-  });
-}

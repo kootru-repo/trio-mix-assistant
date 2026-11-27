@@ -1,3 +1,4 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MemNetwork } from "../src/core/memtransport.ts";
@@ -7,6 +8,8 @@ import { decodeMeterBlob, encodeMeterBlob, encodeMessage, oscBlob, oscFloat, osc
 import type { OscArg } from "../src/core/oscwire.ts";
 import type { UdpFactory } from "../src/core/transport.ts";
 import { NodeUdpFactory } from "../src/host/udp.ts";
+
+const testCfg = defaultConfig();
 
 function bundle(messages: Uint8Array[]): Uint8Array {
   const parts: number[] = [];
@@ -23,11 +26,7 @@ function rig() {
   const faders: [number, number][] = [];
   const meters: number[][] = [];
   const net = new MemNetwork();
-  const rx = new MeterReceiver(net, {
-    onFader: (ch, db) => faders.push([ch, db]),
-    onMeters: (v) => meters.push(v),
-    port: 0,
-  });
+  const rx = new MeterReceiver(net, { cfg: testCfg, onFader: (ch, db) => faders.push([ch, db]), onMeters: (v) => meters.push(v), port: 0 });
   return { faders, meters, net, rx };
 }
 
@@ -156,9 +155,9 @@ test("start binds, receives datagrams, and stop closes and silences", async () =
 
 test("a second receiver on the same port fails to bind", async () => {
   const net = new MemNetwork();
-  const a = new MeterReceiver(net, { port: 0 });
+  const a = new MeterReceiver(net, { cfg: testCfg, port: 0 });
   await a.start();
-  const b = new MeterReceiver(net, { port: a.port });
+  const b = new MeterReceiver(net, { cfg: testCfg, port: a.port });
   await assert.rejects(b.start());
   a.stop();
 });
@@ -168,6 +167,7 @@ test("receiver works over a real UDP socket", async () => {
   const got: [number, number][] = [];
   const meters: number[][] = [];
   const rx = new MeterReceiver(udp, {
+    cfg: testCfg,
     ip: "127.0.0.1",
     port: 0,
     onFader: (ch, db) => got.push([ch, db]),
@@ -207,7 +207,7 @@ test("routing an adversarial address and many distinct addresses stays cheap", a
 
 test("a start that is stopped before it binds leaves nothing bound", async () => {
   const net = new MemNetwork();
-  const rx = new MeterReceiver(net, { port: 50123 });
+  const rx = new MeterReceiver(net, { cfg: testCfg, port: 50123 });
   const p = rx.start();
   rx.stop();
   await p;
@@ -228,7 +228,7 @@ test("a stop that lands while the bind is in flight closes the endpoint", async 
       return net.bind(port, host);
     },
   };
-  const rx = new MeterReceiver(slow, { port: 50124 });
+  const rx = new MeterReceiver(slow, { cfg: testCfg, port: 50124 });
   const p = rx.start();
   await Promise.resolve();
   await Promise.resolve();

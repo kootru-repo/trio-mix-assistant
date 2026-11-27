@@ -1,3 +1,4 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AnalysedBlock } from "../src/core/blockanalysis.ts";
@@ -5,7 +6,6 @@ import { CaptureSourceBase } from "../src/core/capture.ts";
 import type { Frame } from "../src/core/capture.ts";
 import { formatHhmmss } from "../src/core/clock.ts";
 import type { Clock } from "../src/core/clock.ts";
-import { C } from "../src/core/config.ts";
 import { OscConsole, SimConsole, autoLane, dbToFader, faderToDb } from "../src/core/console.ts";
 import { emptyFeatures } from "../src/core/dsp.ts";
 import type { ChannelFeatures } from "../src/core/dsp.ts";
@@ -16,6 +16,8 @@ import type { OscArg } from "../src/core/oscwire.ts";
 import type { MeterReceiverPort } from "../src/core/ports.ts";
 import type { WriteGovernor } from "../src/core/writegov.ts";
 import { StepClock } from "./stepclock.ts";
+
+const testCfg = defaultConfig();
 
 interface Sleeper {
   wake: number;
@@ -152,7 +154,7 @@ const isRead = (s: Sent): boolean => s.args.length === 0 && (FADER.test(s.addr) 
 const pad = (n: number, width: number): string => String(n).padStart(width, "0");
 
 const deskAddresses = (): string[] =>
-  [...C.CHANNELS.keys()].flatMap((ch) => [
+  [...testCfg.CHANNELS.keys()].flatMap((ch) => [
     `/ch/${pad(ch, 2)}/mix/fader`,
     `/headamp/${pad(ch - 1, 3)}/gain`,
     `/ch/${pad(ch, 2)}/preamp/invert`,
@@ -168,8 +170,8 @@ const gov = (con: OscConsole): WriteGovernor => {
 
 const makeRig = async (clock: AnyClock = new StepClock(100, 1_700_000_000)): Promise<Rig> => {
   const sink = new Sink();
-  const con = new OscConsole(sink, { clock });
-  const e = new CountingEngine({ clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
+  const con = new OscConsole(sink, { cfg: testCfg, clock });
+  const e = new CountingEngine({ cfg: testCfg, clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
   e.meterRx = quietReceiver();
   await e.start();
   return { e, clock, con, sink };
@@ -299,7 +301,7 @@ test("with the auto lane used up, the assistant's clip trim waits while a dashbo
     near(floatOf(writesTo(r, faderAddr(3), from)[0]), dbToFader(-5));
     assert.equal(gov(r.con).backlog("manual"), 0);
     r.e.panic(true);
-    const mute = writesTo(r, `/${C.MAIN_BUS}/mix/on`, from);
+    const mute = writesTo(r, `/${testCfg.MAIN_BUS}/mix/on`, from);
     assert.equal(mute.length, 1);
     assert.deepEqual(mute[0], oscInt(0));
     assert.equal(writesTo(r, gainAddr(2), from).length, 0);
@@ -354,7 +356,7 @@ test("with both the auto and manual lanes used up, a dashboard fader queues whil
   try {
     exhaustAuto(r);
     for (let ch = 1; ch <= 32 && gov(r.con).backlog("manual") === 0; ch++) {
-      r.e.command({ type: "send", ch: Math.min(ch, 7), fx: 1 + (ch % C.FX_BUSES.size), db: -20 - ch });
+      r.e.command({ type: "send", ch: Math.min(ch, 7), fx: 1 + (ch % testCfg.FX_BUSES.size), db: -20 - ch });
       r.e.command({ type: "eq", ch: Math.min(ch, 7), band: 1 + (ch % 4), gain: -1 - ch / 10 });
     }
     assert.ok(gov(r.con).backlog("manual") > 0, "the manual lane never filled");
@@ -365,7 +367,7 @@ test("with both the auto and manual lanes used up, a dashboard fader queues whil
     r.e.recallSceneManual(4);
     assert.deepEqual(new Set(readsSince(r, from)), new Set(deskAddresses()));
     r.e.panic(true);
-    const mute = writesTo(r, `/${C.MAIN_BUS}/mix/on`, from);
+    const mute = writesTo(r, `/${testCfg.MAIN_BUS}/mix/on`, from);
     assert.equal(mute.length, 1);
     assert.deepEqual(mute[0], oscInt(0));
     assert.ok(gov(r.con).backlog("manual") > 0);
@@ -401,7 +403,7 @@ const uniqueInOrder = (xs: readonly string[]): string[] => [...new Set(xs)];
 test("an auto backlog that lasts stormS holds the jobs for write-storm with a critical alert, drains in order with latest values, and TAKEOVER re-arms", async () => {
   const r = await armedRig();
   try {
-    const sim = new SimConsole();
+    const sim = new SimConsole({ cfg: testCfg });
     flood(autoLane(sim));
     autoLane(sim).setEqBand(32, 4, 4321, 6, 3, true);
     const expected = uniqueInOrder(sim.wireLog.map((w) => w[0]));
@@ -525,7 +527,7 @@ test("a hand move on another channel does not stop a ramp in flight", async () =
 test("three hand moves within lockWindowS lock the channel out of every job until TAKEOVER is pressed and released", async () => {
   const r = await armedRig();
   try {
-    const lockMsg = `ch2 moved by hand ${C.safety.lockMoves} times in ${C.safety.lockWindowS} s`;
+    const lockMsg = `ch2 moved by hand ${testCfg.safety.lockMoves} times in ${testCfg.safety.lockWindowS} s`;
     r.e.reconcileFader(2, -3);
     await drive(r, 1.0, true);
     r.e.reconcileFader(2, 0);
@@ -572,7 +574,7 @@ test("hand moves spread wider than lockWindowS never lock the channel", async ()
   try {
     for (const db of [-3, 0, -6]) {
       r.e.reconcileFader(2, db);
-      await drive(r, C.safety.lockWindowS / 2 + 1, true);
+      await drive(r, testCfg.safety.lockWindowS / 2 + 1, true);
     }
     assert.equal(r.e.channelLocked(2), false);
     noErrors(r.e);
@@ -581,14 +583,14 @@ test("hand moves spread wider than lockWindowS never lock the channel", async ()
   }
 });
 
-const leadRideBlock = (): AnalysedBlock => block([[C.LEAD_VOCAL_CH, { rmsDbfs: -40, peakDbfs: -30 }]]);
+const leadRideBlock = (): AnalysedBlock => block([[testCfg.LEAD_VOCAL_CH, { rmsDbfs: -40, peakDbfs: -30 }]]);
 
 test("a ride ramp aborted for oversleeping leaves the fader belief at the last value actually written", async () => {
   const clock = new SlipClock();
   const sink = new Sink();
-  const con = new OscConsole(sink, { clock });
-  const e = new Engine({ clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
-  const ch = C.LEAD_VOCAL_CH;
+  const con = new OscConsole(sink, { cfg: testCfg, clock });
+  const e = new Engine({ cfg: testCfg, clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
+  const ch = testCfg.LEAD_VOCAL_CH;
   e.setEnabled("vocal_ride", true);
   clock.extra = [0, 0.3];
   e.onPushedBlock(leadRideBlock(), 0);
@@ -606,9 +608,9 @@ test("a ride ramp aborted for oversleeping leaves the fader belief at the last v
 test("a ride ramp dropped for waiting too long leaves the belief at the channel's last written level", async () => {
   const clock = new StepClock(100, 1_700_000_000);
   const sink = new Sink();
-  const con = new OscConsole(sink, { clock });
-  const e = new Engine({ clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
-  const ch = C.LEAD_VOCAL_CH;
+  const con = new OscConsole(sink, { cfg: testCfg, clock });
+  const e = new Engine({ cfg: testCfg, clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
+  const ch = testCfg.LEAD_VOCAL_CH;
   con.setFaderDb(ch, -3);
   e.assistant.faderDb.set(ch, -3);
   e.setEnabled("vocal_ride", true);
@@ -625,9 +627,9 @@ test("a ride ramp dropped for waiting too long leaves the belief at the channel'
 test("a ride ramp dropped before it wrote anything on a channel the app never wrote leaves the belief at the ramp's start", async () => {
   const clock = new StepClock(100, 1_700_000_000);
   const sink = new Sink();
-  const con = new OscConsole(sink, { clock });
-  const e = new Engine({ clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
-  const ch = C.LEAD_VOCAL_CH;
+  const con = new OscConsole(sink, { cfg: testCfg, clock });
+  const e = new Engine({ cfg: testCfg, clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
+  const ch = testCfg.LEAD_VOCAL_CH;
   e.setEnabled("vocal_ride", true);
   const start = e.assistant.faderDb.get(ch);
   assert.ok(start !== undefined);
@@ -699,7 +701,7 @@ test("a wall-clock jump with no monotonic gap is also treated as a resume", asyn
 
 test("a simulation engine only logs a long stall and does not hold", async () => {
   const clock = new JumpClock(100, 1_700_000_000);
-  const e = new Engine({ clock, sim: true, tick: 0.05 });
+  const e = new Engine({ cfg: testCfg, clock, sim: true, tick: 0.05 });
   await e.start();
   try {
     await clock.advance(0.5);

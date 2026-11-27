@@ -10,6 +10,12 @@ export interface ChannelMapSpec {
   phase_pairs?: readonly (readonly number[])[] | null;
 }
 
+export interface TuningOverride {
+  path: string;
+  value: number;
+  source: string;
+}
+
 export type RideConfig = {
   leadTargetDb: number;
   toleranceDb: number;
@@ -212,6 +218,7 @@ export interface Config extends Tuning {
   EQ_FLAT_FREQ: number;
   EQ_FLAT_Q: number;
   DEFAULT_ENABLED: Record<string, boolean>;
+  TUNED: readonly TuningOverride[];
 }
 
 export function defaultTuning(): Tuning {
@@ -417,14 +424,30 @@ export function defaultConfig(): Config {
       phase: false,
       unmask: false,
     },
+    TUNED: [],
     ...defaultTuning(),
   };
 }
 
-export const C: Config = defaultConfig();
-
 export function configWith(over: Partial<Config> = {}): Config {
   return { ...defaultConfig(), ...over };
+}
+
+export function copyConfig(cfg: Config): Config {
+  return {
+    ...cfg,
+    CHANNELS: new Map(cfg.CHANNELS),
+    ROLE_LABELS: new Map(cfg.ROLE_LABELS),
+    FX_BUSES: new Map(cfg.FX_BUSES),
+    BALANCE_CHANNELS: [...cfg.BALANCE_CHANNELS],
+    GUEST_CHANNELS: [...cfg.GUEST_CHANNELS],
+    STEREO_LINKS: cfg.STEREO_LINKS.map((p) => [...p]),
+    PHASE_PAIRS: cfg.PHASE_PAIRS.map((p) => [...p]),
+    UNMASK_CHANNELS: [...cfg.UNMASK_CHANNELS],
+    EQ_DEFAULT_FREQS: [...cfg.EQ_DEFAULT_FREQS],
+    DEFAULT_ENABLED: { ...cfg.DEFAULT_ENABLED },
+    TUNED: cfg.TUNED.map((o) => ({ ...o })),
+  };
 }
 
 const titleCase = (s: string): string =>
@@ -436,44 +459,44 @@ const titleCase = (s: string): string =>
 const ints = (xs: readonly number[]): number[] => xs.map((x) => Math.trunc(Number(x)));
 const pairs = (xs: readonly (readonly number[])[]): number[][] => xs.map((p) => ints(p));
 
-export function applyChannelMap(spec: ChannelMapSpec, target: Config = C): void {
-  const C = target;
+export function applyChannelMap(spec: ChannelMapSpec, target: Config): void {
+  const cfg = target;
   const newChans = spec.map
     ? new Map(Object.entries(spec.map).map(([k, v]) => [Math.trunc(Number(k)), String(v)] as [number, string]))
-    : new Map(C.CHANNELS);
+    : new Map(cfg.CHANNELS);
   const labels = spec.labels ?? {};
   const newLabels = new Map<string, string>();
   for (const role of newChans.values()) {
-    newLabels.set(role, labels[role] ?? C.ROLE_LABELS.get(role) ?? titleCase(role));
+    newLabels.set(role, labels[role] ?? cfg.ROLE_LABELS.get(role) ?? titleCase(role));
   }
   const keys = [...newChans.keys()];
   if (!keys.length) throw new Error("the channel map has no channels");
-  const wantLead = spec.lead != null ? Math.trunc(Number(spec.lead)) : C.LEAD_VOCAL_CH;
-  const wantMeas = spec.meas_mic != null ? Math.trunc(Number(spec.meas_mic)) : C.MEAS_MIC_CH;
+  const wantLead = spec.lead != null ? Math.trunc(Number(spec.lead)) : cfg.LEAD_VOCAL_CH;
+  const wantMeas = spec.meas_mic != null ? Math.trunc(Number(spec.meas_mic)) : cfg.MEAS_MIC_CH;
   const newLead = newChans.has(wantLead) ? wantLead : Math.min(...keys);
   const newMeas = newChans.has(wantMeas) ? wantMeas : Math.max(...keys);
-  const newBal = "balance" in spec ? ints(spec.balance ?? []) : C.BALANCE_CHANNELS;
-  const newGuest = "guest" in spec ? ints(spec.guest ?? []) : C.GUEST_CHANNELS;
-  const newLinks = "stereo_links" in spec ? pairs(spec.stereo_links ?? []) : C.STEREO_LINKS;
-  const newPhase = "phase_pairs" in spec ? pairs(spec.phase_pairs ?? []) : C.PHASE_PAIRS;
+  const newBal = "balance" in spec ? ints(spec.balance ?? []) : cfg.BALANCE_CHANNELS;
+  const newGuest = "guest" in spec ? ints(spec.guest ?? []) : cfg.GUEST_CHANNELS;
+  const newLinks = "stereo_links" in spec ? pairs(spec.stereo_links ?? []) : cfg.STEREO_LINKS;
+  const newPhase = "phase_pairs" in spec ? pairs(spec.phase_pairs ?? []) : cfg.PHASE_PAIRS;
   let newStage: number | null;
   if ("stage_mic" in spec) {
     newStage = spec.stage_mic != null ? Math.trunc(Number(spec.stage_mic)) : null;
   } else {
-    newStage = C.STAGE_MIC_CH;
+    newStage = cfg.STAGE_MIC_CH;
   }
-  C.CHANNELS = newChans;
-  C.ROLE_LABELS = newLabels;
-  C.LEAD_VOCAL_CH = newLead;
-  C.MEAS_MIC_CH = newMeas;
-  C.BALANCE_CHANNELS = newBal;
-  C.GUEST_CHANNELS = newGuest;
-  C.STEREO_LINKS = newLinks;
-  C.STAGE_MIC_CH = newStage;
-  C.PHASE_PAIRS = newPhase;
+  cfg.CHANNELS = newChans;
+  cfg.ROLE_LABELS = newLabels;
+  cfg.LEAD_VOCAL_CH = newLead;
+  cfg.MEAS_MIC_CH = newMeas;
+  cfg.BALANCE_CHANNELS = newBal;
+  cfg.GUEST_CHANNELS = newGuest;
+  cfg.STEREO_LINKS = newLinks;
+  cfg.STAGE_MIC_CH = newStage;
+  cfg.PHASE_PAIRS = newPhase;
 }
 
-export function autoChannelMap(nInputs: number, target: Config = C): ChannelMapSpec {
+export function autoChannelMap(nInputs: number, target: Config): ChannelMapSpec {
   const n = Math.max(1, Math.trunc(nInputs));
   let spec: ChannelMapSpec;
   if (n === 1) {
@@ -501,30 +524,30 @@ export interface ChannelMapState {
   phasePairs: readonly (readonly number[])[];
 }
 
-export function channelMapState(source: Config = C): ChannelMapState {
-  const C = source;
+export function channelMapState(source: Config): ChannelMapState {
+  const cfg = source;
   return {
-    channels: new Map(C.CHANNELS),
-    roleLabels: new Map(C.ROLE_LABELS),
-    lead: C.LEAD_VOCAL_CH,
-    meas: C.MEAS_MIC_CH,
-    balance: [...C.BALANCE_CHANNELS],
-    guest: [...C.GUEST_CHANNELS],
-    stereoLinks: C.STEREO_LINKS.map((p) => [...p]),
-    stage: C.STAGE_MIC_CH,
-    phasePairs: C.PHASE_PAIRS.map((p) => [...p]),
+    channels: new Map(cfg.CHANNELS),
+    roleLabels: new Map(cfg.ROLE_LABELS),
+    lead: cfg.LEAD_VOCAL_CH,
+    meas: cfg.MEAS_MIC_CH,
+    balance: [...cfg.BALANCE_CHANNELS],
+    guest: [...cfg.GUEST_CHANNELS],
+    stereoLinks: cfg.STEREO_LINKS.map((p) => [...p]),
+    stage: cfg.STAGE_MIC_CH,
+    phasePairs: cfg.PHASE_PAIRS.map((p) => [...p]),
   };
 }
 
-export function restoreChannelMapState(s: ChannelMapState, target: Config = C): void {
-  const C = target;
-  C.CHANNELS = new Map(s.channels);
-  C.ROLE_LABELS = new Map(s.roleLabels);
-  C.LEAD_VOCAL_CH = s.lead;
-  C.MEAS_MIC_CH = s.meas;
-  C.BALANCE_CHANNELS = [...s.balance];
-  C.GUEST_CHANNELS = [...s.guest];
-  C.STEREO_LINKS = s.stereoLinks.map((p) => [...p]);
-  C.STAGE_MIC_CH = s.stage;
-  C.PHASE_PAIRS = s.phasePairs.map((p) => [...p]);
+export function restoreChannelMapState(s: ChannelMapState, target: Config): void {
+  const cfg = target;
+  cfg.CHANNELS = new Map(s.channels);
+  cfg.ROLE_LABELS = new Map(s.roleLabels);
+  cfg.LEAD_VOCAL_CH = s.lead;
+  cfg.MEAS_MIC_CH = s.meas;
+  cfg.BALANCE_CHANNELS = [...s.balance];
+  cfg.GUEST_CHANNELS = [...s.guest];
+  cfg.STEREO_LINKS = s.stereoLinks.map((p) => [...p]);
+  cfg.STAGE_MIC_CH = s.stage;
+  cfg.PHASE_PAIRS = s.phasePairs.map((p) => [...p]);
 }

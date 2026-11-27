@@ -1,4 +1,4 @@
-import { C } from "../core/config.ts";
+import type { Config } from "../core/config.ts";
 import type { Args } from "./args.ts";
 
 const WILDCARD_HOSTS = ["0.0.0.0", "::"];
@@ -80,11 +80,11 @@ export function bannerLines(input: BannerInput): string[] {
   return lines;
 }
 
-export function emulatorLines(ip: string | null, listenPort: number, trace: boolean, lan: boolean = false): string[] {
+export function emulatorLines(cfg: Config, ip: string | null, listenPort: number, trace: boolean, lan: boolean = false): string[] {
   const lines = [
     "  Mixer app: connect Mixing Station (console type Behringer X32, access",
-    `             Full) to  ${ip ?? "127.0.0.1"}:${listenPort}  — appears as "${C.X32_NAME}" in search.`,
-    `             X32-Edit also works; identity = ${C.X32_MODEL}/${C.X32_FW}` + (trace ? "  [--trace-osc ON]" : ""),
+    `             Full) to  ${ip ?? "127.0.0.1"}:${listenPort}  — appears as "${cfg.X32_NAME}" in search.`,
+    `             X32-Edit also works; identity = ${cfg.X32_MODEL}/${cfg.X32_FW}` + (trace ? "  [--trace-osc ON]" : ""),
   ];
   if (ip === null) {
     lines.push(

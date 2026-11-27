@@ -11,12 +11,12 @@ The in-app full test ("Run full test", `vetSequence` in `src/core/vet.ts`) drive
 
 The full test runs on default tuning and a fixed channel map, then puts the user's settings back.
 
-- `vetSequence` saves the channel map, applies its own `VET_MAP`, and calls `pinDefaultTuning()`.
-- A `finally` block restores the channel map and the user's tuning.
-- The report lists the user's overrides (`tuningLines()` in `src/host/vet.ts`), so the reader knows the live app runs with them.
+- `vetSequence` builds its own config with `vetConfig()` (defaults plus `VET_MAP`) and its own console on the test's link. It never touches the live config (0017).
+- The rest of the full test runs on a private copy of the live config (`copyConfig` in `runVet`).
+- The report lists the user's overrides (`tuningLines(cfg.TUNED)` in `src/host/vet.ts`), so the reader knows the live app runs with them.
 
 ## Consequences
 
 - A full test result means the same thing on every machine.
 - It does not prove that the user's tuned values are safe. Range checks (0008) cover that.
-- The pinning works by changing the shared config (0007), so it can leak into the live app while the test runs. Plan item #5 gives the full test its own config.
+- Until plan item #5 the pinning changed the shared config (0007) and could leak into the live app while the test ran. Since 0017 the full test has its own config, and `test/vet-isolation.test.ts` checks that the live config and engine are untouched during and after a run.

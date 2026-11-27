@@ -1,5 +1,4 @@
 import type { Clock } from "./clock.ts";
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import { encodeMessage, oscFloat, oscInt, oscStr } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
@@ -71,7 +70,7 @@ interface RampJob {
 export interface ConsoleOptions {
   clock?: Clock | null;
   ip?: string | null;
-  cfg?: Config;
+  cfg: Config;
 }
 
 export abstract class ConsoleBase {
@@ -90,10 +89,10 @@ export abstract class ConsoleBase {
   onFaderWrite: ((ch: number, db: number) => void) | null = null;
   protected lane: Lane = "manual";
 
-  constructor(opts: ConsoleOptions = {}) {
+  constructor(opts: ConsoleOptions) {
     this.rampClock = opts.clock ?? null;
     this.ip = opts.ip ?? null;
-    this.cfg = opts.cfg ?? C;
+    this.cfg = opts.cfg;
   }
 
   protected abstract send(addr: string, ...args: OscArg[]): void;
@@ -361,7 +360,7 @@ export class OscConsole extends ConsoleBase {
   private readonly sink: DatagramSink;
   readonly governor: WriteGovernor | null;
 
-  constructor(sink: DatagramSink, opts: ConsoleOptions = {}) {
+  constructor(sink: DatagramSink, opts: ConsoleOptions) {
     super(opts);
     this.sink = sink;
     const s = this.cfg.safety;

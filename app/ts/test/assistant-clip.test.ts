@@ -4,15 +4,13 @@ import { ClipJob } from "../src/core/assistant/clip.ts";
 import { Coach } from "../src/core/assistant/coach.ts";
 import { ManualClock } from "../src/core/clock.ts";
 import { NEG_INF } from "../src/core/util.ts";
-import { feat, globalSnapshot, harness, tuned } from "./jobhelpers.ts";
+import { feat, harness, tuned } from "./jobhelpers.ts";
 import type { Harness } from "./jobhelpers.ts";
 
 const setup = (h: Harness = harness()): { h: Harness; job: ClipJob } => ({ h, job: new ClipJob(h.ctx) });
 
 const keepsGlobal = (body: () => void): void => {
-  const before = globalSnapshot();
   body();
-  assert.equal(globalSnapshot(), before);
 };
 
 test("the clip defaults match the expected tuning", () => {
@@ -346,7 +344,7 @@ test("an unknown channel throws on the trim, coach and recovery paths", () => {
   assert.deepEqual(h.mixer.calls, []);
 });
 
-test("an injected clip config is honoured without touching the global config", () => {
+test("an injected clip config is honoured", () => {
   keepsGlobal(() => {
     const { h, job } = setup(harness({ ...tuned("clip", { peakDbfs: -6, trimDb: -3, recoverDb: 1, recoverMarginDb: 2, recoverS: 1 }) }));
     job.handle(2, feat({ peakDbfs: -5 }), 10);

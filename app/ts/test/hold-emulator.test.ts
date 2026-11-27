@@ -1,7 +1,7 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChannelFeatures } from "../src/core/dsp.ts";
-import { C } from "../src/core/config.ts";
 import { OscConsole, dbToFader, faderToDb } from "../src/core/console.ts";
 import { EmulatedDesk } from "../src/core/emulator.ts";
 import { Engine } from "../src/core/engine/index.ts";
@@ -11,6 +11,8 @@ import { argFloat } from "../src/core/oscargs.ts";
 import { encodeMessage, oscFloat } from "../src/core/oscwire.ts";
 import { zeroPad } from "../src/core/util.ts";
 import { StepClock } from "./stepclock.ts";
+
+const testCfg = defaultConfig();
 
 const feat = (over: Partial<ChannelFeatures>): ChannelFeatures => ({
   rmsDbfs: -30,
@@ -38,9 +40,9 @@ interface Rig {
 async function rig(seed: (desk: EmulatedDesk, write: (addr: string, v: number) => Promise<void>) => Promise<void>): Promise<Rig> {
   const net = new MemNetwork();
   const clock = new StepClock(100, 1_700_000_000);
-  const rx = new MeterReceiver(net, { ip: "127.0.0.1", port: 0, allowFrom: "127.0.0.1" });
+  const rx = new MeterReceiver(net, { cfg: testCfg, ip: "127.0.0.1", port: 0, allowFrom: "127.0.0.1" });
   await rx.start();
-  const desk = new EmulatedDesk(net, clock, { listenPort: 0, appIp: "127.0.0.1", appPort: rx.port, meterHz: 20 });
+  const desk = new EmulatedDesk(net, clock, { cfg: testCfg, listenPort: 0, appIp: "127.0.0.1", appPort: rx.port, meterHz: 20 });
   await desk.start();
   const editor = await net.bind(0, "127.0.0.1");
   const write = async (addr: string, v: number): Promise<void> => {
@@ -49,8 +51,8 @@ async function rig(seed: (desk: EmulatedDesk, write: (addr: string, v: number) =
   };
   await seed(desk, write);
   const sink = new SharedPortSink(rx, { host: "127.0.0.1", port: desk.listenPort }, { send: () => undefined, close: () => undefined });
-  const con = new OscConsole(sink, { clock, ip: "127.0.0.1" });
-  const engine = new Engine({ clock, sim: false, console: con, tick: 0.05 });
+  const con = new OscConsole(sink, { cfg: testCfg, clock, ip: "127.0.0.1" });
+  const engine = new Engine({ cfg: testCfg, clock, sim: false, console: con, tick: 0.05 });
   rx.onFader = (ch, db) => engine.reconcileFader(ch, db);
   rx.onMeters = (vals) => engine.setConsoleMeters(vals);
   rx.onHeard = () => engine.consoleHeard();
@@ -108,12 +110,12 @@ test("against the emulator the first vocal ride starts from the desk's real fade
   try {
     await r.run(3);
     assert.ok(!held(r.engine));
-    assert.ok(Math.abs((r.engine.assistant.faderDb.get(C.LEAD_VOCAL_CH) ?? 0) + 10) < 0.05);
+    assert.ok(Math.abs((r.engine.assistant.faderDb.get(testCfg.LEAD_VOCAL_CH) ?? 0) + 10) < 0.05);
     r.engine.command({ type: "toggle", job: "vocal_ride", on: true });
-    r.engine.onPushedBlock(block(C.LEAD_VOCAL_CH, feat({ rmsDbfs: -40 })), 0);
+    r.engine.onPushedBlock(block(testCfg.LEAD_VOCAL_CH, feat({ rmsDbfs: -40 })), 0);
     await r.run(1);
-    const now = r.deskFader(C.LEAD_VOCAL_CH);
-    assert.ok(now > -10 && now <= -10 + C.ride.maxStepDb + 0.05, `desk fader ${now}`);
+    const now = r.deskFader(testCfg.LEAD_VOCAL_CH);
+    assert.ok(now > -10 && now <= -10 + testCfg.ride.maxStepDb + 0.05, `desk fader ${now}`);
   } finally {
     await r.stop();
   }
@@ -128,17 +130,20 @@ test("against the emulator a cut network holds the jobs, and after it heals noth
     r.net.filter = () => false;
     await r.run(2);
     assert.ok(held(r.engine), "the jobs are on hold while the link is down");
-    const before = r.deskFader(C.LEAD_VOCAL_CH);
+    const before = r.deskFader(testCfg.LEAD_VOCAL_CH);
     for (let i = 0; i < 10; i++) {
-      r.engine.onPushedBlock(block(C.LEAD_VOCAL_CH, feat({ rmsDbfs: -40 })), 0);
+      r.engine.onPushedBlock(block(testCfg.LEAD_VOCAL_CH, feat({ rmsDbfs: -40 })), 0);
       await r.run(0.05);
     }
-    assert.equal(r.engine.assistant.faderDb.get(C.LEAD_VOCAL_CH), 0, "no belief drift while held");
+    assert.equal(r.engine.assistant.faderDb.get(testCfg.LEAD_VOCAL_CH), 0, "no belief drift while held");
     r.net.filter = null;
     await r.desk.handleAny({ host: "127.0.0.1", port: 1 }, "/ch/01/mix/fader", [oscFloat(dbToFader(-6))]);
     await r.run(3);
     assert.ok(!held(r.engine), "the jobs re-armed after the link came back and the desk was read");
-    assert.ok(Math.abs((r.engine.assistant.faderDb.get(C.LEAD_VOCAL_CH) ?? 0) + 6) < 0.05, "the belief follows the desk after the read");
+    assert.ok(
+      Math.abs((r.engine.assistant.faderDb.get(testCfg.LEAD_VOCAL_CH) ?? 0) + 6) < 0.05,
+      "the belief follows the desk after the read",
+    );
     assert.equal(before, 0);
     const events = r.engine.events.map((e) => e.msg);
     assert.ok(events.some((m) => m.includes("automatic jobs on hold")));

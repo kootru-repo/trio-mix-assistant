@@ -4,19 +4,13 @@ import { MixAssistant } from "../src/core/assistant/core.ts";
 import type { AssistantEvent } from "../src/core/assistant/base.ts";
 import type { CalibrationResult } from "../src/core/calibration.ts";
 import { ManualClock } from "../src/core/clock.ts";
-import {
-  C,
-  applyChannelMap,
-  autoChannelMap,
-  channelMapState,
-  configWith,
-  defaultConfig,
-  restoreChannelMapState,
-} from "../src/core/config.ts";
+import { applyChannelMap, autoChannelMap, channelMapState, configWith, defaultConfig, restoreChannelMapState } from "../src/core/config.ts";
 import type { Config } from "../src/core/config.ts";
 import type { ChannelFeatures, PhaseRelation } from "../src/core/dsp.ts";
 import { NEG_INF } from "../src/core/util.ts";
-import { RecordingMixer, feat, globalSnapshot, tuned } from "./jobhelpers.ts";
+import { RecordingMixer, feat, tuned } from "./jobhelpers.ts";
+
+const testCfg = defaultConfig();
 
 const ON_TEXT =
   "coach mode ON — the assistant advises every automatic move (mix corrections, scene recall, guest mutes) instead of applying it; only your own manual moves act";
@@ -71,16 +65,16 @@ const keys = (m: Map<number, unknown>): number[] => [...m.keys()];
 
 const rel = (over: Partial<PhaseRelation> = {}): PhaseRelation => ({ zeroCorr: 0, bestCorr: 0, lagSamples: 0, lagMs: 0, ...over });
 
-test("an assistant built without a config uses the global config object itself", () => {
-  const a = new MixAssistant(new RecordingMixer(), new ManualClock());
-  assert.equal(a.cfg, C);
+test("an assistant uses the config it is given, by reference", () => {
+  const a = new MixAssistant(new RecordingMixer(), new ManualClock(), { config: testCfg });
+  assert.equal(a.cfg, testCfg);
   assert.equal(a.onEvent, null);
   assert.equal(a.onLatency, null);
   assert.deepEqual(keys(a.faderDb), [1, 2, 3, 4, 5, 6, 7, 8]);
 });
 
 test("an assistant with no handlers drops events and latency quietly", () => {
-  const a = new MixAssistant(new RecordingMixer(), new ManualClock());
+  const a = new MixAssistant(new RecordingMixer(), new ManualClock(), { config: testCfg });
   a.emit("system", "hello", 1);
   a.noteLatency("clip");
   a.setCoachMode(true);
@@ -88,10 +82,9 @@ test("an assistant with no handlers drops events and latency quietly", () => {
 });
 
 test("an injected config is used by reference and every per-channel map holds exactly its channels", () => {
-  const before = globalSnapshot();
-  const chansBefore = C.CHANNELS;
-  const labelsBefore = C.ROLE_LABELS;
-  const stateBefore = channelMapState();
+  const chansBefore = testCfg.CHANNELS;
+  const labelsBefore = testCfg.ROLE_LABELS;
+  const stateBefore = channelMapState(testCfg);
   const cfg = smallConfig();
   const { a } = rig(cfg);
   assert.equal(a.cfg, cfg);
@@ -113,10 +106,9 @@ test("an injected config is used by reference and every per-channel map holds ex
     a.polarity,
   ];
   for (const m of maps) assert.deepEqual(keys(m), [3, 5, 9]);
-  assert.equal(globalSnapshot(), before);
-  assert.equal(C.CHANNELS, chansBefore);
-  assert.equal(C.ROLE_LABELS, labelsBefore);
-  assert.deepEqual(channelMapState(), stateBefore);
+  assert.equal(testCfg.CHANNELS, chansBefore);
+  assert.equal(testCfg.ROLE_LABELS, labelsBefore);
+  assert.deepEqual(channelMapState(testCfg), stateBefore);
 });
 
 test("the measurement mic updates the room model and then feedback and nothing else", () => {
@@ -214,7 +206,6 @@ test("a channel outside the injected config is rejected as unknown", () => {
 });
 
 test("two assistants with different configs in one test do not interfere", () => {
-  const before = globalSnapshot();
   const one = rig();
   const two = rig(configWith());
   one.a.onFeatures(5, feat({ rmsDbfs: -40, peakDbfs: 0 }), 0);
@@ -236,7 +227,6 @@ test("two assistants with different configs in one test do not interfere", () =>
   assert.throws(() => one.a.onFeatures(8, feat(), 0), { message: "unknown channel 8" });
   assert.deepEqual(keys(one.a.gainDb), [3, 5, 9]);
   assert.deepEqual(keys(two.a.gainDb), [1, 2, 3, 4, 5, 6, 7, 8]);
-  assert.equal(globalSnapshot(), before);
 });
 
 test("emit sends the clock time, kind, channel, role and message", () => {
@@ -580,9 +570,9 @@ test("defaultConfig builds a fresh config each time equal to the documented defa
   const one = defaultConfig();
   const two = defaultConfig();
   assert.notEqual(one, two);
-  assert.notEqual(one, C);
+  assert.notEqual(one, testCfg);
   assert.notEqual(one.CHANNELS, two.CHANNELS);
-  assert.notEqual(one.CHANNELS, C.CHANNELS);
+  assert.notEqual(one.CHANNELS, testCfg.CHANNELS);
   assert.deepEqual(one, two);
   assert.equal(one.LEAD_VOCAL_CH, 1);
   assert.equal(one.MEAS_MIC_CH, 8);
@@ -593,20 +583,17 @@ test("defaultConfig builds a fresh config each time equal to the documented defa
 });
 
 test("configWith overrides only the given fields on a fresh default config", () => {
-  const before = globalSnapshot();
   const cfg = configWith({ LEAD_VOCAL_CH: 2, STAGE_MIC_CH: 6 });
   assert.equal(cfg.LEAD_VOCAL_CH, 2);
   assert.equal(cfg.STAGE_MIC_CH, 6);
   assert.equal(cfg.MEAS_MIC_CH, 8);
-  assert.notEqual(cfg.CHANNELS, C.CHANNELS);
+  assert.notEqual(cfg.CHANNELS, testCfg.CHANNELS);
   assert.deepEqual(configWith(), defaultConfig());
-  assert.equal(globalSnapshot(), before);
 });
 
 test("applyChannelMap with a full spec changes only the target config", () => {
-  const before = globalSnapshot();
-  const chansBefore = C.CHANNELS;
-  const labelsBefore = C.ROLE_LABELS;
+  const chansBefore = testCfg.CHANNELS;
+  const labelsBefore = testCfg.ROLE_LABELS;
   const t = configWith();
   applyChannelMap(
     {
@@ -647,9 +634,8 @@ test("applyChannelMap with a full spec changes only the target config", () => {
   assert.deepEqual(t.STEREO_LINKS, [[3, 5]]);
   assert.equal(t.STAGE_MIC_CH, 11);
   assert.deepEqual(t.PHASE_PAIRS, [[3, 9]]);
-  assert.equal(globalSnapshot(), before);
-  assert.equal(C.CHANNELS, chansBefore);
-  assert.equal(C.ROLE_LABELS, labelsBefore);
+  assert.equal(testCfg.CHANNELS, chansBefore);
+  assert.equal(testCfg.ROLE_LABELS, labelsBefore);
 });
 
 test("applyChannelMap falls back to the lowest and highest channels when lead and meas are not mapped", () => {
@@ -717,7 +703,6 @@ test("applyChannelMap with null fields clears the lists and the stage mic but ke
 });
 
 test("autoChannelMap maps inputs to numbered roles with the last as the measurement mic", () => {
-  const before = globalSnapshot();
   const t = configWith({ STAGE_MIC_CH: 2 });
   const spec = autoChannelMap(3, t);
   assert.deepEqual(spec, {
@@ -750,7 +735,6 @@ test("autoChannelMap maps inputs to numbered roles with the last as the measurem
   assert.equal(t.MEAS_MIC_CH, 3);
   assert.equal(t.STAGE_MIC_CH, null);
   assert.deepEqual(t.BALANCE_CHANNELS, []);
-  assert.equal(globalSnapshot(), before);
 });
 
 test("autoChannelMap with one input or fewer makes a single measurement mic that is also the lead", () => {
@@ -800,8 +784,7 @@ test("channelMapState copies the maps and lists of the source config", () => {
 });
 
 test("restoreChannelMapState writes a saved map into the target config only", () => {
-  const before = globalSnapshot();
-  const chansBefore = C.CHANNELS;
+  const chansBefore = testCfg.CHANNELS;
   const s = channelMapState(configWith({ ...smallConfig(), GUEST_CHANNELS: [5], STEREO_LINKS: [[3, 5]], PHASE_PAIRS: [[3, 9]] }));
   const t = configWith();
   restoreChannelMapState(s, t);
@@ -829,28 +812,25 @@ test("restoreChannelMapState writes a saved map into the target config only", ()
   assert.notEqual(t.PHASE_PAIRS, s.phasePairs);
   assert.notEqual(t.PHASE_PAIRS[0], s.phasePairs[0]);
   assert.deepEqual(channelMapState(t), s);
-  assert.equal(globalSnapshot(), before);
-  assert.equal(C.CHANNELS, chansBefore);
+  assert.equal(testCfg.CHANNELS, chansBefore);
 });
 
-test("without a target the channel map helpers act on the global config", () => {
-  const before = globalSnapshot();
-  const saved = channelMapState();
+test("the channel map helpers act on the target they are given, and a restore puts it back", () => {
+  const saved = channelMapState(testCfg);
   try {
-    assert.deepEqual([...saved.channels], [...C.CHANNELS]);
-    applyChannelMap({ lead: 2 });
-    assert.equal(C.LEAD_VOCAL_CH, 2);
-    autoChannelMap(2);
+    assert.deepEqual([...saved.channels], [...testCfg.CHANNELS]);
+    applyChannelMap({ lead: 2 }, testCfg);
+    assert.equal(testCfg.LEAD_VOCAL_CH, 2);
+    autoChannelMap(2, testCfg);
     assert.deepEqual(
-      [...C.CHANNELS],
+      [...testCfg.CHANNELS],
       [
         [1, "in_1"],
         [2, "meas_mic"],
       ],
     );
   } finally {
-    restoreChannelMapState(saved);
+    restoreChannelMapState(saved, testCfg);
   }
-  assert.equal(globalSnapshot(), before);
-  assert.deepEqual(channelMapState(), saved);
+  assert.deepEqual(channelMapState(testCfg), saved);
 });

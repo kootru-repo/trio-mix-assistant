@@ -5,13 +5,15 @@ import { Engine } from "../src/core/engine/index.ts";
 import { CaptureSourceBase, SimCapture } from "../src/core/capture.ts";
 import type { CaptureStatus } from "../src/core/capture.ts";
 import type { Frame } from "../src/core/capture.ts";
-import { applyChannelMap, channelMapState, restoreChannelMapState } from "../src/core/config.ts";
+import { applyChannelMap, channelMapState, defaultConfig, restoreChannelMapState } from "../src/core/config.ts";
 import { OscConsole, SimConsole } from "../src/core/console.ts";
 import { fromObject, TemplateError } from "../src/core/template.ts";
 import { asBool, intOf, numOf } from "../src/core/util.ts";
 import type { VenueModel } from "../src/core/venue.ts";
 import { fixture, recording, saveFixture } from "./helpers.ts";
 import { StepClock } from "./stepclock.ts";
+
+const testCfg = defaultConfig();
 
 interface Fx {
   ops: any[];
@@ -45,7 +47,7 @@ const json = (v: unknown): any => JSON.parse(JSON.stringify(v));
 
 test("the engine, stepped on a manual clock, publishes the recorded telemetry", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
-  const e = new Engine({ clock, sim: true, tick: 0.05 });
+  const e = new Engine({ cfg: testCfg, clock, sim: true, tick: 0.05 });
   let last = clock.monotonic();
   const snapshots: { label: string; t: any }[] = [];
   for (const op of fx.ops) {
@@ -139,6 +141,7 @@ const tone = (amp: number): Float32Array => Float32Array.from({ length: 1024 }, 
 test("a rejected calibration returns the engine to live instead of leaving it calibrating", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
   const e = new Engine({
+    cfg: testCfg,
     clock,
     source: new ScriptedSource(
       () => new Map(),
@@ -167,7 +170,7 @@ test("one bad channel in a frame cannot abort analysis of the others", () => {
     [2, broken],
     [3, tone(0.1)],
   ]);
-  const e = new Engine({ clock, source: new ScriptedSource(() => frame) });
+  const e = new Engine({ cfg: testCfg, clock, source: new ScriptedSource(() => frame) });
   e.step(clock.monotonic(), clock.monotonic() - 0.05);
   assert.ok(e.events.some((ev) => ev.msg.includes("engine error")));
   assert.notEqual(e.assistant.fbLastLevel.get(3), -90);
@@ -179,7 +182,7 @@ test("channels outside the map are skipped", () => {
     [99, tone(0.1)],
     [3, tone(0.1)],
   ]);
-  const e = new Engine({ clock, source: new ScriptedSource(() => frame) });
+  const e = new Engine({ cfg: testCfg, clock, source: new ScriptedSource(() => frame) });
   e.step(clock.monotonic(), clock.monotonic() - 0.05);
   assert.equal(
     e.events.some((ev) => ev.msg.includes("engine error")),
@@ -189,7 +192,7 @@ test("channels outside the map are skipped", () => {
 });
 
 test("a non-finite console fader reading is ignored and the lead target stays in range", () => {
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000) });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000) });
   e.reconcileFader(1, Number.NaN);
   e.reconcileFader(1, Infinity);
   assert.equal(e.assistant.faderDb.get(1), 0);
@@ -200,7 +203,7 @@ test("a non-finite console fader reading is ignored and the lead target stays in
 });
 
 test("a toggle during takeover is held in the backup and applies on release", () => {
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000) });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000) });
   e.panic(true);
   e.setEnabled("vocal_ride", true);
   e.setEnabled("feedback", false);
@@ -212,12 +215,12 @@ test("a toggle during takeover is held in the backup and applies on release", ()
 });
 
 test("coach mode guest mutes are advice only and do not mark the channel muted", () => {
-  const saved = channelMapState();
-  const template = fromObject({ songs: [{ name: "A" }, { name: "B", guest: true }] });
+  const saved = channelMapState(testCfg);
+  const template = fromObject({ songs: [{ name: "A" }, { name: "B", guest: true }] }, testCfg);
   try {
-    applyChannelMap({ map: { "1": "lead_vox", "6": "guest_mic", "8": "meas_mic" }, guest: [6] });
+    applyChannelMap({ map: { "1": "lead_vox", "6": "guest_mic", "8": "meas_mic" }, guest: [6] }, testCfg);
     const clock = new ManualClock(100, 1_700_000_000);
-    const e = new Engine({ clock, template });
+    const e = new Engine({ cfg: testCfg, clock, template });
     e.setCoachMode(true);
     e.onSongChange({ songIndex: 0, songName: "A", nextSong: "B", section: "", bpm: null, playing: true });
     assert.equal(e.muted.get(6), false);
@@ -228,13 +231,13 @@ test("coach mode guest mutes are advice only and do not mark the channel muted",
     assert.equal((e.con as SimConsole).chMuted.get(6), true);
     assert.equal(e.muted.get(6), true);
   } finally {
-    restoreChannelMapState(saved);
+    restoreChannelMapState(saved, testCfg);
   }
 });
 
 test("manual scene recall accepts only whole scenes 0-99 and records success only", () => {
   const clock = new ManualClock(100, 1_700_000_000);
-  const e = new Engine({ clock });
+  const e = new Engine({ cfg: testCfg, clock });
   const con = e.con as SimConsole;
   for (const bad of [100, -1, 1.5, "abc", true, null, 1e9]) e.recallSceneManual(bad);
   assert.equal(con.lastScene, null);
@@ -248,14 +251,14 @@ test("manual scene recall accepts only whole scenes 0-99 and records success onl
       throw new Error("socket closed");
     }
   }
-  const f = new Engine({ clock, console: new Dead() });
+  const f = new Engine({ cfg: testCfg, clock, console: new Dead({ cfg: testCfg }) });
   f.recallSceneManual(5);
   assert.equal(f.show.scene, null);
   assert.ok(f.events.some((ev) => ev.msg.includes("recall failed")));
 });
 
 test("command values must be real booleans and numbers, not lookalikes", () => {
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000) });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000) });
   e.command({ type: "toggle", job: "vocal_ride", on: true });
   assert.equal(e.assistant.enabled["vocal_ride"], true);
   e.command({ type: "toggle", job: "vocal_ride", on: "off" });
@@ -282,7 +285,7 @@ test("command values must be real booleans and numbers, not lookalikes", () => {
 });
 
 test("an EQ command with one bad field changes neither the engine nor the console", () => {
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000) });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000) });
   const con = e.con as SimConsole;
   e.command({ type: "eq", ch: 1, band: 1, hz: 1000, gain: "loud", on: true });
   e.command({ type: "eq", ch: 1, band: 1, hz: 1000, gain: 3, on: "perhaps" });
@@ -295,12 +298,12 @@ test("an EQ command with one bad field changes neither the engine nor the consol
 });
 
 test("templates take a real boolean for guest and integer-only channel numbers", () => {
-  assert.equal(fromObject({ songs: [{ name: "A", guest: true }] }).songs[0]!.guest, true);
-  assert.equal(fromObject({ songs: [{ name: "A" }] }).songs[0]!.guest, false);
+  assert.equal(fromObject({ songs: [{ name: "A", guest: true }] }, testCfg).songs[0]!.guest, true);
+  assert.equal(fromObject({ songs: [{ name: "A" }] }, testCfg).songs[0]!.guest, false);
   for (const bad of ["yes", 1, 0, [], {}]) {
-    assert.throws(() => fromObject({ songs: [{ name: "A", guest: bad }] }), TemplateError);
+    assert.throws(() => fromObject({ songs: [{ name: "A", guest: bad }] }, testCfg), TemplateError);
   }
-  assert.throws(() => fromObject({ channels: { map: { "1": "a" }, guest: [true] } }), TemplateError);
+  assert.throws(() => fromObject({ channels: { map: { "1": "a" }, guest: [true] } }, testCfg), TemplateError);
 });
 
 test("channel specs are validated even without a channel map", () => {
@@ -315,16 +318,19 @@ test("channel specs are validated even without a channel map", () => {
     { guest: [{}] },
     { stereo_links: [[1, null]] },
   ];
-  for (const channels of bad) assert.throws(() => fromObject({ channels }), TemplateError, JSON.stringify(channels));
-  const ok = fromObject({
-    channels: { phase_pairs: [[1, 2]], labels: { lead: "Lead" }, balance: [1, 2], guest: [3], stereo_links: [[4, 5]] },
-  });
+  for (const channels of bad) assert.throws(() => fromObject({ channels }, testCfg), TemplateError, JSON.stringify(channels));
+  const ok = fromObject(
+    {
+      channels: { phase_pairs: [[1, 2]], labels: { lead: "Lead" }, balance: [1, 2], guest: [3], stereo_links: [[4, 5]] },
+    },
+    testCfg,
+  );
   assert.deepEqual(ok.channels?.phase_pairs, [[1, 2]]);
 });
 
 test("a takeover that starts and ends during calibration stops the worker before it writes any EQ", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
-  const con = new SimConsole();
+  const con = new SimConsole({ cfg: testCfg });
   let release: () => void = () => undefined;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -335,7 +341,7 @@ test("a takeover that starts and ends during calibration stops the worker before
       return true;
     }
   }
-  const e = new Engine({ clock, console: con, source: new Gated(con) });
+  const e = new Engine({ cfg: testCfg, clock, console: con, source: new Gated(con, testCfg) });
   e.runCalibration();
   for (let i = 0; i < 5; i++) await Promise.resolve();
   e.panic(true);
@@ -359,7 +365,7 @@ test("restarting the engine does not run two step loops", async () => {
       super.step(now, lastNow);
     }
   }
-  const e = new Counting({ clock, tick: 0.05 });
+  const e = new Counting({ cfg: testCfg, clock, tick: 0.05 });
   await e.start();
   await e.stop();
   await e.start();
@@ -378,7 +384,7 @@ test("only a malformed command is dropped quietly; any other failure is reported
       throw new Error("console exploded");
     }
   }
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000), console: new Boom() });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000), console: new Boom({ cfg: testCfg }) });
   e.command({ type: "master", db: "loud" });
   e.command({ type: "master" });
   assert.equal(
@@ -390,7 +396,7 @@ test("only a malformed command is dropped quietly; any other failure is reported
 });
 
 test("toggling a name from the prototype chain does nothing", () => {
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000) });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000) });
   const before = JSON.stringify(e.assistant.enabled);
   e.command({ type: "toggle", job: "toString", on: true });
   e.command({ type: "toggle", job: "constructor", on: true });
@@ -419,7 +425,7 @@ class DeadSource extends CaptureSourceBase {
 test("a capture that cannot restart is reported once per distinct reason", () => {
   const clock = new ManualClock(100, 1_700_000_000);
   const src = new DeadSource();
-  const e = new Engine({ clock, source: src });
+  const e = new Engine({ cfg: testCfg, clock, source: src });
   const count = (): number => e.events.filter((ev) => ev.msg.startsWith("audio capture could not restart")).length;
   for (let i = 0; i < 4; i++) {
     clock.advance(Engine.AUDIO_RESTART_S + 0.1);
@@ -447,8 +453,8 @@ test("a failed console ramp is reported once per distinct error", async () => {
     }
   }
   const ConsoleProto = Object.getPrototypeOf(SimConsole.prototype) as { rampFaderDb: (...a: unknown[]) => number };
-  const con = new Flaky({ clock: new ManualClock() });
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000), console: con });
+  const con = new Flaky({ clock: new ManualClock(), cfg: testCfg });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000), console: con });
   for (let i = 0; i < 3; i++) {
     con.rampFaderDb(1, -10, -4, 100, 3);
     await con.flushRamps();
@@ -458,9 +464,14 @@ test("a failed console ramp is reported once per distinct error", async () => {
 
 test("telemetry carries the console send failure count for a real console", () => {
   const sink = { failures: 3, send: () => undefined, close: () => undefined };
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000), console: new OscConsole(sink), source: null });
+  const e = new Engine({
+    cfg: testCfg,
+    clock: new ManualClock(100, 1_700_000_000),
+    console: new OscConsole(sink, { cfg: testCfg }),
+    source: null,
+  });
   assert.equal((e.snapshot()["console"] as Record<string, unknown>)["send_failures"], 3);
-  const sim = new Engine({ clock: new ManualClock(100, 1_700_000_000) });
+  const sim = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000) });
   assert.equal("send_failures" in (sim.snapshot()["console"] as Record<string, unknown>), false);
 });
 
@@ -474,7 +485,7 @@ test("skipped frames and native xruns raise different alerts", () => {
       return status.value;
     }
   }
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000), source: new Fixed() });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000), source: new Fixed() });
   const msgs = (): string[] => (e.snapshot()["alerts"] as { msg: string }[]).map((a) => a.msg);
   e.step(100, 99.95);
   assert.deepEqual(msgs(), ["audio frames are arriving faster than the engine reads them"]);
@@ -500,7 +511,7 @@ const alertView = (e: Engine): { level: string; msg: string }[] => e.snapshot()[
 
 test("a warning puts the engine in ALERT mode and clearing it returns to auto", () => {
   const src = new StatusSource();
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000), source: src });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000), source: src });
   e.step(100, 99.95);
   assert.equal(e.snapshot()["op_mode"], "auto");
   src.status_ = { kind: "audio", overload: true };
@@ -515,7 +526,7 @@ test("a dead capture is a warning at first and critical after 1.5 seconds", () =
   const src = new StatusSource();
   src.status_ = { kind: "audio", dead: true };
   const clock = new ManualClock(100, 1_700_000_000);
-  const e = new Engine({ clock, source: src });
+  const e = new Engine({ cfg: testCfg, clock, source: src });
   const stepBy = (s: number): void => {
     clock.advance(s);
     e.step(clock.monotonic(), clock.monotonic() - s);
@@ -549,7 +560,7 @@ test("the engine event for a stopped or deaf capture is critical and a failure i
 test("the first 8 bars of a song hide warnings but not critical alerts", () => {
   const src = new StatusSource();
   const clock = new ManualClock(100, 1_700_000_000);
-  const e = new Engine({ clock, source: src });
+  const e = new Engine({ cfg: testCfg, clock, source: src });
   e.onSongChange({ songIndex: 0, songName: "Opener", nextSong: "", section: "Song", bpm: 120, playing: true });
   src.status_ = { kind: "audio", overload: true };
   e.step(clock.monotonic(), clock.monotonic() - 0.05);

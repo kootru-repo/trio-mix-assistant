@@ -2,13 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { configWith } from "../src/core/config.ts";
 import { RoomModel, StageJob, roomConfidence } from "../src/core/assistant/room.ts";
-import { feat, globalSnapshot, harness, tuned } from "./jobhelpers.ts";
+import { feat, harness, tuned } from "./jobhelpers.ts";
 
 const isolated = (name: string, fn: () => void): void => {
   test(name, () => {
-    const before = globalSnapshot();
     fn();
-    assert.equal(globalSnapshot(), before);
   });
 };
 
@@ -63,7 +61,7 @@ test("room confidence multiplies the loudness and flatness factors", () => {
   assert.equal(roomConfidence(cfg, -15, 3), 0.15);
 });
 
-isolated("room confidence honours an injected tuning without touching the global config", () => {
+isolated("room confidence honours an injected tuning", () => {
   const cfg = configWith({
     ...tuned("room", { quietDb: -60, loudDb: -20, loudMin: 0.2, flatMin: 0.1 }),
     ...tuned("feedback", { ringDb: 20 }),

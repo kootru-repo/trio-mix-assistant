@@ -1,7 +1,9 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { C } from "../src/core/config.ts";
 import { CommandBudget, GLOBAL_COMMAND_KEY, globalCommandBudget } from "../src/host/server/limiter.ts";
+
+const testCfg = defaultConfig();
 
 test("a fresh budget lets exactly its burst through at one moment", () => {
   const now = 5;
@@ -56,9 +58,9 @@ test("time going backwards neither drains nor refills the budget", () => {
 
 test("the global command budget takes its rate and burst from the safety settings", () => {
   const now = 0;
-  const b = globalCommandBudget(() => now);
-  assert.equal(b.rate, C.safety.commandPerS);
-  assert.equal(b.burst, C.safety.commandBurst);
+  const b = globalCommandBudget(testCfg.safety, () => now);
+  assert.equal(b.rate, testCfg.safety.commandPerS);
+  assert.equal(b.burst, testCfg.safety.commandBurst);
   assert.equal(b.rate, 100);
   assert.equal(b.burst, 200);
 });

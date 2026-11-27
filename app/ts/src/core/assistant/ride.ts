@@ -19,31 +19,31 @@ export class RideJob {
   }
 
   rideToward(ch: number, feat: ChannelFeatures, targetOut: number, now: number, minInterval: number, kind: string): void {
-    const { cfg: C, state, mixer } = this.ctx;
-    const a = C.ride.ema;
+    const { cfg, state, mixer } = this.ctx;
+    const a = cfg.ride.ema;
     const e = need(this.inEma, ch);
     const ema = e === null ? feat.rmsDbfs : (1 - a) * e + a * feat.rmsDbfs;
     this.inEma.set(ch, ema);
     if (now < (state.manualHoldUntil.get(ch) ?? -1e9)) return;
     if (now - need(this.lastRideT, ch) < minInterval) return;
     const start = need(state.faderDb, ch);
-    if (!(start >= C.limits.faderMinDb && start <= C.limits.faderMaxDb)) {
+    if (!(start >= cfg.limits.faderMinDb && start <= cfg.limits.faderMaxDb)) {
       this.lastRideT.set(ch, now);
       return;
     }
     const outputEst = ema + start;
     const err = targetOut - outputEst;
-    if (Math.abs(err) <= C.ride.toleranceDb) return;
-    const step = clamp(err, -C.ride.maxStepDb, C.ride.maxStepDb);
-    const newf = clamp(start + step, C.limits.faderMinDb, C.limits.faderMaxDb);
+    if (Math.abs(err) <= cfg.ride.toleranceDb) return;
+    const step = clamp(err, -cfg.ride.maxStepDb, cfg.ride.maxStepDb);
+    const newf = clamp(start + step, cfg.limits.faderMinDb, cfg.limits.faderMaxDb);
     this.lastRideT.set(ch, now);
-    if (Math.abs(newf - start) < C.ride.minMoveDb) return;
+    if (Math.abs(newf - start) < cfg.ride.minMoveDb) return;
     if (this.ctx.coaching()) {
       const direction = newf > start ? "up" : "down";
       this.ctx.recommend(
         kind,
         ch,
-        `${chanOf(C, ch)}: output ${signed(outputEst, 1)} dB vs target ${signed(targetOut, 1)} → ` +
+        `${chanOf(cfg, ch)}: output ${signed(outputEst, 1)} dB vs target ${signed(targetOut, 1)} → ` +
           `move the fader ${direction} ${fixed(Math.abs(newf - start), 1)} dB (to ${signed(newf, 1)}).`,
         false,
         {
@@ -60,7 +60,7 @@ export class RideJob {
     this.ctx.noteLatency(kind);
     this.ctx.emit(
       kind,
-      `${chanOf(C, ch)}: out ${signed(outputEst, 1)} dB vs target ${signed(targetOut, 1)} → ` +
+      `${chanOf(cfg, ch)}: out ${signed(outputEst, 1)} dB vs target ${signed(targetOut, 1)} → ` +
         `fader ${signed(start, 1)}→${signed(need(state.faderDb, ch), 1)} dB`,
       ch,
     );
@@ -78,14 +78,14 @@ export class RideJob {
   }
 
   captureBalance(levels: Map<number, number>): void {
-    const { cfg: C, state } = this.ctx;
+    const { cfg, state } = this.ctx;
     this.balanceTargets = new Map();
-    for (const ch of C.BALANCE_CHANNELS) {
+    for (const ch of cfg.BALANCE_CHANNELS) {
       let lvl: number | null | undefined = this.inEma.get(ch);
       if (lvl === null || lvl === undefined) lvl = levels.get(ch);
       if (lvl !== null && lvl !== undefined) this.balanceTargets.set(ch, lvl + need(state.faderDb, ch));
     }
-    const pretty = [...this.balanceTargets].map(([c, v]) => `${chanOf(C, c)} ${signed(v, 1)}`).join(", ");
+    const pretty = [...this.balanceTargets].map(([c, v]) => `${chanOf(cfg, c)} ${signed(v, 1)}`).join(", ");
     this.ctx.emit("balance", `captured balance targets: ${pretty}`);
   }
 }

@@ -1,5 +1,4 @@
 import type { Clock } from "./clock.ts";
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import { dbToFader, faderToDb } from "./console.ts";
 import { argFloat, argInt, argText } from "./oscargs.ts";
@@ -22,7 +21,7 @@ export interface EmulatedDeskOptions {
   localIp?: string;
   nodeScn?: string | null;
   onTrace?: ((line: string) => void) | null;
-  cfg?: Config;
+  cfg: Config;
 }
 
 interface MeterSub {
@@ -162,10 +161,10 @@ export class EmulatedDesk {
   private meterTask: Promise<void> | null = null;
   private tick = 0;
 
-  constructor(udp: UdpFactory, clock: Clock, opts: EmulatedDeskOptions = {}) {
+  constructor(udp: UdpFactory, clock: Clock, opts: EmulatedDeskOptions) {
     this.udp = udp;
     this.clock = clock;
-    this.cfg = opts.cfg ?? C;
+    this.cfg = opts.cfg;
     this.listenPort = opts.listenPort ?? this.cfg.CONSOLE_PORT;
     this.listenHost = opts.listenHost ?? "0.0.0.0";
     this.appHost = opts.appIp ?? "127.0.0.1";
@@ -614,7 +613,7 @@ export class EmulatedDesk {
     }
   }
 
-  static extPick(k: number, cfg: Config = C): number | null {
+  static extPick(k: number, cfg: Config): number | null {
     const chans = [...cfg.CHANNELS.keys()].filter((c) => c !== cfg.MEAS_MIC_CH);
     return chans.length > 0 ? (chans[k % chans.length] ?? null) : null;
   }

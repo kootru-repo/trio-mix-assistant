@@ -1,11 +1,12 @@
 import { MixAssistant } from "../assistant/index.ts";
+import { chanOf } from "../assistant/context.ts";
 import type { AssistantEvent } from "../assistant/index.ts";
 import { Calibrator } from "../calibration.ts";
 import type { CalibrationResult } from "../calibration.ts";
 import type { CaptureSource } from "../capture.ts";
 import { SimCapture } from "../capture.ts";
 import type { Clock } from "../clock.ts";
-import { C } from "../config.ts";
+import type { Config } from "../config.ts";
 import { ConsoleBase, OscConsole, SimConsole, autoLane } from "../console.ts";
 import { BlockAnalyser } from "../blockanalysis.ts";
 import type { DiagHost, DiagReport, LevelWindow } from "../diagnostics.ts";
@@ -60,11 +61,13 @@ export interface EngineOptions {
   source?: CaptureSource | null;
   template?: ShowTemplate | null;
   noiseRng?: Rng | null;
+  cfg: Config;
 }
 
 export type Telemetry = Record<string, unknown>;
 
 export class EngineBase {
+  readonly cfg: Config;
   clock: Clock;
   sim: boolean;
   tick: number;
@@ -125,7 +128,7 @@ export class EngineBase {
   protected lastRxT = -1e9;
   protected lastReconcileLog = new Map<number, number>();
   protected feat = new Map<number, ChannelFeatures>();
-  protected analyser = new BlockAnalyser();
+  protected analyser: BlockAnalyser;
   protected pushed = false;
   protected perf = { tick_ms: 0, jitter_ms: 0, max_ms: 0 };
   protected latency = new Map<string, LatencyEntry>();
@@ -137,31 +140,34 @@ export class EngineBase {
   telemetry: Telemetry = {};
 
   constructor(opts: EngineOptions) {
+    this.cfg = opts.cfg;
     this.clock = opts.clock;
     this.sim = opts.sim ?? true;
     this.tick = opts.tick ?? 0.05;
-    this.con = opts.console ?? new SimConsole({ clock: opts.clock });
+    this.con = opts.console ?? new SimConsole({ clock: opts.clock, cfg: this.cfg });
     this.noiseRng = opts.noiseRng ?? new SeededRng(1);
+    this.analyser = new BlockAnalyser(this.cfg);
     if (opts.source) this.source = opts.source;
-    else if (this.con instanceof SimConsole) this.source = new SimCapture(this.con);
+    else if (this.con instanceof SimConsole) this.source = new SimCapture(this.con, this.cfg);
     else this.source = null;
     this.assistant = new MixAssistant(autoLane(this.con), this.clock, {
       onEvent: (ev) => this.onEventHandler(ev),
       onLatency: (kind, seconds) => this.noteLatencyEv(kind, seconds),
+      config: this.cfg,
     });
-    this.calibrator = new Calibrator(this.con);
+    this.calibrator = new Calibrator(this.con, this.cfg);
     this.con.onError = (exc) => this.noteRampError(exc);
     this.t0 = this.clock.monotonic();
-    this.lastNotchT = perChannel(NEG_INF);
-    this.lastClipT = perChannel(NEG_INF);
-    this.muted = perChannel(false);
-    const mixChans = [...C.CHANNELS.keys()].filter((c) => c !== C.MEAS_MIC_CH);
-    const freqs = [...C.EQ_DEFAULT_FREQS];
+    this.lastNotchT = perChannel(NEG_INF, this.cfg);
+    this.lastClipT = perChannel(NEG_INF, this.cfg);
+    this.muted = perChannel(false, this.cfg);
+    const mixChans = [...this.cfg.CHANNELS.keys()].filter((c) => c !== this.cfg.MEAS_MIC_CH);
+    const freqs = [...this.cfg.EQ_DEFAULT_FREQS];
     this.eq = new Map(
       mixChans.map((c) => [
         c,
         new Map(
-          Array.from({ length: C.CHANNEL_EQ_BANDS }, (_v, k) => {
+          Array.from({ length: this.cfg.CHANNEL_EQ_BANDS }, (_v, k) => {
             const b = k + 1;
             const band: EqBandState = { hz: b - 1 < freqs.length ? freqs[b - 1]! : 1000.0, gain: 0, q: 2.0, on: false };
             return [b, band] as [number, EqBandState];
@@ -169,10 +175,14 @@ export class EngineBase {
         ),
       ]),
     );
-    this.sends = new Map(mixChans.map((c) => [c, new Map([...C.FX_BUSES.keys()].map((fx) => [fx, -90]))]));
-    this.fxWet = new Map([...C.FX_BUSES.keys()].map((fx) => [fx, -90]));
-    this.template = opts.template ?? defaultTemplate();
+    this.sends = new Map(mixChans.map((c) => [c, new Map([...this.cfg.FX_BUSES.keys()].map((fx) => [fx, -90]))]));
+    this.fxWet = new Map([...this.cfg.FX_BUSES.keys()].map((fx) => [fx, -90]));
+    this.template = opts.template ?? defaultTemplate(this.cfg);
     this.rebuildTelemetry();
+  }
+
+  protected chan(ch: number): string {
+    return chanOf(this.cfg, ch);
   }
 
   protected noteLatencyEv(kind: string, seconds: number): void {
@@ -182,7 +192,7 @@ export class EngineBase {
     if (e === undefined) {
       this.latency.set(kind, { last: roundTo(ms, 2), ema: roundTo(ms, 2), max: roundTo(ms, 2), n: 1 });
     } else {
-      const a = C.engine.latencyEma;
+      const a = this.cfg.engine.latencyEma;
       e.last = roundTo(ms, 2);
       e.ema = roundTo((1 - a) * e.ema + a * ms, 2);
       e.max = roundTo(Math.max(e.max, ms), 2);
@@ -194,10 +204,10 @@ export class EngineBase {
     const computeMs = (this.clock.monotonic() - now) * 1000;
     const periodMs = (now - lastNow) * 1000;
     const jitterMs = Math.abs(periodMs - this.tick * 1000);
-    const a = C.engine.perfEma;
+    const a = this.cfg.engine.perfEma;
     this.perf.tick_ms = roundTo((1 - a) * this.perf.tick_ms + a * computeMs, 2);
     this.perf.jitter_ms = roundTo((1 - a) * this.perf.jitter_ms + a * jitterMs, 2);
-    this.perf.max_ms = roundTo(Math.max(this.perf.max_ms * C.engine.perfMaxDecay, computeMs), 2);
+    this.perf.max_ms = roundTo(Math.max(this.perf.max_ms * this.cfg.engine.perfMaxDecay, computeMs), 2);
   }
 
   protected noteRampError(exc: unknown): void {
@@ -268,16 +278,16 @@ export class EngineBase {
 
   protected channelTelemetry(now: number): Record<string, unknown>[] {
     const out: Record<string, unknown>[] = [];
-    for (const [ch, roleName] of C.CHANNELS) {
+    for (const [ch, roleName] of this.cfg.CHANNELS) {
       const feat = this.feat.get(ch);
       const rms = feat ? feat.rmsDbfs : -90;
       const peak = feat ? feat.peakDbfs : -90;
       const streak = this.assistant.fbStreak.get(ch) ?? 0;
-      const notchedRecent = now - (this.lastNotchT.get(ch) ?? NEG_INF) < C.feedback.notchRecentS;
-      const clipRecent = now - (this.lastClipT.get(ch) ?? NEG_INF) < C.clip.recentS;
-      const fbState = notchedRecent ? "notched" : streak >= C.feedback.buildingStreak ? "building" : "ok";
+      const notchedRecent = now - (this.lastNotchT.get(ch) ?? NEG_INF) < this.cfg.feedback.notchRecentS;
+      const clipRecent = now - (this.lastClipT.get(ch) ?? NEG_INF) < this.cfg.clip.recentS;
+      const fbState = notchedRecent ? "notched" : streak >= this.cfg.feedback.buildingStreak ? "building" : "ok";
       const notchFreqs = this.con instanceof SimConsole ? this.con.notchFreqs(ch) : [];
-      const label = C.ROLE_LABELS.get(roleName);
+      const label = this.cfg.ROLE_LABELS.get(roleName);
       if (label === undefined) throw new Error(`unknown role ${roleName}`);
       const fader = this.assistant.faderDb.get(ch);
       const gain = this.assistant.gainDb.get(ch);
@@ -298,10 +308,10 @@ export class EngineBase {
         gain_trimmed: gain < nominal - 0.1,
         muted: this.muted.get(ch) ?? false,
         manual_hold: now < (this.assistant.manualHoldUntil.get(ch) ?? -1e9),
-        is_meas: ch === C.MEAS_MIC_CH,
-        is_lead: ch === C.LEAD_VOCAL_CH,
-        is_balance: C.BALANCE_CHANNELS.includes(ch),
-        in_mix: ch !== C.MEAS_MIC_CH,
+        is_meas: ch === this.cfg.MEAS_MIC_CH,
+        is_lead: ch === this.cfg.LEAD_VOCAL_CH,
+        is_balance: this.cfg.BALANCE_CHANNELS.includes(ch),
+        in_mix: ch !== this.cfg.MEAS_MIC_CH,
       });
     }
     return out;
@@ -312,9 +322,9 @@ export class EngineBase {
     const bpm = this.show.bpm;
     if (typeof bpm === "number" && bpm > 0) {
       const secPerBar = (4.0 * 60.0) / bpm;
-      return now - this.songStartT < C.show.openingBars * secPerBar;
+      return now - this.songStartT < this.cfg.show.openingBars * secPerBar;
     }
-    return now - this.songStartT < C.show.openingFallbackS;
+    return now - this.songStartT < this.cfg.show.openingFallbackS;
   }
 
   protected holdSnapshot(): { held: boolean; reasons: string[] } {
@@ -331,7 +341,7 @@ export class EngineBase {
     const dead = Boolean(cap["dead"]);
     if (dead && this.deadSince < 0) this.deadSince = now;
     else if (!dead) this.deadSince = -1e9;
-    if (dead && now - this.deadSince > C.engine.deadCriticalS) {
+    if (dead && now - this.deadSince > this.cfg.engine.deadCriticalS) {
       alerts.push({ level: "critical", msg: "audio capture stopped — the assistant is deaf (check the interface is connected)" });
     } else if (dead) {
       alerts.push({ level: "warn", msg: "audio dropout — recovering…" });
@@ -439,7 +449,7 @@ export class EngineBase {
       return;
     }
     const now = this.clock.monotonic();
-    const lead = C.LEAD_VOCAL_CH;
+    const lead = this.cfg.LEAD_VOCAL_CH;
     const inEma = this.assistant.inEma.get(lead) ?? null;
     const leadFader = this.assistant.faderDb.get(lead);
     if (leadFader === undefined) throw new Error(`unknown channel ${lead}`);
@@ -457,7 +467,7 @@ export class EngineBase {
     const sendsOut: Record<string, Record<string, number>> = {};
     for (const [c, m] of this.sends) sendsOut[String(c)] = Object.fromEntries([...m].map(([fx, v]) => [String(fx), r1(v)]));
     const polarity: Record<string, boolean> = {};
-    for (const c of C.CHANNELS.keys()) polarity[String(c)] = a.polarity.get(c) ?? false;
+    for (const c of this.cfg.CHANNELS.keys()) polarity[String(c)] = a.polarity.get(c) ?? false;
     const venueModel = this.venueModel;
     this.telemetry = {
       status: this.status,
@@ -472,7 +482,7 @@ export class EngineBase {
       uptime: r1(now - this.t0),
       perf: { ...this.perf },
       latency: Object.fromEntries([...this.latency].map(([k, v]) => [k, { ...v }])),
-      block_ms: r1((C.BLOCK / C.SAMPLE_RATE) * 1000),
+      block_ms: r1((this.cfg.BLOCK / this.cfg.SAMPLE_RATE) * 1000),
       room: { level_db: r1(a.roomLevelDb), contrast_db: r1(a.roomContrastDb), confidence: a.roomConfidence },
       enabled: { ...a.enabled },
       coach: { on: a.coachMode, recs: a.coachSnapshot(now) },
@@ -484,7 +494,7 @@ export class EngineBase {
       unmask: {
         enabled: a.enabled["unmask"] ?? false,
         duck_db: r1(a.duckGain),
-        freq: roundHalfEven(C.unmask.freq),
+        freq: roundHalfEven(this.cfg.unmask.freq),
         channels: [...a.unmask.targets()],
       },
       main_muted: this.con instanceof SimConsole ? this.con.mainMuted : false,
@@ -492,7 +502,7 @@ export class EngineBase {
       eq: eqOut,
       sends: sendsOut,
       fx: {
-        buses: Object.fromEntries([...C.FX_BUSES].map(([k, v]) => [String(k), v])),
+        buses: Object.fromEntries([...this.cfg.FX_BUSES].map(([k, v]) => [String(k), v])),
         wet: Object.fromEntries([...this.fxWet].map(([k, v]) => [String(k), r1(v)])),
       },
       show: { ...this.show },

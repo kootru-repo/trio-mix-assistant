@@ -3,7 +3,7 @@ import test from "node:test";
 import { FeedbackJob } from "../src/core/assistant/feedback.ts";
 import type { CalibrationResult } from "../src/core/calibration.ts";
 import type { Config } from "../src/core/config.ts";
-import { feat, globalSnapshot, harness, tuned } from "./jobhelpers.ts";
+import { feat, harness, tuned } from "./jobhelpers.ts";
 import type { Harness } from "./jobhelpers.ts";
 
 interface Rig {
@@ -13,11 +13,9 @@ interface Rig {
 
 const it = (name: string, over: Partial<Config>, fn: (r: Rig) => void): void => {
   test(name, () => {
-    const before = globalSnapshot();
     const h = harness(over);
     const job = new FeedbackJob(h.ctx);
     fn({ h, job });
-    assert.equal(globalSnapshot(), before);
   });
 };
 
@@ -717,7 +715,7 @@ it("resetNotches uses the configured flat frequency and Q", { EQ_FLAT_FREQ: 750,
   assert.deepEqual(h.mixer.calls, [{ op: "busEq", band: 1, hz: 750, gainDb: 0, q: 1.5 }]);
 });
 
-it("an injected channel map, measurement mic and tuning are honoured without touching the global config", {
+it("an injected channel map, measurement mic and tuning are honoured", {
   CHANNELS: new Map([
     [3, "a"],
     [9, "meas_mic"],

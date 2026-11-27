@@ -15,7 +15,7 @@ Only settings on an explicit list can be tuned, each with a range.
 - `checkedOverride` rejects an unknown path, a value that is not a number, a fraction where a whole number is needed, and a value out of range. It throws `TuningError`. A cross-check keeps `room.quietDb` below `room.loudDb`.
 - Overrides come from a template's `"tuning"` block, then `TUNE.section.name = value` lines in `show.conf` (the launcher turns them into `--tune` arguments), then `--tune` on the command line. A later value wins.
 - `--list-tuning` prints every setting with its default and range.
-- Config sections are frozen. `setTuning` builds a fresh merged copy from the defaults each time.
+- Config sections are frozen. `withTuning(base, overrides)` returns a new config with the overrides merged over the base; nothing is changed in place (0017).
 
 ## Consequences
 

@@ -6,14 +6,12 @@ import { PhaseJob, UnmaskJob } from "../src/core/assistant/clarity.ts";
 import { Coach } from "../src/core/assistant/coach.ts";
 import { ManualClock } from "../src/core/clock.ts";
 import type { PhaseRelation } from "../src/core/dsp.ts";
-import { feat, globalSnapshot, harness, tuned } from "./jobhelpers.ts";
+import { feat, harness, tuned } from "./jobhelpers.ts";
 import type { Harness } from "./jobhelpers.ts";
 
 const isolated = (name: string, fn: () => void): void => {
   test(name, () => {
-    const before = globalSnapshot();
     fn();
-    assert.equal(globalSnapshot(), before);
   });
 };
 

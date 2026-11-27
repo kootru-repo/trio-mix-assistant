@@ -1,3 +1,4 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { dbToFader, OscConsole } from "../src/core/console.ts";
@@ -8,13 +9,21 @@ import { UdpSink } from "../src/host/udpsink.ts";
 import { NodeUdpFactory } from "../src/host/udp.ts";
 import type { NodeUdpEndpoint } from "../src/host/udp.ts";
 
+const testCfg = defaultConfig();
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 async function withDesk(run: (con: OscConsole, desk: EmulatedDesk) => Promise<void>): Promise<void> {
   const clock = new SystemClock();
-  const desk = new EmulatedDesk(new NodeUdpFactory(), clock, { listenPort: 0, listenHost: "127.0.0.1", appIp: "127.0.0.1", appPort: 9 });
+  const desk = new EmulatedDesk(new NodeUdpFactory(), clock, {
+    cfg: testCfg,
+    listenPort: 0,
+    listenHost: "127.0.0.1",
+    appIp: "127.0.0.1",
+    appPort: 9,
+  });
   await desk.start();
-  const con = new OscConsole(new UdpSink("127.0.0.1", desk.listenPort), { clock });
+  const con = new OscConsole(new UdpSink("127.0.0.1", desk.listenPort), { cfg: testCfg, clock });
   try {
     await run(con, desk);
   } finally {

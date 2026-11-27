@@ -2,7 +2,8 @@ import { readFileSync, statSync } from "node:fs";
 import { isIP } from "node:net";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { C, applyChannelMap, autoChannelMap } from "../core/config.ts";
+import { applyChannelMap, autoChannelMap, defaultConfig } from "../core/config.ts";
+import type { Config } from "../core/config.ts";
 import type { Clock } from "../core/clock.ts";
 import { OscConsole } from "../core/console.ts";
 import type { AudioInputFactory, RankedInput } from "../core/devicecapture.ts";
@@ -19,7 +20,7 @@ import { qrAscii, qrEncode } from "../core/qr.ts";
 import { AbleSetReceiver, SimShowClock } from "../core/showclock.ts";
 import { defaultTemplate, fromObject } from "../core/template.ts";
 import type { ShowTemplate } from "../core/template.ts";
-import { TuningError, setTuning, tuningLines, tuningTable } from "../core/tuning.ts";
+import { TuningError, tuningLines, tuningTable, withTuning } from "../core/tuning.ts";
 import type { TuningOverride } from "../core/tuning.ts";
 import { appVersion } from "./version.ts";
 import { HELP, UsageError, modeName, parseCliArgs, parseDevice, USAGE } from "./args.ts";
@@ -74,40 +75,42 @@ export interface Io {
   onListening?: (url: string) => void;
 }
 
-function fail(io: Io, ...lines: string[]): never {
+function fail(io: Pick<Io, "out">, ...lines: string[]): never {
   for (const l of lines) io.out(l);
   throw new Exit(2);
 }
 
-function loadShowTemplate(args: Args, io: Io): ShowTemplate {
+function loadShowTemplate(args: Args, io: Pick<Io, "out">, cfg: Config): ShowTemplate {
   let t: ShowTemplate;
   try {
-    t = args.template ? fromObject(JSON.parse(readFileSync(args.template, "utf8"))) : defaultTemplate();
-    if (t.channels) applyChannelMap(t.channels);
+    t = args.template ? fromObject(JSON.parse(readFileSync(args.template, "utf8")), cfg) : defaultTemplate(cfg);
+    if (t.channels) applyChannelMap(t.channels, cfg);
   } catch (exc) {
     return fail(io, `  [!] show template error: ${exc instanceof Error ? exc.message : String(exc)}`);
   }
   if (t.channels) {
-    io.out(`  Channel map: ${C.CHANNELS.size} channels from template '${t.name}'`);
+    io.out(`  Channel map: ${cfg.CHANNELS.size} channels from template '${t.name}'`);
   }
   return t;
 }
 
-function applyTuning(io: Io, overrides: readonly TuningOverride[]): void {
+function applyTuning(io: Pick<Io, "out">, base: Config, overrides: readonly TuningOverride[]): Config {
+  let cfg: Config;
   try {
-    setTuning(overrides);
+    cfg = withTuning(base, overrides);
   } catch (exc) {
     if (exc instanceof TuningError) fail(io, `  [!] tuning: ${exc.message}`);
     throw exc;
   }
-  const lines = tuningLines();
+  const lines = tuningLines(cfg.TUNED);
   if (lines.length) {
     io.out("  Tuning changed from the defaults:");
     for (const l of lines) io.out(`    ${l}`);
   }
+  return cfg;
 }
 
-function loadChannelMap(args: Args, io: Io): Map<number, number> | null {
+function loadChannelMap(args: Args, io: Io, cfg: Config): Map<number, number> | null {
   if (!args.channelMap) return null;
   let map: Map<number, number>;
   try {
@@ -116,7 +119,7 @@ function loadChannelMap(args: Args, io: Io): Map<number, number> | null {
     if (exc instanceof InvalidArgumentError) return fail(io, `  [!] --channel-map: ${exc.message}`);
     throw exc;
   }
-  const missing = [...C.CHANNELS.keys()].filter((ch) => !map.has(ch));
+  const missing = [...cfg.CHANNELS.keys()].filter((ch) => !map.has(ch));
   if (missing.length) {
     io.out(
       `  [!] --channel-map is missing console channel(s) [${missing.join(", ")}]; they won't be captured. Add them or omit --channel-map.`,
@@ -135,11 +138,11 @@ async function quietStop(source: RemoteCapture): Promise<void> {
   }
 }
 
-export async function autodetectSource(io: Pick<Io, "factory" | "clock" | "out" | "connect">): Promise<RemoteCapture | null> {
+export async function autodetectSource(io: Pick<Io, "factory" | "clock" | "out" | "connect">, cfg: Config): Promise<RemoteCapture | null> {
   const factory = audioFactory(io);
   let cands;
   try {
-    cands = autodetectInputs(factory);
+    cands = autodetectInputs(factory, cfg.SAMPLE_RATE);
   } catch (exc) {
     io.out(`  [!] --auto: ${exc instanceof Error ? exc.message : String(exc)}`);
     return null;
@@ -150,8 +153,8 @@ export async function autodetectSource(io: Pick<Io, "factory" | "clock" | "out" 
   }
   const open = async (cand: RankedInput): Promise<RemoteCapture | null> => {
     const label = `[${cand.index}] ${cand.name} (${cand.hostapi}`;
-    autoChannelMap(cand.channels);
-    const source = new RemoteCapture({ connect: () => io.connect("native"), clock: io.clock, stamp: threadStamp, device: cand.index });
+    autoChannelMap(cand.channels, cfg);
+    const source = new RemoteCapture({ connect: () => io.connect("native"), clock: io.clock, stamp: threadStamp, device: cand.index, cfg });
     try {
       source.start();
       await source.ready();
@@ -197,7 +200,7 @@ export async function autodetectSource(io: Pick<Io, "factory" | "clock" | "out" 
   return null;
 }
 
-function deviceSource(args: Args, chanMap: Map<number, number> | null, io: Io): RemoteCapture {
+function deviceSource(args: Args, chanMap: Map<number, number> | null, io: Io, cfg: Config): RemoteCapture {
   return new RemoteCapture({
     connect: () => io.connect("native"),
     clock: io.clock,
@@ -206,10 +209,11 @@ function deviceSource(args: Args, chanMap: Map<number, number> | null, io: Io): 
     outputDevice: parseDevice(args.outputDevice),
     channelMap: chanMap,
     gainDb: args.inputGain,
+    cfg,
   });
 }
 
-const engineTick = (): number => C.BLOCK / C.SAMPLE_RATE;
+const engineTick = (cfg: Config): number => cfg.BLOCK / cfg.SAMPLE_RATE;
 
 const WILDCARD_HOSTS = ["0.0.0.0", "::"];
 
@@ -218,10 +222,10 @@ interface ConsoleLink {
   rx: MeterReceiver;
 }
 
-function consoleLink(io: Io, consoleIp: string, listenIp: string, allowFrom: string | null): ConsoleLink {
-  const rx = new MeterReceiver(io.udp, { ip: listenIp, allowFrom });
-  const sink = new SharedPortSink(rx, { host: consoleIp, port: C.CONSOLE_PORT }, new UdpSink(consoleIp, C.CONSOLE_PORT));
-  return { con: new OscConsole(sink, { clock: io.clock, ip: consoleIp }), rx };
+function consoleLink(io: Io, cfg: Config, consoleIp: string, listenIp: string, allowFrom: string | null): ConsoleLink {
+  const rx = new MeterReceiver(io.udp, { ip: listenIp, allowFrom, cfg });
+  const sink = new SharedPortSink(rx, { host: consoleIp, port: cfg.CONSOLE_PORT }, new UdpSink(consoleIp, cfg.CONSOLE_PORT));
+  return { con: new OscConsole(sink, { clock: io.clock, ip: consoleIp, cfg }), rx };
 }
 
 function wireMeters(engine: Engine, rx: MeterReceiver): void {
@@ -238,27 +242,29 @@ function buildEmulated(
   chanMap: Map<number, number> | null,
   auto: RemoteCapture | null,
   io: Io,
+  cfg: Config,
 ): { engine: Engine; emu: EmulatedDesk } {
   const emu = new EmulatedDesk(io.udp, io.clock, {
+    cfg,
     externalMoves: true,
     listenHost: WILDCARD_HOSTS.includes(args.host) ? "0.0.0.0" : "127.0.0.1",
     nodeScn: readScn(io),
     onTrace: args.traceOsc ? (l) => io.out(l) : null,
   });
   for (const s of template.songs) if (s.scene !== null) emu.sceneNames.set(s.scene, s.name);
-  const { con, rx } = consoleLink(io, "127.0.0.1", "127.0.0.1", "127.0.0.1");
+  const { con, rx } = consoleLink(io, cfg, "127.0.0.1", "127.0.0.1", "127.0.0.1");
   let source: RemoteCapture;
   if (auto !== null) {
     source = auto;
   } else if (args.audioDevice !== null) {
-    source = deviceSource(args, chanMap, io);
+    source = deviceSource(args, chanMap, io, cfg);
     io.out(
       "  Listening on a REAL audio device against the emulated desk." + (args.inputGain ? `  (+${fixed(args.inputGain, 0)} dB input)` : ""),
     );
   } else {
-    source = new RemoteCapture({ connect: () => io.connect("timed"), clock: io.clock, stamp: threadStamp });
+    source = new RemoteCapture({ connect: () => io.connect("timed"), clock: io.clock, stamp: threadStamp, cfg });
   }
-  const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
+  const engine = new Engine({ console: con, sim: false, source, tick: engineTick(cfg), template, clock: io.clock, cfg });
   wireMeters(engine, rx);
   if (!args.noShowClock) engine.showClock = new SimShowClock(template, io.clock, (s) => engine.onSongChange(s));
   return { engine, emu };
@@ -278,15 +284,16 @@ function buildHardware(
   chanMap: Map<number, number> | null,
   auto: RemoteCapture | null,
   io: Io,
+  cfg: Config,
 ): Engine {
-  const ip = args.consoleIp || C.CONSOLE_IP;
-  const { con, rx } = consoleLink(io, ip, "0.0.0.0", isIP(ip) !== 0 ? ip : null);
+  const ip = args.consoleIp || cfg.CONSOLE_IP;
+  const { con, rx } = consoleLink(io, cfg, ip, "0.0.0.0", isIP(ip) !== 0 ? ip : null);
   let source: RemoteCapture | null = auto;
-  if (source === null && args.audioDevice !== null) source = deviceSource(args, chanMap, io);
-  const engine = new Engine({ console: con, sim: false, source, tick: engineTick(), template, clock: io.clock });
+  if (source === null && args.audioDevice !== null) source = deviceSource(args, chanMap, io, cfg);
+  const engine = new Engine({ console: con, sim: false, source, tick: engineTick(cfg), template, clock: io.clock, cfg });
   wireMeters(engine, rx);
   if (args.ablesetPort !== null) {
-    engine.showClock = new AbleSetReceiver(io.udp, (s) => engine.onSongChange(s), "0.0.0.0", args.ablesetPort, args.ablesetFrom);
+    engine.showClock = new AbleSetReceiver(io.udp, cfg, (s) => engine.onSongChange(s), "0.0.0.0", args.ablesetPort, args.ablesetFrom);
     io.out(
       args.ablesetFrom !== null
         ? `  AbleSet: accepting song changes only from ${args.ablesetFrom}.`
@@ -296,8 +303,8 @@ function buildHardware(
   return engine;
 }
 
-function buildSimulation(args: Args, template: ShowTemplate, io: Io): Engine {
-  const engine = new Engine({ sim: true, template, clock: io.clock });
+function buildSimulation(args: Args, template: ShowTemplate, io: Io, cfg: Config): Engine {
+  const engine = new Engine({ sim: true, template, clock: io.clock, cfg });
   if (!args.noShowClock) engine.showClock = new SimShowClock(template, io.clock, (s) => engine.onSongChange(s));
   return engine;
 }
@@ -413,34 +420,34 @@ const EMULATED_FEED = "no real input is selected, so the emulator's built-in aud
 const NO_INPUT = "no audio input is selected (manual control only)";
 const SIMULATED_STAGE = "simulation mode uses a built-in stage, so no real input is opened (add --audio-device <number> to check one)";
 
-const modeLabel = (args: Args): string =>
+const modeLabel = (args: Args, cfg: Config): string =>
   args.emulate
     ? "emulated console (this does not prove anything about a real console)"
     : args.hardware
-      ? `hardware, console at ${args.consoleIp || C.CONSOLE_IP}`
+      ? `hardware, console at ${args.consoleIp || cfg.CONSOLE_IP}`
       : args.diagnose && (args.audioDevice || args.auto)
         ? "simulation, checking one real audio input (no console)"
         : "simulation (nothing real is checked except the audio module)";
 
-function fitMapToInput(args: Args, io: Io): void {
+function fitMapToInput(args: Args, io: Io, cfg: Config): void {
   let inputs: number;
   try {
     inputs = audioFactory(io).queryDevice(parseDevice(args.audioDevice)).max_input_channels ?? 0;
   } catch {
     return;
   }
-  if (inputs < 1 || inputs >= Math.max(...C.CHANNELS.keys())) return;
-  autoChannelMap(inputs);
+  if (inputs < 1 || inputs >= Math.max(...cfg.CHANNELS.keys())) return;
+  autoChannelMap(inputs, cfg);
   io.out(`  Checking this input on its own, so the channel map is fitted to its ${inputs} input${inputs === 1 ? "" : "s"}.`);
 }
 
-async function runDiagnose(args: Args, io: Io): Promise<number> {
-  const head = { ...systemFacts(), mode: modeLabel(args) };
+async function runDiagnose(args: Args, io: Io, cfg: Config): Promise<number> {
+  const head = { ...systemFacts(), mode: modeLabel(args, cfg) };
   for (const l of headerLines(head)) io.out(l);
-  loadShowTemplate(args, io);
-  const chanMap = loadChannelMap(args, io);
+  loadShowTemplate(args, io, cfg);
+  const chanMap = loadChannelMap(args, io, cfg);
   const real = args.emulate || args.hardware;
-  if (!real && !args.auto && args.audioDevice !== null && chanMap === null) fitMapToInput(args, io);
+  if (!real && !args.auto && args.audioDevice !== null && chanMap === null) fitMapToInput(args, io, cfg);
   const seconds = io.diagnoseSeconds ?? CLI_WINDOW_S;
   let emu: EmulatedDesk | null = null;
   let consoleProbe: ConsoleProbe | null = null;
@@ -457,20 +464,20 @@ async function runDiagnose(args: Args, io: Io): Promise<number> {
   };
   try {
     if (args.auto || args.audioDevice !== null) {
-      const auto = args.auto ? await autodetectSource(io) : null;
-      const source = auto ?? (args.audioDevice !== null ? deviceSource(args, chanMap, io) : null);
+      const auto = args.auto ? await autodetectSource(io, cfg) : null;
+      const source = auto ?? (args.audioDevice !== null ? deviceSource(args, chanMap, io, cfg) : null);
       if (source !== null) {
-        audioProbe = new AudioProbe(source, io.clock);
+        audioProbe = new AudioProbe(source, io.clock, cfg);
         await audioProbe.start(auto !== null);
       } else {
         audioSkipped = "--auto found no input that delivers audio (see the lines above)";
       }
     }
     if (real) {
-      const ip = args.emulate ? "127.0.0.1" : args.consoleIp || C.CONSOLE_IP;
+      const ip = args.emulate ? "127.0.0.1" : args.consoleIp || cfg.CONSOLE_IP;
       let emuError: string | null = null;
       if (args.emulate) {
-        emu = new EmulatedDesk(io.udp, io.clock, { externalMoves: false, listenHost: "127.0.0.1", nodeScn: readScn(io) });
+        emu = new EmulatedDesk(io.udp, io.clock, { cfg, externalMoves: false, listenHost: "127.0.0.1", nodeScn: readScn(io) });
         try {
           await emu.start();
         } catch (exc) {
@@ -479,7 +486,7 @@ async function runDiagnose(args: Args, io: Io): Promise<number> {
         }
       }
       if (emuError === null) {
-        const link = consoleLink(io, ip, args.emulate ? "127.0.0.1" : "0.0.0.0", isIP(ip) !== 0 ? ip : null);
+        const link = consoleLink(io, cfg, ip, args.emulate ? "127.0.0.1" : "0.0.0.0", isIP(ip) !== 0 ? ip : null);
         consoleProbe = new ConsoleProbe(link.con, link.rx, io.clock);
         await consoleProbe.start();
       } else {
@@ -524,6 +531,12 @@ async function attempt(step: () => Promise<void>): Promise<void> {
   }
 }
 
+export function showConfig(args: Args, io: Pick<Io, "out">): { cfg: Config; template: ShowTemplate } {
+  const base = defaultConfig();
+  const template = loadShowTemplate(args, io, base);
+  return { cfg: applyTuning(io, base, [...template.tuning, ...args.tune]), template };
+}
+
 async function runChecked(args: Args, io: Io): Promise<number> {
   if (args.listTuning) {
     io.out(tuningTable());
@@ -539,39 +552,37 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     return 0;
   }
   if (args.diagnose) {
-    applyTuning(io, args.tune);
-    return runDiagnose(args, io);
+    return runDiagnose(args, io, applyTuning(io, defaultConfig(), args.tune));
   }
   if (args.vet) {
-    applyTuning(io, args.tune);
-    const chanMap = loadChannelMap(args, io);
+    const cfg = applyTuning(io, defaultConfig(), args.tune);
+    const chanMap = loadChannelMap(args, io, cfg);
     const openSource =
       args.audioDevice === null
         ? null
         : (): RemoteCapture => {
-            if (chanMap === null) fitMapToInput(args, io);
-            return deviceSource(args, chanMap, io);
+            if (chanMap === null) fitMapToInput(args, io, cfg);
+            return deviceSource(args, chanMap, io, cfg);
           };
-    return (await runVet(args, io, { openSource, lanIp })).code;
+    return (await runVet(args, io, { openSource, lanIp, cfg })).code;
   }
 
-  const template = loadShowTemplate(args, io);
-  applyTuning(io, [...template.tuning, ...args.tune]);
-  const chanMap = loadChannelMap(args, io);
-  const auto = args.auto ? await autodetectSource(io) : null;
+  const { cfg, template } = showConfig(args, io);
+  const chanMap = loadChannelMap(args, io, cfg);
+  const auto = args.auto ? await autodetectSource(io, cfg) : null;
 
   let emu: EmulatedDesk | null = null;
   let engine: Engine | null = null;
   let server: DashboardServer | null = null;
   try {
     if (args.emulate) {
-      const built = buildEmulated(args, template, chanMap, auto, io);
+      const built = buildEmulated(args, template, chanMap, auto, io, cfg);
       engine = built.engine;
       emu = built.emu;
     } else if (args.hardware) {
-      engine = buildHardware(args, template, chanMap, auto, io);
+      engine = buildHardware(args, template, chanMap, auto, io, cfg);
     } else {
-      engine = buildSimulation(args, template, io);
+      engine = buildSimulation(args, template, io, cfg);
     }
 
     attachSessionLog(engine, args, template.name, io);
@@ -589,7 +600,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
         );
       }
       const lan = WILDCARD_HOSTS.includes(args.host);
-      for (const l of emulatorLines(lan ? ip : null, emu.listenPort, args.traceOsc, lan)) io.out(l);
+      for (const l of emulatorLines(cfg, lan ? ip : null, emu.listenPort, args.traceOsc, lan)) io.out(l);
     }
     const plan = await prepareTls(args, ip, io);
 
@@ -632,7 +643,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     engine.diagHost = (identify) => ({
       ...systemFacts(),
       scrub: identify ? (text: string): string => text : scrubberFor(io),
-      mode: modeLabel(args),
+      mode: modeLabel(args, cfg),
       audioModule: moduleFacts(io.factory),
       audioSkipped: usesEmulatedFeed ? EMULATED_FEED : null,
       mappedChannels: mapped,
@@ -640,8 +651,11 @@ async function runChecked(args: Args, io: Io): Promise<number> {
       network: networkFacts({ ...args, https: plan.tls !== null }, ip),
     });
     const rxLive = args.hardware && engine.meterRx instanceof MeterReceiver ? engine.meterRx : null;
-    engine.vetHost = inAppVet(io, rxLive !== null ? { rx: rxLive, ip: args.consoleIp || C.CONSOLE_IP, port: C.CONSOLE_PORT } : null, () =>
-      Promise.resolve(ip),
+    engine.vetHost = inAppVet(
+      io,
+      rxLive !== null ? { rx: rxLive, ip: args.consoleIp || cfg.CONSOLE_IP, port: cfg.CONSOLE_PORT } : null,
+      () => Promise.resolve(ip),
+      cfg,
     );
     const url = `${scheme}://${ip}:${args.port}/`;
     const wildcard = WILDCARD_HOSTS.includes(args.host);

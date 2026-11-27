@@ -13,7 +13,7 @@ if (port === null) throw new Error("the audio worker must be started as a worker
 const kind: unknown = (workerData as { kind?: unknown } | null)?.kind;
 const clock = new SystemClock();
 const cfg = defaultConfig();
-const factory: AudioInputFactory = kind === "timed" ? new TimedAudioFactory(clock, 64, cfg) : await NativeAudioInputFactory.create();
+const factory: AudioInputFactory = kind === "timed" ? new TimedAudioFactory(clock, cfg, 64) : await NativeAudioInputFactory.create();
 const host = new CaptureHost(factory, clock, (message: FromCapture) => port.postMessage(message), threadStamp, cfg);
 
 port.on("message", (message: ToCapture) => {

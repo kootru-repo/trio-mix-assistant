@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BlockAnalyser, analysisConfig, currentAnalysisConfig } from "../src/core/blockanalysis.ts";
+import { BlockAnalyser, analysisConfig } from "../src/core/blockanalysis.ts";
 import { SimCapture, simRoomCapture } from "../src/core/capture.ts";
 import { CaptureHost, RemoteCapture } from "../src/core/capturelink.ts";
 import type { FromCapture } from "../src/core/capturelink.ts";
 import { ManualClock } from "../src/core/clock.ts";
-import { C, configWith, defaultTuning } from "../src/core/config.ts";
+import { configWith, defaultConfig, defaultTuning } from "../src/core/config.ts";
 import type { Config } from "../src/core/config.ts";
 import { SimConsole } from "../src/core/console.ts";
 import { DeviceCapture } from "../src/core/devicecapture.ts";
@@ -13,6 +13,8 @@ import { RollingRingDetector, analyseBlock, findResonantPeaks, findRingBin, octa
 import { SeededRng } from "../src/core/rng.ts";
 import { TimedAudioFactory, TimedAudioStream } from "../src/core/timedaudio.ts";
 import { SystemClock } from "../src/host/clock.ts";
+
+const testCfg = defaultConfig();
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -23,8 +25,8 @@ const tone = (n: number, hz: number, sr: number, amp = 0.5): Float32Array => {
 };
 
 const untouched = (run: () => void | Promise<void>): Promise<void> => {
-  const before = structuredClone(C);
-  return Promise.resolve(run()).then(() => assert.deepEqual(C, before, "the shared settings are not changed"));
+  const before = structuredClone(testCfg);
+  return Promise.resolve(run()).then(() => assert.deepEqual(testCfg, before, "the shared settings are not changed"));
 };
 
 const tuned = (over: Partial<Config>, feedback: Partial<Config["feedback"]> = {}, phase: Partial<Config["phase"]> = {}): Config => {
@@ -53,7 +55,7 @@ test("dsp takes its ring threshold, FFT size, lag limit and octave bands as para
     b.set(a.subarray(0, 2048 - 96), 96);
     assert.equal(phaseRelation(a, b, 48000).lagSamples, -96);
     assert.ok(Math.abs(phaseRelation(a, b, 48000, 1).lagSamples) <= 48, "an injected 1 ms lag limit caps the search");
-    const noise = simRoomCapture(new SeededRng(3));
+    const noise = simRoomCapture(new SeededRng(3), testCfg);
     assert.deepEqual([...octaveBandLevels(noise, 48000, [250, 2500]).keys()], [250, 2500]);
     const cal = { ...defaultTuning().calibration, peakThreshDb: 1000 };
     assert.deepEqual(findResonantPeaks(noise, 48000, null, cal).corrections, []);
@@ -85,15 +87,14 @@ test("analysisConfig reads the given config, and the analyser uses its sample ra
       detectFft: 2048,
       maxLagMs: 1.5,
     });
-    assert.deepEqual(currentAnalysisConfig(), analysisConfig(C));
     const ring = tone(4096, 2500, 48000);
-    const fast = new BlockAnalyser().analyse(new Map([[5, ring]]), { ...got, sampleRate: 48000 });
-    const slow = new BlockAnalyser().analyse(new Map([[5, ring]]), got);
+    const fast = new BlockAnalyser(testCfg).analyse(new Map([[5, ring]]), { ...got, sampleRate: 48000 });
+    const slow = new BlockAnalyser(testCfg).analyse(new Map([[5, ring]]), got);
     const f48 = fast.feats.get(5)!.fbFreq;
     const f24 = slow.feats.get(5)!.fbFreq;
     assert.ok(f48 !== null && Math.abs(f48 - 2500) < 30, String(f48));
     assert.ok(f24 !== null && Math.abs(f24 - 1250) < 30, `the ring detector follows the analysis sample rate: ${f24}`);
-    const deaf = new BlockAnalyser().analyse(new Map([[5, ring]]), { ...got, ringDb: 500 });
+    const deaf = new BlockAnalyser(testCfg).analyse(new Map([[5, ring]]), { ...got, ringDb: 500 });
     assert.equal(deaf.feats.get(5)!.fbFreq, null);
     const fallback = new BlockAnalyser(tuned({}, { ringDb: 500 })).analyse(new Map([[5, ring]]), {
       channels: [5],
@@ -107,7 +108,7 @@ test("analysisConfig reads the given config, and the analyser uses its sample ra
 test("SimCapture and the simulated room use the injected block size, sample rate, channels and room mic", () =>
   untouched(() => {
     const cfg = configWith({ BLOCK: 256, SAMPLE_RATE: 24000, CHANNELS: new Map([[3, "lead_vox"]]), MEAS_MIC_CH: 12 });
-    const frame = new SimCapture(new SimConsole(), 7, null, cfg).block();
+    const frame = new SimCapture(new SimConsole({ cfg }), cfg).block();
     assert.deepEqual(
       [...frame.keys()].sort((a, b) => a - b),
       [3, 12],
@@ -120,7 +121,7 @@ test("SimCapture and the simulated room use the injected block size, sample rate
 test("timed audio takes its sample rate, block and room-mic column from the injected config", () =>
   untouched(() => {
     const cfg = configWith({ SAMPLE_RATE: 44100, BLOCK: 128, MEAS_MIC_CH: 2 });
-    const factory = new TimedAudioFactory(new SystemClock(), 64, cfg);
+    const factory = new TimedAudioFactory(new SystemClock(), cfg, 64);
     assert.equal(factory.queryDevice().default_samplerate, 44100);
     const stream = new TimedAudioStream(() => undefined, 3, new SystemClock(), { cfg });
     assert.equal(stream.sampleRate, 44100);
@@ -141,7 +142,7 @@ test("DeviceCapture falls back to the injected config for rate, block, room mic 
         [2, "lead_vox"],
       ]),
     });
-    const cap = new DeviceCapture({ factory: new TimedAudioFactory(new SystemClock()), clock: new ManualClock(0), cfg });
+    const cap = new DeviceCapture({ factory: new TimedAudioFactory(new SystemClock(), testCfg), clock: new ManualClock(0), cfg });
     assert.equal(cap.samplerate, 44100);
     assert.equal(cap.blocksize, 512);
     assert.equal(cap.measCh, 4);
@@ -199,7 +200,7 @@ test("the capture host opens timed audio with its own config and never writes th
     const clock = new SystemClock();
     const got: FromCapture[] = [];
     const host = new CaptureHost(
-      new TimedAudioFactory(clock, 64, cfg),
+      new TimedAudioFactory(clock, cfg, 64),
       clock,
       (m) => got.push(m),
       () => Date.now(),

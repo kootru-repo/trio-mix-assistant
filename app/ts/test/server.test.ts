@@ -17,6 +17,9 @@ import { jsonForHtml, jsonText, strictLoads } from "../src/host/server/json.ts";
 import { CommandBudget, LoginLimiter } from "../src/host/server/limiter.ts";
 import type { DashboardServer } from "../src/host/server.ts";
 import { appVersion } from "../src/host/version.ts";
+import { defaultConfig } from "../src/core/config.ts";
+
+const testCfg = defaultConfig();
 
 const staticDir = join(import.meta.dirname, "..", "..", "static");
 
@@ -73,7 +76,7 @@ const rig = async (
     limitLoopback?: boolean;
   } = {},
 ): Promise<Rig> => {
-  const engine = new TestEngine({ clock: new ManualClock(100, 1_700_000_000), sim: true });
+  const engine = new TestEngine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000), sim: true });
   const srv = createServer({
     engine,
     staticDir,
@@ -1203,7 +1206,7 @@ test("only the exact index paths serve the dashboard", async () => {
 });
 
 test("listening beyond loopback needs a PIN unless an open dashboard is allowed explicitly", async () => {
-  const engine = new TestEngine({ clock: new ManualClock(100, 1_700_000_000), sim: true });
+  const engine = new TestEngine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000), sim: true });
   try {
     const open = createServer({ engine, staticDir });
     await assert.rejects(open.start(0, "0.0.0.0"), /without a PIN/);

@@ -21,4 +21,4 @@ Capture and analysis run on their own worker thread. The engine and all its stat
 
 - The main thread owns all mutable state, so there are no data races (see 0006).
 - Block age compares wall-clock-based stamps (`threadStamp` in `src/host/clock.ts`) taken on two threads. If the wall clock steps back, the app can go deaf with no alert. The plan lists this as problem 5.
-- The worker has its own copy of the shared config, so it must be sent the measurement channel and tuning in the `open` message (0007).
+- The worker builds its own config and never writes a shared one. Everything that depends on the live config (channel map, measurement channel, analysis settings, tuning) travels in the `open` message, built by `RemoteCapture.config()` from the config it was given (0017).

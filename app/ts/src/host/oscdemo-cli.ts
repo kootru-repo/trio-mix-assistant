@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
-import { C } from "../core/config.ts";
+import { defaultConfig } from "../core/config.ts";
 import { OscConsole } from "../core/console.ts";
 import { parseInteger } from "../core/util.ts";
 import { SystemClock } from "./clock.ts";
@@ -21,8 +21,9 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
   const ip = values.ip ?? "127.0.0.1";
   const clock = new SystemClock();
-  const con = new OscConsole(new UdpSink(ip, C.CONSOLE_PORT), { clock });
-  console.log(`Sending to ${ip}:${C.CONSOLE_PORT} via the app's OSC encoder.`);
+  const cfg = defaultConfig();
+  const con = new OscConsole(new UdpSink(ip, cfg.CONSOLE_PORT), { clock, cfg });
+  console.log(`Sending to ${ip}:${cfg.CONSOLE_PORT} via the app's OSC encoder.`);
   if (values.animate) {
     const signal = { aborted: false };
     process.once("SIGINT", () => {

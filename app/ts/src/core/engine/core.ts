@@ -1,6 +1,5 @@
 import { CaptureError } from "../capture.ts";
-import { C } from "../config.ts";
-import { currentAnalysisConfig } from "../blockanalysis.ts";
+import { analysisConfig } from "../blockanalysis.ts";
 import type { AnalysedBlock } from "../blockanalysis.ts";
 import { LevelWindow, audioFacts, buildReport } from "../diagnostics.ts";
 import type { AudioFacts, ConsoleFacts } from "../diagnostics.ts";
@@ -121,15 +120,16 @@ export class Engine extends EngineCalibration {
   }
 
   private async run(gen: number): Promise<void> {
-    const sched = new TickScheduler({ tick: this.tick, maxLagS: C.safety.maxLagS });
-    const wall = new WallWatch({ jumpS: C.safety.wallJumpS });
+    const sched = new TickScheduler({ tick: this.tick, maxLagS: this.cfg.safety.maxLagS });
+    const wall = new WallWatch({ jumpS: this.cfg.safety.wallJumpS });
     sched.start(this.clock.monotonic());
     let lastNow = this.clock.monotonic();
     while (!this.stopped && gen === this.loopGen) {
       const now = this.clock.monotonic();
       const gap = now - lastNow;
       const jump = wall.observe(now, this.clock.time());
-      if (gap > this.tick + C.safety.maxLagS || jump !== null) this.onResume(now, gap > this.tick + C.safety.maxLagS ? gap : (jump ?? 0));
+      if (gap > this.tick + this.cfg.safety.maxLagS || jump !== null)
+        this.onResume(now, gap > this.tick + this.cfg.safety.maxLagS ? gap : (jump ?? 0));
       this.step(now, lastNow);
       lastNow = now;
       await this.clock.sleep(sched.plan(this.clock.monotonic()).sleepS);
@@ -143,7 +143,7 @@ export class Engine extends EngineCalibration {
         this.assistant.blockT0 = this.clock.highResolution();
         const wantPhases = Boolean(this.assistant.enabled["phase"]);
         this.consume(
-          this.analyser.analyse(frame, currentAnalysisConfig(), (exc) => this.noteError(exc), wantPhases),
+          this.analyser.analyse(frame, analysisConfig(this.cfg), (exc) => this.noteError(exc), wantPhases),
           now,
         );
       }
@@ -160,7 +160,7 @@ export class Engine extends EngineCalibration {
   private consume(block: AnalysedBlock, now: number): void {
     if (this.diagWindow !== null) this.diagWindow.add(block);
     for (const [ch, feat] of block.feats) {
-      if (!C.CHANNELS.has(ch)) continue;
+      if (!this.cfg.CHANNELS.has(ch)) continue;
       try {
         this.feat.set(ch, feat);
         if (!this.held && !this.channelLocked(ch)) this.assistant.onFeatures(ch, feat, now);
@@ -215,13 +215,13 @@ export class Engine extends EngineCalibration {
       if (this.stopped) return settle(null);
       if (this.status === "calibrating") return settle("checks were interrupted by calibration — run them again when it finishes");
       const elapsed = Math.max(this.clock.monotonic() - t0, 1e-3);
-      const labels = new Map([...C.CHANNELS].map(([ch, role]) => [ch, C.ROLE_LABELS.get(role) ?? role]));
+      const labels = new Map([...this.cfg.CHANNELS].map(([ch, role]) => [ch, this.cfg.ROLE_LABELS.get(role) ?? role]));
       let audio: AudioFacts | null = null;
       let skipped = host.audioSkipped ?? "";
       if (this.sim) skipped = "simulation mode uses a built-in stage, so no real input is opened";
       else if (source === null) skipped = "no audio input is selected (manual control only)";
       else if (host.audioSkipped === null) {
-        audio = audioFacts(before, source.status(), window, elapsed, C.SAMPLE_RATE / C.BLOCK, labels, host.mappedChannels);
+        audio = audioFacts(before, source.status(), window, elapsed, this.cfg.SAMPLE_RATE / this.cfg.BLOCK, labels, host.mappedChannels);
       }
       const con: ConsoleFacts | null = this.sim
         ? null

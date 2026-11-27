@@ -1,6 +1,3 @@
-import { C } from "../config.ts";
-import { chanOf } from "./context.ts";
-
 export interface AssistantEvent {
   time: string;
   kind: string;
@@ -24,5 +21,3 @@ export interface CoachRec {
 
 export type EventHandler = (ev: AssistantEvent) => void;
 export type LatencyHandler = (kind: string, seconds: number) => void;
-
-export const chan = (ch: number): string => chanOf(C, ch);

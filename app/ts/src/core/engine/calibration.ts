@@ -1,4 +1,3 @@
-import { C } from "../config.ts";
 import { generatePinkNoise } from "../dsp.ts";
 import type { Samples } from "../dsp.ts";
 import type { CalibrationResult } from "../calibration.ts";
@@ -43,14 +42,16 @@ export class EngineCalibration extends EngineShow {
 
   protected async calibrateWorker(): Promise<void> {
     const epoch = this.takeoverEpoch;
-    await this.clock.sleep(C.calibration.settleS);
+    await this.clock.sleep(this.cfg.calibration.settleS);
     if (this.calibrationAborted(epoch)) return;
     let capture: Samples | null = null;
     let played = true;
     if (this.source !== null) {
-      played = await this.source.emitPinkNoise(generatePinkNoise(C.calibration.durationS, this.noiseRng));
+      played = await this.source.emitPinkNoise(
+        generatePinkNoise(this.cfg.calibration.durationS, this.noiseRng, this.cfg.SAMPLE_RATE, this.cfg.calibration.noiseDbfs),
+      );
       if (this.calibrationAborted(epoch)) return;
-      capture = await this.source.captureMeas(C.calibration.durationS);
+      capture = await this.source.captureMeas(this.cfg.calibration.durationS);
     }
     if (this.calibrationAborted(epoch)) return;
     let res: CalibrationResult | null = null;
@@ -61,7 +62,7 @@ export class EngineCalibration extends EngineShow {
       for (let i = 0; i < capture.length; i++) sumSq += capture[i]! * capture[i]!;
       const rms = Math.sqrt(sumSq / capture.length);
       levelDb = 20.0 * Math.log10(rms + 1e-9);
-      if (rms < 10 ** (C.calibration.minLevelDbfs / 20.0)) silent = true;
+      if (rms < 10 ** (this.cfg.calibration.minLevelDbfs / 20.0)) silent = true;
       else res = this.calibrator.analyze(capture);
     }
     if (silent) {
@@ -73,7 +74,7 @@ export class EngineCalibration extends EngineShow {
       const lvl = levelDb !== null ? `${fixed(levelDb, 0)} dBFS` : "silence";
       this.assistant.emit(
         "calibration",
-        `calibration heard only ${lvl} at the mic (needs > ${fixed(C.calibration.minLevelDbfs, 0)} dBFS) — ${hint}`,
+        `calibration heard only ${lvl} at the mic (needs > ${fixed(this.cfg.calibration.minLevelDbfs, 0)} dBFS) — ${hint}`,
       );
       this.rebuildTelemetry();
       return;

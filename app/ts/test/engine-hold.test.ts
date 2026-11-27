@@ -1,9 +1,9 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AnalysedBlock } from "../src/core/blockanalysis.ts";
 import { CaptureSourceBase } from "../src/core/capture.ts";
 import type { Frame } from "../src/core/capture.ts";
-import { C } from "../src/core/config.ts";
 import { ConsoleBase, SimConsole, dbToFader, faderToDb } from "../src/core/console.ts";
 import { emptyFeatures } from "../src/core/dsp.ts";
 import type { ChannelFeatures } from "../src/core/dsp.ts";
@@ -13,6 +13,8 @@ import { oscFloat, oscInt } from "../src/core/oscwire.ts";
 import type { OscArg } from "../src/core/oscwire.ts";
 import type { MeterReceiverPort } from "../src/core/ports.ts";
 import { StepClock } from "./stepclock.ts";
+
+const testCfg = defaultConfig();
 
 class QuietSource extends CaptureSourceBase {
   block(): Frame {
@@ -49,7 +51,7 @@ const isRead = (address: string): boolean => FADER.test(address) || GAIN.test(ad
 const pad = (n: number, width: number): string => String(n).padStart(width, "0");
 
 const deskAddresses = (): string[] =>
-  [...C.CHANNELS.keys()].flatMap((ch) => [
+  [...testCfg.CHANNELS.keys()].flatMap((ch) => [
     `/ch/${pad(ch, 2)}/mix/fader`,
     `/headamp/${pad(ch - 1, 3)}/gain`,
     `/ch/${pad(ch, 2)}/preamp/invert`,
@@ -59,8 +61,8 @@ const quietReceiver = (): MeterReceiverPort => ({ start: () => Promise.resolve()
 
 const makeRig = async (opts: { console?: SimConsole; rx?: MeterReceiverPort | null } = {}): Promise<Rig> => {
   const clock = new StepClock(100, 1_700_000_000);
-  const con = opts.console ?? new SimConsole();
-  const e = new Engine({ clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
+  const con = opts.console ?? new SimConsole({ cfg: testCfg });
+  const e = new Engine({ cfg: testCfg, clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
   e.meterRx = opts.rx === undefined ? quietReceiver() : opts.rx;
   await e.start();
   return { e, clock, con };
@@ -228,7 +230,7 @@ test("the desk read is adopted as fader, gain, nominal gain and polarity, and a 
     a.polarity.set(5, true);
     answerReads(r, 0);
     await drive(r, 1.3, true);
-    for (const ch of C.CHANNELS.keys()) {
+    for (const ch of testCfg.CHANNELS.keys()) {
       near(a.faderDb.get(ch), -10);
       near(a.gainDb.get(ch), 35);
       near(a.nominalGain.get(ch), 35);
@@ -241,7 +243,7 @@ test("the desk read is adopted as fader, gain, nominal gain and polarity, and a 
     answerReads(r, from, { fader: -5, gain: 30, inverted: new Set() });
     await drive(r, 0.3, true);
     assert.equal(r.e.held, false);
-    for (const ch of C.CHANNELS.keys()) {
+    for (const ch of testCfg.CHANNELS.keys()) {
       near(a.faderDb.get(ch), -5);
       near(a.gainDb.get(ch), 30);
       near(a.nominalGain.get(ch), 35);
@@ -259,7 +261,7 @@ test("fader replies during the desk read do not count as hand moves", async () =
     answerReads(r, 0);
     await drive(r, 1.3, true);
     const now = r.clock.monotonic();
-    for (const ch of C.CHANNELS.keys()) assert.ok((r.e.assistant.manualHoldUntil.get(ch) ?? -1e9) < now, `ch${ch} got a manual hold`);
+    for (const ch of testCfg.CHANNELS.keys()) assert.ok((r.e.assistant.manualHoldUntil.get(ch) ?? -1e9) < now, `ch${ch} got a manual hold`);
     assert.equal(msgs(r.e).filter((m) => m.includes("moved on console")).length, 0);
     noErrors(r.e);
   } finally {
@@ -328,8 +330,8 @@ test("silence puts the jobs on hold for link, logs the link as down, and re-arms
 
 test("going on hold cancels fader ramps that are in flight", async () => {
   const clock = new StepClock(100, 1_700_000_000);
-  const con = new RampConsole({ clock });
-  const e = new Engine({ clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
+  const con = new RampConsole({ clock, cfg: testCfg });
+  const e = new Engine({ cfg: testCfg, clock, sim: false, console: con, source: new QuietSource(), tick: 0.05 });
   e.meterRx = quietReceiver();
   await e.start();
   const rig: Rig = { e, clock, con };
@@ -362,7 +364,7 @@ test("a channel ducked before the hold is flattened again when the jobs re-arm",
   try {
     r.e.setEnabled("unmask", true);
     for (let i = 0; i < 10; i++) r.e.onPushedBlock(block([[1, { rmsDbfs: -10, peakDbfs: -8 }]]), 0);
-    const ducked = r.con.eqBands.get(2)?.get(C.unmask.band)?.gainDb;
+    const ducked = r.con.eqBands.get(2)?.get(testCfg.unmask.band)?.gainDb;
     assert.ok(ducked !== undefined && ducked < 0);
     assert.ok(r.e.assistant.duckApplied.size > 0);
     await drive(r, 1.7, false);
@@ -374,11 +376,11 @@ test("a channel ducked before the hold is flattened again when the jobs re-arm",
     await drive(r, 0.2, true);
     assert.equal(r.e.held, false);
     for (const ch of [2, 3, 4, 5, 6, 7]) {
-      const g = writesTo(r.con, `/ch/${pad(ch, 2)}/eq/${C.unmask.band}/g`, rearm);
+      const g = writesTo(r.con, `/ch/${pad(ch, 2)}/eq/${testCfg.unmask.band}/g`, rearm);
       assert.equal(g.length, 1, `ch${ch} was not flattened on re-arm`);
       near(floatOf(g[0]), 0.5);
     }
-    for (const ch of [1, 8]) assert.deepEqual(writesTo(r.con, `/ch/${pad(ch, 2)}/eq/${C.unmask.band}/g`, rearm), []);
+    for (const ch of [1, 8]) assert.deepEqual(writesTo(r.con, `/ch/${pad(ch, 2)}/eq/${testCfg.unmask.band}/g`, rearm), []);
     assert.equal(r.e.assistant.duckApplied.size, 0);
     noErrors(r.e);
   } finally {
@@ -416,7 +418,7 @@ test("a read that leaves a fader unanswered fails, stays held, and tries again a
     assert.equal(countSent(r.con, missing), 3);
     assert.equal(count(r.e, "could not read the desk"), 0);
     await drive(r, 0.5, true);
-    assert.ok(msgs(r.e).includes(`could not read the desk (1 value(s) unanswered) — trying again in ${C.link.resyncS} s`));
+    assert.ok(msgs(r.e).includes(`could not read the desk (1 value(s) unanswered) — trying again in ${testCfg.link.resyncS} s`));
     assert.deepEqual(holdOf(r.e), { held: true, reasons: ["unsynced"] });
     assert.equal(countSent(r.con, "/ch/01/mix/fader"), 1);
     await drive(r, 4.5, true);
@@ -511,7 +513,7 @@ test("an engine with no receiver never holds and its jobs act", async () => {
 
 test("a simulation engine never holds", async () => {
   const clock = new StepClock(100, 1_700_000_000);
-  const e = new Engine({ clock, sim: true, tick: 0.05 });
+  const e = new Engine({ cfg: testCfg, clock, sim: true, tick: 0.05 });
   await e.start();
   try {
     for (let i = 0; i < 30; i++) {
@@ -614,8 +616,8 @@ test("during silence the engine probes with /xinfo at most once per probeS, and 
       seen = n;
     }
     assert.ok(times.length >= 5, `only ${times.length} probes in 5 s of silence`);
-    assert.ok(times[0]! >= 100 + C.link.probeS);
-    for (let i = 1; i < times.length; i++) assert.ok(times[i]! - times[i - 1]! >= C.link.probeS - 1e-9);
+    assert.ok(times[0]! >= 100 + testCfg.link.probeS);
+    for (let i = 1; i < times.length; i++) assert.ok(times[i]! - times[i - 1]! >= testCfg.link.probeS - 1e-9);
     answerReads(r, 0);
     await drive(r, 1.0, true);
     const flowing = countSent(r.con, "/xinfo");

@@ -10,7 +10,7 @@ These records say why the code is the way it is. Each one is short: the context,
 | [0004](0004-emulator-first.md) | Emulator first | Accepted |
 | [0005](0005-recorded-fixtures-as-oracle.md) | Recorded fixtures as the oracle | Accepted |
 | [0006](0006-job-units-share-one-state.md) | Job units sharing one state object | Accepted |
-| [0007](0007-engine-on-shared-config.md) | Engine on the shared config, until plan item #5 replaces it | Accepted, to be superseded by #5 |
+| [0007](0007-engine-on-shared-config.md) | Engine on the shared config, until plan item #5 replaces it | Superseded by [0017](0017-injected-config.md) |
 | [0008](0008-tuning-allowlist.md) | Tuning allowlist | Accepted |
 | [0009](0009-full-test-pins-defaults.md) | The full test pins defaults | Accepted |
 | [0010](0010-audio-in-a-worker-thread.md) | Audio in a worker thread | Accepted |
@@ -20,6 +20,7 @@ These records say why the code is the way it is. Each one is short: the context,
 | [0014](0014-safety-model-hold.md) | Safety model: HOLD, read-back, link watch, write budget, hand moves win | Accepted |
 | [0015](0015-ci-gate-and-releases.md) | CI gate and CI-built releases | Accepted |
 | [0016](0016-lint-biome-and-guard.md) | Lint: Biome plus a project-rules guard | Accepted |
+| [0017](0017-injected-config.md) | Injected config: every module gets its config explicitly | Accepted |
 
 ## How to add one
 

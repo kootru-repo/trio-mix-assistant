@@ -1,4 +1,3 @@
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import type { ConsoleBase } from "./console.ts";
 import { findResonantPeaks, octaveBandLevels } from "./dsp.ts";
@@ -26,7 +25,7 @@ export class Calibrator {
   private readonly con: ConsoleBase;
   private readonly cfg: Config;
 
-  constructor(console: ConsoleBase, cfg: Config = C) {
+  constructor(console: ConsoleBase, cfg: Config) {
     this.con = console;
     this.cfg = cfg;
   }

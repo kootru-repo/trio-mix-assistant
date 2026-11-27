@@ -1,5 +1,5 @@
 import { isIPv6 } from "node:net";
-import { C } from "../../core/config.ts";
+import type { SafetyConfig } from "../../core/config.ts";
 import { ipBytes } from "../tls/x509.ts";
 
 export type LimiterClock = () => number;
@@ -186,5 +186,5 @@ export class CommandBudget {
 
 export const GLOBAL_COMMAND_KEY = "*";
 
-export const globalCommandBudget = (clock: LimiterClock = () => performance.now() / 1000): CommandBudget =>
-  new CommandBudget(C.safety.commandPerS, C.safety.commandBurst, clock);
+export const globalCommandBudget = (safety: Readonly<SafetyConfig>, clock: LimiterClock = () => performance.now() / 1000): CommandBudget =>
+  new CommandBudget(safety.commandPerS, safety.commandBurst, clock);

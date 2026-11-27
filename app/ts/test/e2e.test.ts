@@ -1,3 +1,4 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
@@ -5,12 +6,13 @@ import dgram from "node:dgram";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { C } from "../src/core/config.ts";
 import { decodePacket, encodeMessage, encodeMeterBlob, oscBlob } from "../src/core/oscwire.ts";
 import { withEmulatorPorts } from "./emulatorports.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+const testCfg = defaultConfig();
 
 const main = fileURLToPath(new URL("../src/host/main.ts", import.meta.url));
 
@@ -202,7 +204,7 @@ test("the app hears a console that replies only to the port the request came fro
     });
     await new Promise<void>((resolve, reject) => {
       desk.once("error", reject);
-      desk.bind(C.CONSOLE_PORT, "127.0.0.1", () => resolve());
+      desk.bind(testCfg.CONSOLE_PORT, "127.0.0.1", () => resolve());
     });
     const port = await freePort();
     let app: Running | null = null;
@@ -218,7 +220,7 @@ test("the app hears a console that replies only to the port the request came fro
       assert.ok(snap.console.connected, "the console's replies must reach the app");
       assert.equal(snap.console.meters, 4);
       assert.ok(asked.has("/batchsubscribe") && asked.has("/xremote"));
-      assert.deepEqual([...ports], [C.LOCAL_PORT]);
+      assert.deepEqual([...ports], [testCfg.LOCAL_PORT]);
     } finally {
       if (app !== null) await app.stop();
       await new Promise<void>((resolve) => desk.close(() => resolve()));

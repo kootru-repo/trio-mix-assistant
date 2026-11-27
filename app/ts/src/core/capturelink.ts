@@ -3,11 +3,9 @@ import type { AnalysedBlock, AnalysisConfig } from "./blockanalysis.ts";
 import { CaptureError, CaptureSourceBase } from "./capture.ts";
 import type { BlockHandler, CaptureStatus, Frame } from "./capture.ts";
 import type { Clock } from "./clock.ts";
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import { DeviceCapture } from "./devicecapture.ts";
-import { activeTuning } from "./tuning.ts";
-import type { TuningOverride } from "./tuning.ts";
+import type { TuningOverride } from "./config.ts";
 import type { AudioDeviceId, AudioInputFactory } from "./devicecapture.ts";
 
 export interface CaptureConfig {
@@ -68,7 +66,7 @@ export class CaptureHost {
   private analysis: AnalysisConfig | null = null;
   private gen = 0;
 
-  constructor(factory: AudioInputFactory, clock: Clock, post: (message: FromCapture) => void, stamp: () => number, cfg: Config = C) {
+  constructor(factory: AudioInputFactory, clock: Clock, post: (message: FromCapture) => void, stamp: () => number, cfg: Config) {
     this.factory = factory;
     this.clock = clock;
     this.post = post;
@@ -185,7 +183,7 @@ export interface RemoteCaptureOptions {
   sampleRate?: number;
   block?: number;
   measCh?: number | null;
-  cfg?: Config;
+  cfg: Config;
 }
 
 type LinkState = "idle" | "opening" | "open" | "down";
@@ -226,7 +224,7 @@ export class RemoteCapture extends CaptureSourceBase {
     super();
     this.opts = opts;
     this.clock = opts.clock;
-    this.cfg = opts.cfg ?? C;
+    this.cfg = opts.cfg;
     this.device = opts.device ?? null;
     this.gainDb = Number(opts.gainDb ?? 0.0);
   }
@@ -246,7 +244,7 @@ export class RemoteCapture extends CaptureSourceBase {
       sampleRate: this.opts.sampleRate ?? this.cfg.SAMPLE_RATE,
       block: this.opts.block ?? this.cfg.BLOCK,
       analysis: analysisConfig(this.cfg),
-      tuning: [...activeTuning()],
+      tuning: this.cfg.TUNED.map((o) => ({ ...o })),
     };
   }
 
@@ -488,7 +486,7 @@ export class RemoteCapture extends CaptureSourceBase {
   }
 }
 
-export function loopbackPort(factory: AudioInputFactory, clock: Clock, stamp: () => number, cfg: Config = C): CapturePort {
+export function loopbackPort(factory: AudioInputFactory, clock: Clock, stamp: () => number, cfg: Config): CapturePort {
   let handler: ((message: FromCapture) => void) | null = null;
   let open = true;
   const later = (fn: () => void): void => void Promise.resolve().then(fn);

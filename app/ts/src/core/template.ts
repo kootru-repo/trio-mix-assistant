@@ -1,4 +1,3 @@
-import { C } from "./config.ts";
 import type { ChannelMapSpec, Config } from "./config.ts";
 import { TuningError, checkedOverride } from "./tuning.ts";
 import type { TuningOverride } from "./tuning.ts";
@@ -128,7 +127,7 @@ function parseTuning(spec: Json, name: string): TuningOverride[] {
   return out;
 }
 
-export function fromObject(d: Json, cfg: Config = C): ShowTemplate {
+export function fromObject(d: Json, cfg: Config): ShowTemplate {
   if (!isObject(d)) throw new TemplateError("template must be a JSON object");
   const channels = parseChannels(d["channels"]);
   const validCh: Set<number> =
@@ -175,7 +174,7 @@ export function fromObject(d: Json, cfg: Config = C): ShowTemplate {
   return { name, songs, channels, tuning: parseTuning(d["tuning"], name) };
 }
 
-export function defaultTemplate(cfg: Config = C): ShowTemplate {
+export function defaultTemplate(cfg: Config): ShowTemplate {
   return fromObject(
     {
       name: "Acoustic Trio — demo set",

@@ -1,4 +1,3 @@
-import { C } from "../config.ts";
 import { ConsoleSync } from "../consolesync.ts";
 import { LinkWatch } from "../linkwatch.ts";
 import { OutsideEdits } from "../outsideedits.ts";
@@ -30,10 +29,10 @@ export class EngineHold extends EngineBase {
   protected syncFailures = 0;
   private reflatten = new Set<number>();
   protected outside = new OutsideEdits({
-    echoTolDb: C.safety.echoTolDb,
-    echoWindowS: C.safety.echoWindowS,
-    lockMoves: C.safety.lockMoves,
-    lockWindowS: C.safety.lockWindowS,
+    echoTolDb: this.cfg.safety.echoTolDb,
+    echoWindowS: this.cfg.safety.echoWindowS,
+    lockMoves: this.cfg.safety.lockMoves,
+    lockWindowS: this.cfg.safety.lockWindowS,
   });
 
   constructor(opts: EngineOptions) {
@@ -61,7 +60,7 @@ export class EngineHold extends EngineBase {
     if (this.outside.noteOutside(ch, now)) {
       this.assistant.emit(
         "system",
-        `ch${ch} moved by hand ${C.safety.lockMoves} times in ${C.safety.lockWindowS} s: the automatic jobs leave it alone until TAKEOVER is pressed and released`,
+        `ch${ch} moved by hand ${this.cfg.safety.lockMoves} times in ${this.cfg.safety.lockWindowS} s: the automatic jobs leave it alone until TAKEOVER is pressed and released`,
         ch,
       );
     }
@@ -92,7 +91,7 @@ export class EngineHold extends EngineBase {
 
   protected exitHold(reason: HoldReason): void {
     if (!this.holdReasons.delete(reason) || this.held) return;
-    for (const ch of this.reflatten) this.con.setEqBand(ch, C.unmask.band, C.unmask.freq, 0.0, C.unmask.q, true);
+    for (const ch of this.reflatten) this.con.setEqBand(ch, this.cfg.unmask.band, this.cfg.unmask.freq, 0.0, this.cfg.unmask.q, true);
     this.reflatten.clear();
     for (const ch of this.assistant.fbStreak.keys()) this.assistant.fbStreak.set(ch, 0);
     for (const ch of this.assistant.feedback.fbLastFreq.keys()) this.assistant.feedback.fbLastFreq.set(ch, null);
@@ -100,12 +99,17 @@ export class EngineHold extends EngineBase {
   }
 
   protected startLink(now: number): void {
-    this.link = new LinkWatch({ probeS: C.link.probeS, staleS: C.link.staleS, downS: C.link.downS, steadyS: C.link.steadyS });
+    this.link = new LinkWatch({
+      probeS: this.cfg.link.probeS,
+      staleS: this.cfg.link.staleS,
+      downS: this.cfg.link.downS,
+      steadyS: this.cfg.link.steadyS,
+    });
     this.sync = new ConsoleSync({
-      channels: [...C.CHANNELS.keys()].sort((a, b) => a - b),
+      channels: [...this.cfg.CHANNELS.keys()].sort((a, b) => a - b),
       send: (address) => this.con.query(address),
-      retryS: C.link.syncRetryS,
-      tries: C.link.syncTries,
+      retryS: this.cfg.link.syncRetryS,
+      tries: this.cfg.link.syncTries,
     });
     this.beginSync(now);
   }
@@ -153,9 +157,9 @@ export class EngineHold extends EngineBase {
         this.syncFailures += 1;
         this.assistant.emit(
           "system",
-          `could not read the desk (${this.sync.missing().length} value(s) unanswered) — trying again in ${C.link.resyncS} s`,
+          `could not read the desk (${this.sync.missing().length} value(s) unanswered) — trying again in ${this.cfg.link.resyncS} s`,
         );
-      } else if (now - this.failedAt >= C.link.resyncS) {
+      } else if (now - this.failedAt >= this.cfg.link.resyncS) {
         this.failedAt = null;
         this.sync.begin(now);
       }

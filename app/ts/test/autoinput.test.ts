@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loopbackPort } from "../src/core/capturelink.ts";
-import { C } from "../src/core/config.ts";
+import { defaultConfig } from "../src/core/config.ts";
 import type {
   AudioDeviceInfo,
   AudioInputCallback,
@@ -43,12 +43,12 @@ class LevelFactory implements AudioInputFactory {
     this.opened.push(index);
     const fake = this.fakes[index]!;
     const feed = (): void => {
-      if (fake.level !== null) cb(new Float32Array(C.BLOCK * options.channels).fill(fake.level), false);
+      if (fake.level !== null) cb(new Float32Array(defaultConfig().BLOCK * options.channels).fill(fake.level), false);
     };
     let mine: ReturnType<typeof setInterval> | null = null;
     return {
       start: () => {
-        mine = setInterval(feed, (1000 * C.BLOCK) / C.SAMPLE_RATE);
+        mine = setInterval(feed, (1000 * defaultConfig().BLOCK) / defaultConfig().SAMPLE_RATE);
       },
       stop: () => undefined,
       close: () => {
@@ -62,12 +62,16 @@ const detect = async (fakes: Fake[]) => {
   const factory = new LevelFactory(fakes);
   const clock = new SystemClock();
   const lines: string[] = [];
-  const source = await autodetectSource({
-    factory,
-    clock,
-    out: (l) => lines.push(l),
-    connect: () => loopbackPort(factory, clock, threadStamp),
-  });
+  const cfg = defaultConfig();
+  const source = await autodetectSource(
+    {
+      factory,
+      clock,
+      out: (l) => lines.push(l),
+      connect: () => loopbackPort(factory, clock, threadStamp, cfg),
+    },
+    cfg,
+  );
   return { source, factory, text: lines.join("\n") };
 };
 

@@ -1,9 +1,12 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { modeName, parseCliArgs, parseDevice, UsageError } from "../src/host/args.ts";
 import { bannerLines, emulatorLines } from "../src/host/banner.ts";
 import { pickLanIp } from "../src/host/netinfo.ts";
 import { fixture } from "./helpers.ts";
+
+const testCfg = defaultConfig();
 
 const caPath = "<app>/.certs/ca.pem";
 const unix = (text: string): string => text.split("\r\n").join("\n").split("\\").join("/");
@@ -26,7 +29,7 @@ test("the startup banner matches the recorded text for every argument combinatio
 
 test("the emulator hint matches the recorded text, and shows a usable address when none is known", () => {
   for (const c of fx.emulator) {
-    const text = emulatorLines(c.ip, 10023, c.trace).join("\n") + "\n";
+    const text = emulatorLines(testCfg, c.ip, 10023, c.trace).join("\n") + "\n";
     assert.equal(text, c.text.replace(/\r\n/g, "\n"));
   }
 });

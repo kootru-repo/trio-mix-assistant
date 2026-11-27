@@ -1,3 +1,4 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -7,7 +8,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ManualClock } from "../src/core/clock.ts";
-import { C } from "../src/core/config.ts";
 import { OscConsole } from "../src/core/console.ts";
 import { Engine } from "../src/core/engine/index.ts";
 import { MeterReceiver } from "../src/core/metersrv.ts";
@@ -20,6 +20,8 @@ import { createServer } from "../src/host/server.ts";
 import type { DashboardServer, ServerOptions } from "../src/host/server.ts";
 import { AddressCounter, CommandBudget, LoginLimiter } from "../src/host/server/limiter.ts";
 import { ensureCert } from "../src/host/tls.ts";
+
+const testCfg = defaultConfig();
 
 const staticDir = join(import.meta.dirname, "..", "..", "static");
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -52,7 +54,7 @@ interface Rig {
 }
 
 const rig = async (opts: Partial<ServerOptions> = {}): Promise<Rig> => {
-  const engine = new Engine({ clock: new ManualClock(100, 1_700_000_000), sim: true });
+  const engine = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000), sim: true });
   const srv = createServer({ engine, staticDir, ...opts });
   const { port } = await srv.start(0, "127.0.0.1");
   return {
@@ -307,7 +309,7 @@ const song = (name: string): Uint8Array => encodeMessage("/setlist/activeSongNam
 test("AbleSet text is cut to a fixed length", async () => {
   const udp = new FakeUdp();
   const seen: string[] = [];
-  const rx = new AbleSetReceiver(udp, (s) => seen.push(s.songName + "|" + s.section + "|" + s.nextSong), "0.0.0.0", 39051);
+  const rx = new AbleSetReceiver(udp, testCfg, (s) => seen.push(s.songName + "|" + s.section + "|" + s.nextSong), "0.0.0.0", 39051);
   await rx.start();
   const from = { host: "10.0.0.7", port: 5000 };
   udp.deliver(encodeMessage("/setlist/nextSongName", [oscStr("N".repeat(60000))]), from);
@@ -324,7 +326,7 @@ test("AbleSet text is cut to a fixed length", async () => {
 test("AbleSet locks onto the first sender and ignores every other address", async () => {
   const udp = new FakeUdp();
   const seen: string[] = [];
-  const rx = new AbleSetReceiver(udp, (s) => seen.push(s.songName), "0.0.0.0", 39051);
+  const rx = new AbleSetReceiver(udp, testCfg, (s) => seen.push(s.songName), "0.0.0.0", 39051);
   await rx.start();
   udp.deliver(encodeMessage("/xremote", []), { host: "10.0.0.66", port: 1 });
   assert.equal(rx.acceptedSender, null, "an unrelated packet must not claim the lock");
@@ -340,7 +342,7 @@ test("AbleSet locks onto the first sender and ignores every other address", asyn
 test("AbleSet with a set sender address refuses everyone else from the start", async () => {
   const udp = new FakeUdp();
   const seen: string[] = [];
-  const rx = new AbleSetReceiver(udp, (s) => seen.push(s.songName), "0.0.0.0", 39051, "10.0.0.7");
+  const rx = new AbleSetReceiver(udp, testCfg, (s) => seen.push(s.songName), "0.0.0.0", 39051, "10.0.0.7");
   await rx.start();
   udp.deliver(song("First but wrong"), { host: "10.0.0.66", port: 5000 });
   udp.deliver(song("Right"), { host: "10.0.0.7", port: 5000 });
@@ -352,7 +354,7 @@ test("AbleSet with a set sender address refuses everyone else from the start", a
 test("the meter receiver takes fader moves only from the console's address", async () => {
   const udp = new FakeUdp();
   const faders: [number, number][] = [];
-  const rx = new MeterReceiver(udp, { onFader: (ch, db) => faders.push([ch, db]), port: 10024, allowFrom: "192.168.1.50" });
+  const rx = new MeterReceiver(udp, { cfg: testCfg, onFader: (ch, db) => faders.push([ch, db]), port: 10024, allowFrom: "192.168.1.50" });
   await rx.start();
   const move = encodeMessage("/ch/01/mix/fader", [oscFloat(1.0)]);
   udp.deliver(move, { host: "192.168.1.66", port: 10023 });
@@ -361,7 +363,7 @@ test("the meter receiver takes fader moves only from the console's address", asy
   udp.deliver(move, { host: "::ffff:192.168.1.50", port: 10023 });
   assert.equal(faders.length, 1);
   rx.stop();
-  const open2 = new MeterReceiver(udp, { onFader: (ch, db) => faders.push([ch, db]), port: 10025 });
+  const open2 = new MeterReceiver(udp, { cfg: testCfg, onFader: (ch, db) => faders.push([ch, db]), port: 10025 });
   await open2.start();
   udp.deliver(move, { host: "192.168.1.66", port: 10023 });
   assert.equal(faders.length, 2, "with no address set, any sender is accepted");
@@ -377,8 +379,8 @@ test("panic mutes the main before it writes anything else", () => {
     },
     close: (): void => undefined,
   };
-  const e = new Engine({ clock, console: new OscConsole(sink, { clock }) });
-  const instruments = [...C.CHANNELS.keys()].filter((ch) => ch !== C.LEAD_VOCAL_CH).slice(0, 3);
+  const e = new Engine({ cfg: testCfg, clock, console: new OscConsole(sink, { cfg: testCfg, clock }) });
+  const instruments = [...testCfg.CHANNELS.keys()].filter((ch) => ch !== testCfg.LEAD_VOCAL_CH).slice(0, 3);
   for (const ch of instruments) e.assistant.duckApplied.set(ch, -3);
   sent.length = 0;
   e.panic(true);

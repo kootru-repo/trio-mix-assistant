@@ -1,6 +1,4 @@
-import { C } from "../config.ts";
 import { fixed, signed } from "../numfmt.ts";
-import { chan } from "../assistant/base.ts";
 import { clamp } from "../util.ts";
 import { asBool, numOf } from "./base.ts";
 import { EngineHold } from "./hold.ts";
@@ -36,7 +34,7 @@ export class EngineControls extends EngineHold {
     } catch {
       return;
     }
-    v = clamp(v, C.ride.leadTargetMinDb, C.ride.leadTargetMaxDb);
+    v = clamp(v, this.cfg.ride.leadTargetMinDb, this.cfg.ride.leadTargetMaxDb);
     this.assistant.leadTarget = v;
     this.assistant.emit("system", `lead target set to ${signed(v, 1)} dB`);
     this.rebuildTelemetry();
@@ -44,7 +42,7 @@ export class EngineControls extends EngineHold {
 
   setFader(ch: number, db: unknown): void {
     if (this.vetBusy("fader move")) return;
-    if (!C.CHANNELS.has(ch)) return;
+    if (!this.cfg.CHANNELS.has(ch)) return;
     let v: number;
     try {
       v = numOf(db);
@@ -56,22 +54,22 @@ export class EngineControls extends EngineHold {
     this.assistant.faderDb.set(ch, v);
     this.assistant.noteManual(ch, now);
     this.assistant.lastMoveT.set(ch, now);
-    this.assistant.emit("manual", `${chan(ch)} fader → ${signed(v, 1)} dB`, ch);
-    const partner = EngineControls.linkedPartner(ch);
+    this.assistant.emit("manual", `${this.chan(ch)} fader → ${signed(v, 1)} dB`, ch);
+    const partner = this.linkedPartner(ch);
     if (partner !== null) {
       const pdb = this.con.setFaderRaw(partner, v);
       this.assistant.faderDb.set(partner, pdb);
       this.assistant.noteManual(partner, now);
       this.assistant.lastMoveT.set(partner, now);
-      this.assistant.emit("manual", `${chan(partner)} linked → ${signed(pdb, 1)} dB`, partner);
+      this.assistant.emit("manual", `${this.chan(partner)} linked → ${signed(pdb, 1)} dB`, partner);
     }
     this.rebuildTelemetry();
   }
 
-  static linkedPartner(ch: number): number | null {
-    for (const pair of C.STEREO_LINKS) {
+  linkedPartner(ch: number): number | null {
+    for (const pair of this.cfg.STEREO_LINKS) {
       if (pair.includes(ch)) {
-        for (const other of pair) if (other !== ch && C.CHANNELS.has(other)) return other;
+        for (const other of pair) if (other !== ch && this.cfg.CHANNELS.has(other)) return other;
       }
     }
     return null;
@@ -102,7 +100,7 @@ export class EngineControls extends EngineHold {
     b.on = non;
     this.assistant.emit(
       "manual",
-      `${chan(ch)} EQ b${band}: ${fixed(b.hz, 0)} Hz ${signed(b.gain, 1)} dB Q${fixed(b.q, 1)} ${b.on ? "on" : "off"}`,
+      `${this.chan(ch)} EQ b${band}: ${fixed(b.hz, 0)} Hz ${signed(b.gain, 1)} dB Q${fixed(b.q, 1)} ${b.on ? "on" : "off"}`,
       ch,
     );
     this.rebuildTelemetry();
@@ -122,14 +120,14 @@ export class EngineControls extends EngineHold {
       this.assistant.usedNotchBand.set(ch, 0);
       this.assistant.fbStreak.set(ch, 0);
     }
-    this.assistant.emit("manual", `${chan(ch)} EQ reset to flat`, ch);
+    this.assistant.emit("manual", `${this.chan(ch)} EQ reset to flat`, ch);
     this.rebuildTelemetry();
   }
 
   setSend(ch: number, fx: number, db: unknown): void {
     if (this.vetBusy("send change")) return;
     const sends = this.sends.get(ch);
-    if (!sends || !C.FX_BUSES.has(Math.trunc(fx))) return;
+    if (!sends || !this.cfg.FX_BUSES.has(Math.trunc(fx))) return;
     let v: number;
     try {
       v = clamp(numOf(db), -90.0, 10.0);
@@ -138,14 +136,14 @@ export class EngineControls extends EngineHold {
     }
     sends.set(Math.trunc(fx), v);
     this.con.setSend(ch, Math.trunc(fx), v);
-    this.assistant.emit("manual", `${chan(ch)} → ${C.FX_BUSES.get(Math.trunc(fx))} ${signed(v, 0)} dB`, ch);
+    this.assistant.emit("manual", `${this.chan(ch)} → ${this.cfg.FX_BUSES.get(Math.trunc(fx))} ${signed(v, 0)} dB`, ch);
     this.rebuildTelemetry();
   }
 
   setFxWet(fx: number, db: unknown): void {
     if (this.vetBusy("FX return change")) return;
     const k = Math.trunc(fx);
-    if (!C.FX_BUSES.has(k)) return;
+    if (!this.cfg.FX_BUSES.has(k)) return;
     let v: number;
     try {
       v = clamp(numOf(db), -90.0, 10.0);
@@ -154,17 +152,17 @@ export class EngineControls extends EngineHold {
     }
     this.fxWet.set(k, v);
     this.con.setFxReturn(k, v);
-    this.assistant.emit("manual", `${C.FX_BUSES.get(k)} return ${signed(v, 0)} dB`);
+    this.assistant.emit("manual", `${this.cfg.FX_BUSES.get(k)} return ${signed(v, 0)} dB`);
     this.rebuildTelemetry();
   }
 
   setMute(ch: number, on: boolean): void {
     if (this.vetBusy("mute")) return;
-    if (!C.CHANNELS.has(ch)) return;
+    if (!this.cfg.CHANNELS.has(ch)) return;
     this.con.setChannelMute(ch, Boolean(on));
     this.muted.set(ch, Boolean(on));
     this.assistant.noteManual(ch, this.clock.monotonic());
-    this.assistant.emit("manual", `${chan(ch)} ${on ? "MUTED" : "unmuted"}`, ch);
+    this.assistant.emit("manual", `${this.chan(ch)} ${on ? "MUTED" : "unmuted"}`, ch);
     this.rebuildTelemetry();
   }
 
@@ -189,18 +187,18 @@ export class EngineControls extends EngineHold {
 
   reconcileFader(ch: number, db: number): void {
     if (this.vetStatus === "running") return;
-    if (!C.CHANNELS.has(ch) || !Number.isFinite(db)) return;
+    if (!this.cfg.CHANNELS.has(ch) || !Number.isFinite(db)) return;
     const now = this.clock.monotonic();
     this.lastRxT = now;
     if (this.syncing) return;
     if (this.outside.classify(ch, db, now) === "echo") return;
-    if (Math.abs(db - (this.assistant.faderDb.get(ch) ?? 0)) < C.manual.minDb) return;
+    if (Math.abs(db - (this.assistant.faderDb.get(ch) ?? 0)) < this.cfg.manual.minDb) return;
     this.outsideMove(ch, now);
     this.assistant.faderDb.set(ch, db);
     this.assistant.noteManual(ch, now);
-    if (now - (this.lastReconcileLog.get(ch) ?? -1e9) > C.manual.logIntervalS) {
+    if (now - (this.lastReconcileLog.get(ch) ?? -1e9) > this.cfg.manual.logIntervalS) {
       this.lastReconcileLog.set(ch, now);
-      this.assistant.emit("manual", `${chan(ch)} moved on console → ${signed(db, 1)} dB`, ch);
+      this.assistant.emit("manual", `${this.chan(ch)} moved on console → ${signed(db, 1)} dB`, ch);
     }
     this.rebuildTelemetry();
   }

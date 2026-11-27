@@ -1,5 +1,4 @@
 import type { Clock } from "./clock.ts";
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import { argNumber, argText } from "./oscargs.ts";
 import { decodePacket } from "./oscwire.ts";
@@ -138,11 +137,11 @@ export class AbleSetReceiver extends ShowClock {
 
   constructor(
     factory: UdpFactory,
+    cfg: Config,
     onChange: ShowChangeHandler | null = null,
     ip: string = "0.0.0.0",
     port?: number,
     allowFrom: string | null = null,
-    cfg: Config = C,
   ) {
     super(onChange);
     this.factory = factory;

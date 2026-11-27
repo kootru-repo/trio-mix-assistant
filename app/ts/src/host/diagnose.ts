@@ -3,7 +3,7 @@ import { LevelWindow, audioFacts } from "../core/diagnostics.ts";
 import type { AudioFacts, AudioModuleFacts, ConsoleFacts, NetworkFacts } from "../core/diagnostics.ts";
 import type { RemoteCapture } from "../core/capturelink.ts";
 import type { Clock } from "../core/clock.ts";
-import { C } from "../core/config.ts";
+import type { Config } from "../core/config.ts";
 import type { ConsoleBase } from "../core/console.ts";
 import type { AudioInputFactory } from "../core/devicecapture.ts";
 import type { MeterReceiver } from "../core/metersrv.ts";
@@ -48,7 +48,8 @@ export function networkFacts(args: Pick<Args, "host" | "pin" | "https" | "port">
   };
 }
 
-export const channelLabels = (): Map<number, string> => new Map([...C.CHANNELS].map(([ch, role]) => [ch, C.ROLE_LABELS.get(role) ?? role]));
+export const channelLabels = (cfg: Config): Map<number, string> =>
+  new Map([...cfg.CHANNELS].map(([ch, role]) => [ch, cfg.ROLE_LABELS.get(role) ?? role]));
 
 const POLL_S = 0.05;
 
@@ -67,14 +68,16 @@ export async function within<T>(work: Promise<T>, clock: Clock, seconds: number,
 export class AudioProbe {
   private readonly source: RemoteCapture;
   private readonly clock: Clock;
+  private readonly cfg: Config;
   private readonly window = new LevelWindow();
   private before: Record<string, unknown> = {};
   private openError: string | null = null;
   private t0 = 0;
 
-  constructor(source: RemoteCapture, clock: Clock) {
+  constructor(source: RemoteCapture, clock: Clock, cfg: Config) {
     this.source = source;
     this.clock = clock;
+    this.cfg = cfg;
   }
 
   async start(alreadyOpen: boolean): Promise<void> {
@@ -94,7 +97,15 @@ export class AudioProbe {
 
   facts(mapped: readonly number[] | null): AudioFacts {
     const elapsed = Math.max(this.clock.monotonic() - this.t0, 1e-3);
-    const facts = audioFacts(this.before, this.source.status(), this.window, elapsed, C.SAMPLE_RATE / C.BLOCK, channelLabels(), mapped);
+    const facts = audioFacts(
+      this.before,
+      this.source.status(),
+      this.window,
+      elapsed,
+      this.cfg.SAMPLE_RATE / this.cfg.BLOCK,
+      channelLabels(this.cfg),
+      mapped,
+    );
     if (this.openError !== null)
       return { ...facts, link: facts.link === "open" ? "down" : facts.link, lastError: facts.lastError ?? this.openError };
     return facts;

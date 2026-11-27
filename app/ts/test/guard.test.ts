@@ -33,6 +33,37 @@ test("ordinary code passes, including words that only look like the banned ones"
   for (const line of good) assert.deepEqual(scan("f.ts", line), [], line);
 });
 
+test("an import of the shared config C or a read of C fails, on one line or wrapped over several", () => {
+  const shared = j("C", ".");
+  const bad = [
+    j("import { ", "C } from ", '"../src/core/config.ts";'),
+    j("import { ", "C, defaultConfig } from ", '"./config.ts";'),
+    j("import { applyChannelMap, ", "C } from ", '"../core/config.ts";'),
+    j("import {\n  applyChannelMap,\n  ", "C,\n  defaultConfig,\n} from ", '"../../core/config.ts";'),
+    j("import type { ", "C } from ", '"./config";'),
+    `const n = ${shared}CHANNELS.size;`,
+    `foo(${shared}feedback.ringDb);`,
+    `  return [...${shared}FX_BUSES.keys()];`,
+  ];
+  for (const text of bad) assert.equal(scan("f.ts", text).length, 1, text);
+  const wrapped = scan("f.ts", ["ok();", j("import {\n  ", "C,\n} from ", '"./config.ts";')].join("\n"));
+  assert.equal(wrapped[0]?.line, 2);
+});
+
+test("injected configs and look-alikes of C pass", () => {
+  const good = [
+    'import { defaultConfig, configWith } from "../src/core/config.ts";',
+    'import type { Config, ChannelMapSpec } from "./config.ts";',
+    'import { C } from "./other.ts";',
+    "const n = cfg.CHANNELS.size;",
+    "const v = this.cfg.feedback.ringDb;",
+    "const x = ABC.d + obj.C.e + $C.f;",
+    'const path = "C:/Users/x";',
+    'lines.push("Press Ctrl+C to stop.");',
+  ];
+  for (const text of good) assert.deepEqual(scan("f.ts", text), [], text);
+});
+
 test("findings report the file, the line number and the trimmed text", () => {
   const found = scan("a.ts", ["ok();", j("  /", "/ note")].join("\n"));
   assert.deepEqual(found, [

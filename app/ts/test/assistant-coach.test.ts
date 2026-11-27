@@ -7,7 +7,7 @@ import { ManualClock } from "../src/core/clock.ts";
 import { configWith } from "../src/core/config.ts";
 import type { Config } from "../src/core/config.ts";
 import { NEG_INF } from "../src/core/util.ts";
-import { globalSnapshot, tuned } from "./jobhelpers.ts";
+import { tuned } from "./jobhelpers.ts";
 
 interface Said {
   kind: string;
@@ -180,7 +180,7 @@ test("recommend gives a null role for a channel outside the config map", () => {
   assert.equal(coach.coachRecs.get("clip|1")?.role, null);
 });
 
-test("recommend uses the role from its own config not the global default map", () => {
+test("recommend uses the role from its own config, not the default map", () => {
   const { coach } = makeCoach(configWith());
   coach.recommend("clip", 3, "t");
   assert.equal(coach.coachRecs.get("clip|3")?.role, "harm_vox_r");
@@ -389,13 +389,4 @@ test("a later calibration replaces the earlier one under the same key", () => {
   assert.equal(coach.coachRecs.size, 1);
   assert.equal(coach.coachRecs.get("calibration|")?.seq, 2);
   assert.equal(said.length, 2);
-});
-
-test("the coach tests leave the global config untouched", () => {
-  const before = globalSnapshot();
-  const { coach } = makeCoach();
-  coach.recommend("clip", 3, "a");
-  coach.calibration([]);
-  coach.snapshot(100);
-  assert.equal(globalSnapshot(), before);
 });

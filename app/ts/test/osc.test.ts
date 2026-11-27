@@ -1,7 +1,9 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ManualClock } from "../src/core/clock.ts";
 import { ConsoleBase, dbToFader, eqParamToFreq, faderToDb, freqToEqParam, qToParam, SimConsole } from "../src/core/console.ts";
+import type { ConsoleOptions } from "../src/core/console.ts";
 import {
   decodeMessage,
   decodeMeterBlob,
@@ -21,12 +23,17 @@ import { AbleSetReceiver } from "../src/core/showclock.ts";
 import type { UdpEndpoint } from "../src/core/transport.ts";
 import { close, fixture, recording, saveFixture } from "./helpers.ts";
 
+const testCfg = defaultConfig();
+
 const fx = fixture("osc");
 const hex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
 const unhex = (h: string): Uint8Array => new Uint8Array(Buffer.from(h, "hex"));
 
 class Capture extends ConsoleBase {
   sent: { addr: string; args: OscArg[] }[] = [];
+  constructor(opts: Partial<ConsoleOptions> = {}) {
+    super({ cfg: testCfg, ...opts });
+  }
   protected override send(addr: string, ...args: OscArg[]): void {
     this.sent.push({ addr, args });
   }
@@ -93,7 +100,7 @@ test("every console call puts the recorded bytes on the wire", () => {
 });
 
 test("SimConsole ends in the recorded state", () => {
-  const c = new SimConsole();
+  const c = new SimConsole({ cfg: testCfg });
   script(c);
   const s = fx.sim;
   const obj = (m: Map<number, any>) => Object.fromEntries([...m].map(([k, v]) => [String(k), v]));
@@ -202,7 +209,7 @@ test("a ramp glides in steps through the injected clock and the simulator jumps 
   assert.ok(first < last);
   close(last, dbToFader(-4), 0, 1e-12);
 
-  const sim = new SimConsole();
+  const sim = new SimConsole({ cfg: testCfg });
   assert.equal(sim.rampFaderDb(1, -10, 50), 6);
   assert.equal(sim.faderDb.get(1), 6);
   assert.equal(sim.wireLog.length, 1);
@@ -298,7 +305,7 @@ test("a failed send inside a ramp does not wedge later ramps", async () => {
 });
 
 test("the console never sends a non-finite number and leaves no trace when it refuses", () => {
-  const c = new SimConsole();
+  const c = new SimConsole({ cfg: testCfg });
   const bad = [Number.NaN, Infinity, -Infinity];
   for (const v of bad) {
     assert.throws(() => c.setFaderDb(1, v), RangeError);
@@ -329,7 +336,7 @@ test("switching one EQ band off zeroes its gain and leaves the channel EQ switch
     ["/ch/04/eq/2/g", "/ch/04/eq/2/type", "/ch/04/eq/2/f", "/ch/04/eq/2/q"],
   );
   close(c.sent[0]!.args[0]!.v as number, 0.5, 0, 1e-12);
-  const s = new SimConsole();
+  const s = new SimConsole({ cfg: testCfg });
   s.setEqBand(4, 2, 1000, 6, 2, false);
   assert.deepEqual(s.eqBands.get(4)!.get(2), { hz: 1000, gainDb: 0, q: 2, on: false });
   c.sent.length = 0;
@@ -338,7 +345,7 @@ test("switching one EQ band off zeroes its gain and leaves the channel EQ switch
 });
 
 test("the simulator's wire log keeps only the latest 5000 messages", () => {
-  const c = new SimConsole();
+  const c = new SimConsole({ cfg: testCfg });
   for (let i = 0; i < 5200; i++) c.setFaderDb(1, (i % 10) - 5);
   assert.equal(c.wireLog.length, 5000);
   c.setMainMute(true);
@@ -361,7 +368,7 @@ test("the show clock reads OSC arguments as plain text and survives a handler th
   };
   const seen: string[] = [];
   let boom = false;
-  const rx = new AbleSetReceiver(factory, (st) => {
+  const rx = new AbleSetReceiver(factory, testCfg, (st) => {
     seen.push(st.songName);
     if (boom) throw new Error("listener failed");
   });
@@ -451,7 +458,7 @@ test("recallScene accepts only integers 0 to 99 and sends nothing otherwise", ()
   c.recallScene(0);
   c.recallScene(99);
   assert.equal(c.sent.length, 2);
-  const s = new SimConsole();
+  const s = new SimConsole({ cfg: testCfg });
   assert.throws(() => s.recallScene(100), RangeError);
   assert.equal(s.lastScene, null);
 });

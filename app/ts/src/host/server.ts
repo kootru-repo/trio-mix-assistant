@@ -182,7 +182,7 @@ export function createServer(opts: ServerOptions): DashboardServer {
   const caPem = opts.caPem ?? null;
   const limiter = opts.limiter ?? new LoginLimiter();
   const commandBudget = opts.commandBudget ?? new CommandBudget();
-  const globalBudget = opts.globalBudget ?? globalCommandBudget();
+  const globalBudget = opts.globalBudget ?? globalCommandBudget(engine.cfg.safety);
   const limitLoopback = opts.limitLoopback ?? false;
   const connCounts = new AddressCounter(opts.maxPerAddress ?? MAX_PER_ADDRESS);
   const streamCounts = new AddressCounter(opts.maxStreamsPerAddress ?? MAX_STREAMS_PER_ADDRESS);

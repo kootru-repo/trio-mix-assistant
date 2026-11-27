@@ -23,15 +23,19 @@ export class RoomModel {
   }
 
   update(feat: ChannelFeatures, now: number): void {
-    const C = this.ctx.cfg;
-    const a = C.room.ema;
+    const cfg = this.ctx.cfg;
+    const a = cfg.room.ema;
     this.roomLevelDb = (1 - a) * this.roomLevelDb + a * feat.rmsDbfs;
     this.roomContrastDb = (1 - a) * this.roomContrastDb + a * feat.contrastDb;
-    const conf = roomConfidence(C, this.roomLevelDb, this.roomContrastDb);
+    const conf = roomConfidence(cfg, this.roomLevelDb, this.roomContrastDb);
     this.ctx.state.roomConfidence = conf;
-    if (conf < C.room.lowConf && now - this.lastLowconfWarn > C.room.lowConfWarnS) {
+    if (conf < cfg.room.lowConf && now - this.lastLowconfWarn > cfg.room.lowConfWarnS) {
       this.lastLowconfWarn = now;
-      this.ctx.emit("system", `room-mic SNR low (conf ${percent(conf, 0)}) — feedback detection is being more conservative`, C.MEAS_MIC_CH);
+      this.ctx.emit(
+        "system",
+        `room-mic SNR low (conf ${percent(conf, 0)}) — feedback detection is being more conservative`,
+        cfg.MEAS_MIC_CH,
+      );
     }
   }
 }
@@ -46,14 +50,14 @@ export class StageJob {
   }
 
   handle(feat: ChannelFeatures, now: number): void {
-    const C = this.ctx.cfg;
+    const cfg = this.ctx.cfg;
     const lvl = feat.rmsDbfs;
     const prior = this.stageBaseline === null ? lvl : this.stageBaseline;
-    const baseline = (1 - C.stage.baselineEma) * prior + C.stage.baselineEma * lvl;
+    const baseline = (1 - cfg.stage.baselineEma) * prior + cfg.stage.baselineEma * lvl;
     this.stageBaseline = baseline;
-    if (lvl > baseline + C.stage.riseDb && now - this.lastStageWarn > C.stage.warnIntervalS) {
+    if (lvl > baseline + cfg.stage.riseDb && now - this.lastStageWarn > cfg.stage.warnIntervalS) {
       this.lastStageWarn = now;
-      this.ctx.emit("system", `stage volume up ~${fixed(lvl - baseline, 0)} dB over baseline — consider easing back`, C.STAGE_MIC_CH);
+      this.ctx.emit("system", `stage volume up ~${fixed(lvl - baseline, 0)} dB over baseline — consider easing back`, cfg.STAGE_MIC_CH);
     }
   }
 }

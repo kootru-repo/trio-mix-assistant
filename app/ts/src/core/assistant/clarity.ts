@@ -39,25 +39,25 @@ export class PhaseJob {
   }
 
   handle(a: number, b: number, rel: PhaseRelation, now: number): void {
-    const C = this.ctx.cfg;
+    const cfg = this.ctx.cfg;
     if (!this.ctx.state.enabled["phase"]) return;
     const key = pairKey(a, b);
-    const al = C.phase.ema;
+    const al = cfg.phase.ema;
     const ce = this.phaseEma.get(key);
     this.phaseEma.set(key, ce === undefined ? rel.zeroCorr : (1 - al) * ce + al * rel.zeroCorr);
-    if (Math.abs(rel.bestCorr) >= C.phase.corrMin) {
+    if (Math.abs(rel.bestCorr) >= cfg.phase.corrMin) {
       const le = this.phaseLagEma.get(key);
       this.phaseLagEma.set(key, le === undefined ? rel.lagMs : (1 - al) * le + al * rel.lagMs);
     }
     const corr = this.phaseEma.get(key)!;
     const lag = this.phaseLagEma.get(key) ?? 0;
     const adviceKey = `phase|${key}`;
-    const ra = roleLabelOf(C, a);
-    const rb = roleLabelOf(C, b);
+    const ra = roleLabelOf(cfg, a);
+    const rb = roleLabelOf(cfg, b);
 
-    const inverted = corr < C.phase.invertCorr;
-    const related = Math.abs(corr) >= C.phase.corrMin;
-    const comb = related && !inverted && Math.abs(lag) > C.phase.combLagMs;
+    const inverted = corr < cfg.phase.invertCorr;
+    const related = Math.abs(corr) >= cfg.phase.corrMin;
+    const comb = related && !inverted && Math.abs(lag) > cfg.phase.combLagMs;
     const status = inverted ? "inverted" : comb ? "comb" : related ? "aligned" : "unrelated";
 
     if (inverted) {
@@ -80,7 +80,7 @@ export class PhaseJob {
     if (status === "inverted") {
       const armed = this.phaseArmed.get(key) ?? true;
       const ready =
-        (this.phaseStreak.get(key) ?? 0) >= C.phase.sustain && now - (this.lastPhaseAct.get(key) ?? -1e9) > C.phase.actCooldownS;
+        (this.phaseStreak.get(key) ?? 0) >= cfg.phase.sustain && now - (this.lastPhaseAct.get(key) ?? -1e9) > cfg.phase.actCooldownS;
       if (this.ctx.coaching()) {
         this.ctx.recommend(
           "phase",
@@ -127,55 +127,55 @@ export class UnmaskJob {
   }
 
   targets(): number[] {
-    const C = this.ctx.cfg;
-    if (C.UNMASK_CHANNELS.length) return C.UNMASK_CHANNELS.filter((c) => C.CHANNELS.has(c));
-    const exclude = new Set<number | null>([C.LEAD_VOCAL_CH, C.MEAS_MIC_CH, C.STAGE_MIC_CH]);
-    return [...C.CHANNELS.keys()].filter((c) => !exclude.has(c));
+    const cfg = this.ctx.cfg;
+    if (cfg.UNMASK_CHANNELS.length) return cfg.UNMASK_CHANNELS.filter((c) => cfg.CHANNELS.has(c));
+    const exclude = new Set<number | null>([cfg.LEAD_VOCAL_CH, cfg.MEAS_MIC_CH, cfg.STAGE_MIC_CH]);
+    return [...cfg.CHANNELS.keys()].filter((c) => !exclude.has(c));
   }
 
   release(): void {
-    const C = this.ctx.cfg;
+    const cfg = this.ctx.cfg;
     for (const ch of [...this.duckApplied.keys()]) {
-      this.ctx.mixer.setEqBand(ch, C.unmask.band, C.unmask.freq, 0.0, C.unmask.q, true);
+      this.ctx.mixer.setEqBand(ch, cfg.unmask.band, cfg.unmask.freq, 0.0, cfg.unmask.q, true);
     }
     this.duckApplied.clear();
     this.duckGain = 0;
   }
 
   handle(voxFeat: ChannelFeatures, now: number): void {
-    const C = this.ctx.cfg;
+    const cfg = this.ctx.cfg;
     if (!this.ctx.state.enabled["unmask"]) return;
-    const a = C.unmask.voxEma;
+    const a = cfg.unmask.voxEma;
     this.voxLevelEma = this.voxLevelEma === null ? voxFeat.rmsDbfs : (1 - a) * this.voxLevelEma + a * voxFeat.rmsDbfs;
     const targets = this.targets();
     if (this.ctx.coaching()) {
-      const roles = targets.map((c) => roleLabelOf(C, c)).join(", ");
+      const roles = targets.map((c) => roleLabelOf(cfg, c)).join(", ");
       this.ctx.recommend(
         "unmask",
-        C.LEAD_VOCAL_CH,
-        `To unmask the vocal: dip ~${fixed(C.unmask.freq, 0)} Hz by ${fixed(Math.abs(C.unmask.depthDb), 0)} dB ` +
-          `(Q ${fixed(C.unmask.q, 1)}) on ${roles} while the vocal is up.`,
+        cfg.LEAD_VOCAL_CH,
+        `To unmask the vocal: dip ~${fixed(cfg.unmask.freq, 0)} Hz by ${fixed(Math.abs(cfg.unmask.depthDb), 0)} dB ` +
+          `(Q ${fixed(cfg.unmask.q, 1)}) on ${roles} while the vocal is up.`,
         true,
-        { freq: roundHalfEven(C.unmask.freq), depth_db: C.unmask.depthDb, channels: [...targets] },
+        { freq: roundHalfEven(cfg.unmask.freq), depth_db: cfg.unmask.depthDb, channels: [...targets] },
       );
       return;
     }
-    const present = this.voxLevelEma > C.unmask.voxGateDb;
-    const target = present ? C.unmask.depthDb : 0;
-    const coef = target < this.duckGain ? C.unmask.attack : C.unmask.release;
+    const present = this.voxLevelEma > cfg.unmask.voxGateDb;
+    const target = present ? cfg.unmask.depthDb : 0;
+    const coef = target < this.duckGain ? cfg.unmask.attack : cfg.unmask.release;
     this.duckGain = (1 - coef) * this.duckGain + coef * target;
     for (const ch of targets) {
-      if (Math.abs(this.duckGain - (this.duckApplied.get(ch) ?? 0)) >= C.unmask.writeEpsDb) {
+      if (Math.abs(this.duckGain - (this.duckApplied.get(ch) ?? 0)) >= cfg.unmask.writeEpsDb) {
         const g = roundTo(this.duckGain, 1);
-        this.ctx.mixer.setEqBand(ch, C.unmask.band, C.unmask.freq, g, C.unmask.q, true);
+        this.ctx.mixer.setEqBand(ch, cfg.unmask.band, cfg.unmask.freq, g, cfg.unmask.q, true);
         this.duckApplied.set(ch, this.duckGain);
       }
     }
-    if (present && this.duckGain < C.unmask.logDb && now - this.lastUnmaskLog > C.unmask.logIntervalS) {
+    if (present && this.duckGain < cfg.unmask.logDb && now - this.lastUnmaskLog > cfg.unmask.logIntervalS) {
       this.lastUnmaskLog = now;
       this.ctx.emit(
         "unmask",
-        `vocal up → ducking ${fixed(C.unmask.freq, 0)} Hz ${signed(this.duckGain, 1)} dB on ${targets.length} instrument(s)`,
+        `vocal up → ducking ${fixed(cfg.unmask.freq, 0)} Hz ${signed(this.duckGain, 1)} dB on ${targets.length} instrument(s)`,
       );
     }
   }

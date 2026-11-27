@@ -1,6 +1,6 @@
 # 0007. Engine on the shared config, until plan item #5 replaces it
 
-- Status: Accepted, to be superseded by plan item #5 (config injection) in `docs/plans/architecture-remediation.md`
+- Status: Superseded by [0017](0017-injected-config.md)
 - Date: 2026-11-26
 
 ## Context

@@ -1,4 +1,3 @@
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import type { SimConsole } from "./console.ts";
 import { generatePinkNoise } from "./dsp.ts";
@@ -70,7 +69,7 @@ export abstract class CaptureSourceBase implements CaptureSource {
   }
 }
 
-export function simRoomCapture(rng: Rng, cfg: Config = C): Float64Array {
+export function simRoomCapture(rng: Rng, cfg: Config): Float64Array {
   const noise = generatePinkNoise(cfg.calibration.durationS, rng, cfg.SAMPLE_RATE, cfg.calibration.noiseDbfs);
   const out = new Float64Array(noise.length);
   for (let i = 0; i < noise.length; i++) {
@@ -95,7 +94,7 @@ export class SimCapture extends CaptureSourceBase {
   private clipUntil = -1;
   private nextClip = 90;
 
-  constructor(console: SimConsole, seed: number | bigint = 7, rng: Rng | null = null, cfg: Config = C) {
+  constructor(console: SimConsole, cfg: Config, seed: number | bigint = 7, rng: Rng | null = null) {
     super();
     this.con = console;
     this.cfg = cfg;

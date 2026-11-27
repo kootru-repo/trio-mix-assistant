@@ -1,11 +1,10 @@
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 
 export const NEG_INF = -1000000000;
 
 export const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));
 
-export const perChannel = <T>(value: T, cfg: Config = C): Map<number, T> => new Map([...cfg.CHANNELS.keys()].map((c) => [c, value]));
+export const perChannel = <T>(value: T, cfg: Config): Map<number, T> => new Map([...cfg.CHANNELS.keys()].map((c) => [c, value]));
 
 const NUMERIC = /^\s*[+-]?(\d+\.?\d*([eE][+-]?\d+)?|\.\d+([eE][+-]?\d+)?)\s*$/;
 const INTEGER = /^\s*[+-]?\d+\s*$/;

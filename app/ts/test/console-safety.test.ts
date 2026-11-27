@@ -1,3 +1,4 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Clock } from "../src/core/clock.ts";
@@ -6,6 +7,8 @@ import { decodeMessage } from "../src/core/oscwire.ts";
 import type { OscArg } from "../src/core/oscwire.ts";
 import { close } from "./helpers.ts";
 import { StepClock } from "./stepclock.ts";
+
+const testCfg = defaultConfig();
 
 class Sink {
   readonly sent: { addr: string; args: OscArg[] }[] = [];
@@ -46,7 +49,7 @@ class SlipClock implements Clock {
 
 function setup<T extends Clock>(clock: T): { sink: Sink; c: OscConsole; aborts: [number, number | null][] } {
   const sink = new Sink();
-  const c = new OscConsole(sink, { clock });
+  const c = new OscConsole(sink, { cfg: testCfg, clock });
   const aborts: [number, number | null][] = [];
   c.onRampAbort = (ch, lastDb) => {
     aborts.push([ch, lastDb]);
@@ -155,7 +158,7 @@ test("normal ramps glide every step and reach their end", async () => {
 
 test("a ramp without a clock writes every step at once", async () => {
   const sink = new Sink();
-  const c = new OscConsole(sink);
+  const c = new OscConsole(sink, { cfg: testCfg });
   c.rampFaderDb(1, -10, -4, 350, 4);
   await c.flushRamps();
   assert.equal(sink.faders("01").length, 4);
@@ -191,7 +194,7 @@ test("cancelling a queued ramp's channel keeps it from ever writing", async () =
 
 test("the last written level follows fader writes, raw writes and ramp steps", async () => {
   const sink = new Sink();
-  const c = new OscConsole(sink);
+  const c = new OscConsole(sink, { cfg: testCfg });
   assert.equal(c.lastWritten(5), null);
   assert.equal(c.setFaderDb(1, 99), 6);
   assert.equal(c.lastWritten(1), 6);
@@ -201,32 +204,35 @@ test("the last written level follows fader writes, raw writes and ramp steps", a
   await c.flushRamps();
   close(c.lastWritten(2)!, -4, 0, 1e-9);
   assert.equal(c.lastWritten(5), null);
-  const sim = new SimConsole();
+  const sim = new SimConsole({ cfg: testCfg });
   sim.rampFaderDb(3, -10, -2);
   assert.equal(sim.lastWritten(3), -2);
 });
 
 test("a level that failed to send is not taken as written", () => {
-  const c = new OscConsole({
-    send: () => {
-      throw new Error("socket closed");
+  const c = new OscConsole(
+    {
+      send: () => {
+        throw new Error("socket closed");
+      },
+      close: () => {},
     },
-    close: () => {},
-  });
+    { cfg: testCfg },
+  );
   assert.throws(() => c.setFaderDb(1, -3));
   assert.equal(c.lastWritten(1), null);
 });
 
 test("a first EQ write sends the gain first", () => {
   const sink = new Sink();
-  const c = new OscConsole(sink);
+  const c = new OscConsole(sink, { cfg: testCfg });
   c.setEqNotch(1, 2, 2500);
   assert.deepEqual(sink.addrs(), ["/ch/01/eq/2/g", "/ch/01/eq/2/type", "/ch/01/eq/2/f", "/ch/01/eq/2/q", "/ch/01/eq/on"]);
 });
 
 test("a cut sends the gain first and a boost sends it last", () => {
   const sink = new Sink();
-  const c = new OscConsole(sink);
+  const c = new OscConsole(sink, { cfg: testCfg });
   c.setBusEq(3, 250, -2);
   sink.sent.length = 0;
   c.setBusEq(3, 400, -6);
@@ -241,7 +247,7 @@ test("a cut sends the gain first and a boost sends it last", () => {
 
 test("EQ bands keep their gain history apart and a scene recall forgets it", () => {
   const sink = new Sink();
-  const c = new OscConsole(sink);
+  const c = new OscConsole(sink, { cfg: testCfg });
   c.setEqBand(4, 1, 100, -3, 1);
   c.setEqBand(4, 2, 1000, -3, 1, false);
   sink.sent.length = 0;
@@ -273,14 +279,17 @@ test("EQ bands keep their gain history apart and a scene recall forgets it", () 
 test("an EQ write that failed part way leaves the next write gain first", () => {
   let fail = false;
   const sent: string[] = [];
-  const c = new OscConsole({
-    send: (data) => {
-      const addr = decodeMessage(data)?.address ?? "";
-      if (fail && addr.endsWith("/f")) throw new Error("socket closed");
-      sent.push(addr);
+  const c = new OscConsole(
+    {
+      send: (data) => {
+        const addr = decodeMessage(data)?.address ?? "";
+        if (fail && addr.endsWith("/f")) throw new Error("socket closed");
+        sent.push(addr);
+      },
+      close: () => {},
     },
-    close: () => {},
-  });
+    { cfg: testCfg },
+  );
   c.setEqNotch(1, 1, 1000, -9, 4);
   fail = true;
   assert.throws(() => c.setEqNotch(1, 1, 2000, 6, 4));
@@ -298,7 +307,7 @@ interface BandState {
 const gainOf = (v: number): number => v * 30 - 15;
 
 test("no prefix of a recorded EQ sequence leaves a band louder at its new frequency than intended", () => {
-  const sim = new SimConsole();
+  const sim = new SimConsole({ cfg: testCfg });
   const moves: [number, number, number][] = [
     [1000, -12, 8],
     [1000, 6, 2],

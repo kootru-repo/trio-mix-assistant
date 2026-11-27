@@ -1,4 +1,3 @@
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import { faderToDb } from "./console.ts";
 import type { DatagramSink } from "./console.ts";
@@ -29,7 +28,7 @@ export interface MeterReceiverOptions {
   ip?: string;
   port?: number;
   allowFrom?: string | null;
-  cfg?: Config;
+  cfg: Config;
 }
 
 export class MeterReceiver {
@@ -49,13 +48,13 @@ export class MeterReceiver {
   private generation = 0;
   private pending: Promise<void> = Promise.resolve();
 
-  constructor(udp: UdpFactory, opts: MeterReceiverOptions = {}) {
+  constructor(udp: UdpFactory, opts: MeterReceiverOptions) {
     this.udp = udp;
     this.onFader = opts.onFader ?? null;
     this.onMeters = opts.onMeters ?? null;
     this.onMessage = opts.onMessage ?? null;
     this.ip = opts.ip ?? "0.0.0.0";
-    this.port = opts.port ?? (opts.cfg ?? C).LOCAL_PORT;
+    this.port = opts.port ?? opts.cfg.LOCAL_PORT;
     const from = opts.allowFrom ?? null;
     this.allowFrom = from !== null && from.trim() !== "" ? hostKey(from) : null;
   }

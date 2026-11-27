@@ -1,6 +1,6 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { C } from "../src/core/config.ts";
 import {
   analyseBlock,
   findResonantPeaks,
@@ -12,6 +12,8 @@ import {
 import { hanning, irfft, magnitude, rfft } from "../src/core/fft.ts";
 import { SeededRng } from "../src/core/rng.ts";
 import { close, closeArray, f32, f64, fixture } from "./helpers.ts";
+
+const testCfg = defaultConfig();
 
 const fx = fixture("dsp");
 
@@ -77,7 +79,7 @@ test("octave bands and resonant peaks match the stored reference on a non-power-
 
 test("a flat pink signal yields the same (empty or not) result as the stored reference", () => {
   const rng = new SeededRng(30);
-  const pink = generatePinkNoise(49152 / C.SAMPLE_RATE, rng);
+  const pink = generatePinkNoise(49152 / testCfg.SAMPLE_RATE, rng);
   const { corrections } = findResonantPeaks(pink);
   assert.equal(corrections.length === 0, fx.bands.flat_corrections.length === 0);
 });
@@ -112,11 +114,11 @@ test("rfft and irfft round-trip for power-of-two and odd lengths", () => {
 test("rfft of a pure tone peaks at the right bin, and the window handles its edge cases", () => {
   const n = 4096;
   const x = new Float64Array(n);
-  for (let i = 0; i < n; i++) x[i] = Math.sin(((2 * Math.PI * 1000 * i) / C.SAMPLE_RATE) * (n / n));
+  for (let i = 0; i < n; i++) x[i] = Math.sin(((2 * Math.PI * 1000 * i) / testCfg.SAMPLE_RATE) * (n / n));
   const mag = magnitude(rfft(x));
   let k = 0;
   for (let i = 1; i < mag.length; i++) if (mag[i]! > mag[k]!) k = i;
-  assert.ok(Math.abs((k * C.SAMPLE_RATE) / n - 1000) < C.SAMPLE_RATE / n);
+  assert.ok(Math.abs((k * testCfg.SAMPLE_RATE) / n - 1000) < testCfg.SAMPLE_RATE / n);
   assert.deepEqual([...hanning(1)], [1]);
   assert.equal(hanning(0).length, 0);
   close(hanning(5)[2]!, 1, 0, 1e-12);
@@ -137,7 +139,7 @@ test("skipping ring detection leaves every other feature unchanged", () => {
   for (const c of fx.analyse) {
     const input = f32(c.input);
     const full = analyseBlock(input);
-    const lean = analyseBlock(input, C.SAMPLE_RATE, { ring: false });
+    const lean = analyseBlock(input, testCfg.SAMPLE_RATE, { ring: false });
     assert.equal(lean.fbFreq, null);
     assert.equal(lean.harmonicity, 0);
     assert.equal(lean.rmsDbfs, full.rmsDbfs);
@@ -151,7 +153,7 @@ test("resonant peaks from precomputed band levels equal the ones found from the 
   const noise = generatePinkNoise(1, new SeededRng(9));
   for (let i = 0; i < noise.length; i++) noise[i] = noise[i]! + (i % 480 < 3 ? 0.3 : 0);
   const bands = octaveBandLevels(noise);
-  assert.deepEqual(findResonantPeaks(noise, C.SAMPLE_RATE, bands), findResonantPeaks(noise));
+  assert.deepEqual(findResonantPeaks(noise, testCfg.SAMPLE_RATE, bands), findResonantPeaks(noise));
 });
 
 test("the cached Bluestein plan gives the same spectrum on repeated and interleaved lengths", () => {

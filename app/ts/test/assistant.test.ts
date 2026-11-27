@@ -3,13 +3,15 @@ import test, { after } from "node:test";
 import { Calibrator } from "../src/core/calibration.ts";
 import type { CalibrationResult } from "../src/core/calibration.ts";
 import { ManualClock } from "../src/core/clock.ts";
-import { applyChannelMap, autoChannelMap, C, channelMapState, restoreChannelMapState } from "../src/core/config.ts";
+import { applyChannelMap, autoChannelMap, channelMapState, defaultConfig, restoreChannelMapState } from "../src/core/config.ts";
 import type { ChannelMapSpec } from "../src/core/config.ts";
 import { SimConsole } from "../src/core/console.ts";
 import type { ChannelFeatures } from "../src/core/dsp.ts";
 import { MixAssistant } from "../src/core/assistant/index.ts";
 import type { AssistantEvent } from "../src/core/assistant/index.ts";
 import { fixture, recording, saveFixture } from "./helpers.ts";
+
+const testCfg = defaultConfig();
 
 interface Scenario {
   name: string;
@@ -46,20 +48,20 @@ const obj = <T>(m: Map<number, T>): Record<string, T> => Object.fromEntries([...
 
 class Replay {
   clock = new ManualClock(0, 1_700_000_000);
-  con = new SimConsole();
+  con = new SimConsole({ cfg: testCfg });
   events: AssistantEvent[] = [];
   a: MixAssistant;
   snapshots: unknown[] = [];
   errors: string[] = [];
-  private saved = channelMapState();
+  private saved = channelMapState(testCfg);
 
   constructor(cfg: ChannelMapSpec | null) {
-    if (cfg) applyChannelMap(cfg);
-    this.a = new MixAssistant(this.con, this.clock, { onEvent: (e) => this.events.push(e) });
+    if (cfg) applyChannelMap(cfg, testCfg);
+    this.a = new MixAssistant(this.con, this.clock, { config: testCfg, onEvent: (e) => this.events.push(e) });
   }
 
   close(): void {
-    restoreChannelMapState(this.saved);
+    restoreChannelMapState(this.saved, testCfg);
   }
 
   private sync(now: number | undefined): void {
@@ -72,7 +74,7 @@ class Replay {
       corrections: op.corrections.map((x: number[]) => [x[0]!, x[1]!]),
       watchlist: op.watch.map((x: number[]) => [x[0]!, x[1]!]),
     };
-    return kind === "calib" ? res : new Calibrator(this.con).plan(res);
+    return kind === "calib" ? res : new Calibrator(this.con, testCfg).plan(res);
   }
 
   run(op: any): void {
@@ -217,9 +219,9 @@ test("the scenarios exercise every job", () => {
 
 function fresh(): { a: MixAssistant; con: SimConsole; clock: ManualClock; events: AssistantEvent[] } {
   const clock = new ManualClock(0, 1_700_000_000);
-  const con = new SimConsole();
+  const con = new SimConsole({ cfg: testCfg });
   const events: AssistantEvent[] = [];
-  const a = new MixAssistant(con, clock, { onEvent: (e) => events.push(e) });
+  const a = new MixAssistant(con, clock, { config: testCfg, onEvent: (e) => events.push(e) });
   return { a, con, clock, events };
 }
 
@@ -274,17 +276,17 @@ test("a steady constant tone with no harmonics is deliberately not notched", () 
 });
 
 test("a channel map that drops the lead or measurement channel falls back to a channel that exists", () => {
-  const saved = channelMapState();
+  const saved = channelMapState(testCfg);
   try {
-    applyChannelMap({ map: { "3": "a", "5": "b", "9": "c" } });
-    assert.equal(C.LEAD_VOCAL_CH, 3);
-    assert.equal(C.MEAS_MIC_CH, 9);
-    const auto = autoChannelMap(4);
+    applyChannelMap({ map: { "3": "a", "5": "b", "9": "c" } }, testCfg);
+    assert.equal(testCfg.LEAD_VOCAL_CH, 3);
+    assert.equal(testCfg.MEAS_MIC_CH, 9);
+    const auto = autoChannelMap(4, testCfg);
     assert.equal(auto.lead, 1);
     assert.equal(auto.meas_mic, 4);
-    assert.equal(C.LEAD_VOCAL_CH, 1);
-    assert.equal(C.MEAS_MIC_CH, 4);
+    assert.equal(testCfg.LEAD_VOCAL_CH, 1);
+    assert.equal(testCfg.MEAS_MIC_CH, 4);
   } finally {
-    restoreChannelMapState(saved);
+    restoreChannelMapState(saved, testCfg);
   }
 });

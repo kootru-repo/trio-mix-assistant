@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { C, configWith } from "../src/core/config.ts";
+import { configWith, defaultConfig } from "../src/core/config.ts";
 import type { Config } from "../src/core/config.ts";
 import { autoLane, ConsoleBase, OscConsole, SimConsole } from "../src/core/console.ts";
 import type { ConsoleOptions } from "../src/core/console.ts";
@@ -11,9 +11,11 @@ import type { OscArg } from "../src/core/oscwire.ts";
 import { perChannel } from "../src/core/util.ts";
 import { StepClock } from "./stepclock.ts";
 
+const testCfg = defaultConfig();
+
 class Capture extends ConsoleBase {
   sent: { addr: string; args: OscArg[] }[] = [];
-  constructor(opts: ConsoleOptions = {}) {
+  constructor(opts: ConsoleOptions = { cfg: testCfg }) {
     super(opts);
   }
   protected override send(addr: string, ...args: OscArg[]): void {
@@ -32,10 +34,10 @@ class Sink {
 function custom(): Config {
   return configWith({
     MAIN_BUS: "bus/07",
-    limits: { ...C.limits, faderMinDb: -20, faderMaxDb: 2, headampMinDb: 5, headampMaxDb: 30 },
-    feedback: { ...C.feedback, notchGainDb: -4, notchQ: 2.5 },
-    safety: { ...C.safety, manualBurst: 2, manualPerS: 1, rampLateS: 30 },
-    ride: { ...C.ride, rampMs: 2000 },
+    limits: { ...testCfg.limits, faderMinDb: -20, faderMaxDb: 2, headampMinDb: 5, headampMaxDb: 30 },
+    feedback: { ...testCfg.feedback, notchGainDb: -4, notchQ: 2.5 },
+    safety: { ...testCfg.safety, manualBurst: 2, manualPerS: 1, rampLateS: 30 },
+    ride: { ...testCfg.ride, rampMs: 2000 },
     CHANNELS: new Map([
       [3, "kick"],
       [5, "snare"],
@@ -50,7 +52,7 @@ function custom(): Config {
 }
 
 function snapshot(): Config {
-  return structuredClone(C);
+  return structuredClone(testCfg);
 }
 
 test("a console clamps faders and gains to the injected limits", () => {
@@ -61,8 +63,8 @@ test("a console clamps faders and gains to the injected limits", () => {
   assert.equal(con.setFaderDb(1, -60), -20);
   assert.equal(con.nudgeGainDb(1, 20, 40), 30);
   assert.equal(con.nudgeGainDb(1, 20, -40), 5);
-  const plain = new SimConsole();
-  assert.equal(plain.setFaderDb(1, 10), C.limits.faderMaxDb);
+  const plain = new SimConsole({ cfg: testCfg });
+  assert.equal(plain.setFaderDb(1, 10), testCfg.limits.faderMaxDb);
   assert.deepEqual(snapshot(), before);
 });
 
@@ -75,7 +77,7 @@ test("a console uses the injected main bus and notch defaults", () => {
   assert.ok(con.sent.some((m) => m.addr === "/bus/07/mix/on"));
   assert.ok(con.sent.some((m) => m.addr === "/bus/07/mix/fader"));
   assert.ok(con.sent.some((m) => m.addr === "/bus/07/eq/2/f"));
-  assert.ok(!con.sent.some((m) => m.addr.startsWith(`/${C.MAIN_BUS}/`)));
+  assert.ok(!con.sent.some((m) => m.addr.startsWith(`/${testCfg.MAIN_BUS}/`)));
   const sim = new SimConsole({ cfg: custom() });
   autoLane(sim).setEqNotch(1, 1, 2500);
   assert.deepEqual(sim.notches.get(1), [{ band: 1, hz: 2500, gainDb: -4, q: 2.5 }]);
@@ -84,7 +86,7 @@ test("a console uses the injected main bus and notch defaults", () => {
 
 async function rampAt(seconds: number, cfg?: Config): Promise<number | null> {
   const clock = new StepClock();
-  const con = new Capture(cfg === undefined ? { clock } : { clock, cfg });
+  const con = new Capture({ clock, cfg: cfg ?? testCfg });
   autoLane(con).rampFaderDb(1, 0, -10);
   for (let k = 0; k < 10; k++) await Promise.resolve();
   await clock.advance(seconds);
@@ -102,7 +104,7 @@ test("a ramp takes its default time from the injected config", async () => {
 
 async function queuedRamp(cfg?: Config): Promise<number[]> {
   const clock = new StepClock();
-  const con = new Capture(cfg === undefined ? { clock } : { clock, cfg });
+  const con = new Capture({ clock, cfg: cfg ?? testCfg });
   const aborts: number[] = [];
   con.onRampAbort = (ch) => aborts.push(ch);
   con.rampFaderDb(2, 0, -1, 1000, 1);
@@ -127,7 +129,7 @@ test("an OSC console builds its write governor from the injected safety config",
   for (let ch = 1; ch <= 5; ch++) con.setChannelMute(ch, true);
   assert.equal(sink.count, 2);
   const plainSink = new Sink();
-  const plain = new OscConsole(plainSink, { clock });
+  const plain = new OscConsole(plainSink, { cfg: testCfg, clock });
   for (let ch = 1; ch <= 5; ch++) plain.setChannelMute(ch, true);
   assert.equal(plainSink.count, 5);
   assert.deepEqual(snapshot(), before);
@@ -145,9 +147,9 @@ test("the emulator seeds names and picks moves from the injected config", () => 
   assert.equal(EmulatedDesk.extPick(0, cfg), 3);
   assert.equal(EmulatedDesk.extPick(1, cfg), 5);
   assert.equal(EmulatedDesk.extPick(2, cfg), 3);
-  const plain = new EmulatedDesk(new MemNetwork(), new StepClock());
-  assert.equal(plain.listenPort, C.CONSOLE_PORT);
-  assert.equal(plain.params.get("/-prefs/name")![0]!.v, C.X32_NAME);
+  const plain = new EmulatedDesk(new MemNetwork(), new StepClock(), { cfg: testCfg });
+  assert.equal(plain.listenPort, testCfg.CONSOLE_PORT);
+  assert.equal(plain.params.get("/-prefs/name")![0]!.v, testCfg.X32_NAME);
   assert.deepEqual(snapshot(), before);
 });
 
@@ -156,13 +158,13 @@ test("the meter receiver takes its port from the injected config", () => {
   const rx = new MeterReceiver(new MemNetwork(), { cfg: configWith({ LOCAL_PORT: 12345 }) });
   assert.equal(rx.port, 12345);
   assert.equal(new MeterReceiver(new MemNetwork(), { cfg: configWith({ LOCAL_PORT: 12345 }), port: 7 }).port, 7);
-  assert.equal(new MeterReceiver(new MemNetwork()).port, C.LOCAL_PORT);
+  assert.equal(new MeterReceiver(new MemNetwork(), { cfg: testCfg }).port, testCfg.LOCAL_PORT);
   assert.deepEqual(snapshot(), before);
 });
 
 test("perChannel keys by the injected channel map", () => {
   const before = snapshot();
   assert.deepEqual([...perChannel(0, custom()).keys()], [3, 5, 7]);
-  assert.deepEqual([...perChannel(0).keys()], [...C.CHANNELS.keys()]);
+  assert.deepEqual([...perChannel(0, testCfg).keys()], [...testCfg.CHANNELS.keys()]);
   assert.deepEqual(snapshot(), before);
 });

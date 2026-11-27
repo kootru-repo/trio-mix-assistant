@@ -1,8 +1,8 @@
 import type { CaptureStatus, Frame } from "./capture.ts";
 import { CaptureSourceBase, simRoomCapture } from "./capture.ts";
 import type { Clock } from "./clock.ts";
-import { C, applyChannelMap, channelMapState, restoreChannelMapState } from "./config.ts";
-import type { ChannelMapSpec } from "./config.ts";
+import { applyChannelMap, defaultConfig } from "./config.ts";
+import type { ChannelMapSpec, Config } from "./config.ts";
 import { ConsoleBase, dbToFader, faderToDb, freqToEqParam, qToParam } from "./console.ts";
 import type { ChannelFeatures, PhaseRelation, Samples } from "./dsp.ts";
 import { Engine } from "./engine/index.ts";
@@ -14,7 +14,6 @@ import type { OscArg } from "./oscwire.ts";
 import { SeededRng } from "./rng.ts";
 import type { ShowState } from "./showclock.ts";
 import type { ShowTemplate } from "./template.ts";
-import { pinDefaultTuning } from "./tuning.ts";
 import { clamp, zeroPad } from "./util.ts";
 
 export type VetStatus = "pass" | "fail" | "skip";
@@ -136,8 +135,8 @@ export function skipRow(rows: VetRow[], log: VetLog, spec: StepSpec, reason: str
 class VetConsole extends ConsoleBase {
   private readonly emit: (addr: string, args: OscArg[]) => void;
 
-  constructor(clock: Clock, emit: (addr: string, args: OscArg[]) => void) {
-    super({ clock });
+  constructor(clock: Clock, emit: (addr: string, args: OscArg[]) => void, cfg: Config) {
+    super({ clock, cfg });
     this.emit = emit;
   }
 
@@ -153,9 +152,11 @@ export interface DeskOptions {
   proof: VetProof;
   timeoutS?: number;
   stopped?: () => boolean;
+  cfg: Config;
 }
 
 export class Desk {
+  readonly cfg: Config;
   readonly con: ConsoleBase;
   readonly proof: VetProof;
   readonly clock: Clock;
@@ -170,15 +171,24 @@ export class Desk {
   private readonly seen = new Map<string, OscArg[]>();
 
   constructor(opts: DeskOptions) {
+    this.cfg = opts.cfg;
     this.transmit = opts.transmit;
     this.clock = opts.clock;
     this.log = opts.log;
     this.proof = opts.proof;
     this.timeoutS = opts.timeoutS ?? ASK_TIMEOUT_S;
     this.stoppedFn = opts.stopped ?? (() => false);
-    this.con = new VetConsole(opts.clock, (addr, args) => {
-      this.send(addr, ...args);
-    });
+    this.con = this.console(opts.cfg);
+  }
+
+  console(cfg: Config): ConsoleBase {
+    return new VetConsole(
+      this.clock,
+      (addr, args) => {
+        this.send(addr, ...args);
+      },
+      cfg,
+    );
   }
 
   get stopped(): boolean {
@@ -239,7 +249,7 @@ export class Desk {
   async putBack(addr: string, arg: OscArg, was: number): Promise<number | null> {
     let got: number | null = null;
     for (let attempt = 0; attempt < RESTORE_ATTEMPTS; attempt++) {
-      if (addr === `/${C.MAIN_BUS}/mix/on` && this.holdMain()) {
+      if (addr === `/${this.cfg.MAIN_BUS}/mix/on` && this.holdMain()) {
         this.log.note(`restore of ${addr} skipped: takeover is holding the main muted`);
         this.mainHeld = true;
         return was;
@@ -346,12 +356,12 @@ const eqAddrs = (base: string, onAddr: string): string[] => [`${base}/type`, `${
 const headampAddr = (ch: number): string => `/headamp/${zeroPad(ch - 1, 3)}/gain`;
 const SCENE_ADDR = "/-show/prepos/current";
 
-function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: string, arg: OscArg) => void): WriteCase[] {
+function consoleCases(con: ConsoleBase, cfg: Config, ch: number, label: string, send: (addr: string, arg: OscArg) => void): WriteCase[] {
   const p = `/ch/${zeroPad(ch, 2)}`;
   const fader = `${p}/mix/fader`;
-  const bus = [...C.FX_BUSES.keys()][0] ?? 1;
+  const bus = [...cfg.FX_BUSES.keys()][0] ?? 1;
   const sendAddr = `${p}/mix/${zeroPad(bus, 2)}/level`;
-  const main = `/${C.MAIN_BUS}`;
+  const main = `/${cfg.MAIN_BUS}`;
   const fxrtn = `/fxrtn/${zeroPad(bus, 2)}/mix/fader`;
   return [
     {
@@ -362,9 +372,9 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       addrs: [fader],
       act: (b) => {
         const db = faderToDb(b.get(fader)!);
-        const t = lowered(db, C.limits.faderMinDb, C.limits.faderMaxDb);
+        const t = lowered(db, cfg.limits.faderMinDb, cfg.limits.faderMaxDb);
         if (t === null)
-          return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.limits.faderMinDb} dB); raise it and run this again`;
+          return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${cfg.limits.faderMinDb} dB); raise it and run this again`;
         return one(fader, dbToFader(con.setFaderDb(ch, t)));
       },
     },
@@ -376,9 +386,9 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       addrs: [fader],
       act: (b) => {
         const db = faderToDb(b.get(fader)!);
-        const t = lowered(db, C.limits.faderMinDb, C.limits.faderMaxDb);
+        const t = lowered(db, cfg.limits.faderMinDb, cfg.limits.faderMaxDb);
         if (t === null)
-          return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${C.limits.faderMinDb} dB); raise it and run this again`;
+          return `the fader is at ${fixed(db, 1)} dB, at or below the lowest level the assistant sets (${cfg.limits.faderMinDb} dB); raise it and run this again`;
         return one(fader, dbToFader(con.rampFaderDb(ch, db, t, 120, 4)));
       },
     },
@@ -425,7 +435,7 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       addrs: eqAddrs(`${p}/eq/1`, `${p}/eq/on`),
       act: () => {
         con.setEqNotch(ch, 1, 1000);
-        return eqExpect(`${p}/eq/1`, `${p}/eq/on`, 1000, C.feedback.notchGainDb, C.feedback.notchQ);
+        return eqExpect(`${p}/eq/1`, `${p}/eq/on`, 1000, cfg.feedback.notchGainDb, cfg.feedback.notchQ);
       },
     },
     {
@@ -453,7 +463,7 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
     },
     {
       id: "con_send",
-      title: `Channel ${label} send to ${C.FX_BUSES.get(bus) ?? `bus ${bus}`}`,
+      title: `Channel ${label} send to ${cfg.FX_BUSES.get(bus) ?? `bus ${bus}`}`,
       feature: "setSend",
       group: "channel",
       addrs: [sendAddr],
@@ -472,7 +482,7 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
       addrs: [headampAddr(ch)],
       act: (b) => {
         const cur = b.get(headampAddr(ch))! * 72 - 12;
-        const delta = cur - 3 < C.limits.headampMinDb ? 1 : -3;
+        const delta = cur - 3 < cfg.limits.headampMinDb ? 1 : -3;
         return one(headampAddr(ch), (con.nudgeGainDb(ch, cur, delta) + 12) / 72);
       },
     },
@@ -512,7 +522,7 @@ function consoleCases(con: ConsoleBase, ch: number, label: string, send: (addr: 
     },
     {
       id: "con_fx_return",
-      title: `${C.FX_BUSES.get(bus) ?? `FX ${bus}`} return level`,
+      title: `${cfg.FX_BUSES.get(bus) ?? `FX ${bus}`} return level`,
       feature: "setFxReturn",
       group: "main",
       addrs: [fxrtn],
@@ -579,7 +589,7 @@ export async function vetConsole(rows: VetRow[], desk: Desk, area: string, opts:
     });
   }
   const ch = opts.channel ?? 1;
-  for (const wc of consoleCases(desk.con, ch, opts.channel === null ? "N" : String(ch), (addr, arg) => desk.send(addr, arg))) {
+  for (const wc of consoleCases(desk.con, desk.cfg, ch, opts.channel === null ? "N" : String(ch), (addr, arg) => desk.send(addr, arg))) {
     const spec: StepSpec = { id: wc.id, area, title: wc.title, proof: desk.proof, covers: [`console:${wc.feature}`] };
     const wanted =
       wc.group === "channel"
@@ -627,13 +637,19 @@ const vetTemplate = (): ShowTemplate => ({
 
 class VetSource extends CaptureSourceBase {
   next: () => Frame = () => new Map();
+  private readonly cfg: Config;
+
+  constructor(cfg: Config) {
+    super();
+    this.cfg = cfg;
+  }
 
   block(): Frame {
     return this.next();
   }
 
   override captureMeas(): Promise<Samples | null> {
-    return Promise.resolve(simRoomCapture(new SeededRng(7)));
+    return Promise.resolve(simRoomCapture(new SeededRng(7), this.cfg));
   }
 
   override status(): CaptureStatus {
@@ -664,14 +680,19 @@ export interface SequenceOptions {
   externalMove: ((ch: number, db: number) => void) | null;
 }
 
+export function vetConfig(): Config {
+  const cfg = defaultConfig();
+  applyChannelMap(VET_MAP, cfg);
+  return cfg;
+}
+
 export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOptions): Promise<void> {
-  const saved = channelMapState();
-  applyChannelMap(VET_MAP);
-  const restoreTuning = pinDefaultTuning();
+  const cfg = vetConfig();
+  const con = desk.console(cfg);
   const area = "Features and sequences";
-  const main = `/${C.MAIN_BUS}`;
-  const make = (source: VetSource = new VetSource()): Engine => {
-    const e = new Engine({ console: desk.con, sim: false, source, tick: 0.02, template: vetTemplate(), clock: desk.clock });
+  const main = `/${cfg.MAIN_BUS}`;
+  const make = (source: VetSource = new VetSource(cfg)): Engine => {
+    const e = new Engine({ console: con, sim: false, source, tick: 0.02, template: vetTemplate(), clock: desk.clock, cfg });
     desk.onFader = (ch, db) => e.reconcileFader(ch, db);
     return e;
   };
@@ -864,19 +885,19 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       }
       must(notchBand > 0, "a steady, rising 2500 Hz tone did not trigger a notch");
       await desk.expect(`/ch/04/eq/${notchBand}/f`, freqToEqParam(2500));
-      await desk.expect(`/ch/04/eq/${notchBand}/g`, (C.feedback.notchGainDb + 15) / 30);
+      await desk.expect(`/ch/04/eq/${notchBand}/g`, (cfg.feedback.notchGainDb + 15) / 30);
       await desk.expect("/ch/04/eq/on", 1);
       return `2500 Hz notched on channel 4, band ${notchBand}`;
     });
     let busBand = 0;
     await S("job_feedback_room", "Feedback job: a ringing room gets a main-bus notch", ["job:feedback-room"], async () => {
       for (let i = 0; i < 200 && busBand === 0; i++) {
-        j.assistant.onFeatures(C.MEAS_MIC_CH, feat({ fbFreq: 800, rmsDbfs: -80 + 0.4 * i, contrastDb: 25 }), T());
+        j.assistant.onFeatures(cfg.MEAS_MIC_CH, feat({ fbFreq: 800, rmsDbfs: -80 + 0.4 * i, contrastDb: 25 }), T());
         busBand = j.assistant.fbBusBands[0] ?? 0;
       }
       must(busBand > 0, "a steady, rising 800 Hz tone at the room mic did not trigger a main-bus notch");
       await desk.expect(`${main}/eq/${busBand}/f`, freqToEqParam(800));
-      await desk.expect(`${main}/eq/${busBand}/g`, (C.feedback.notchGainDb + 15) / 30);
+      await desk.expect(`${main}/eq/${busBand}/g`, (cfg.feedback.notchGainDb + 15) / 30);
       return `800 Hz notched on the main bus, band ${busBand}`;
     });
     await S("cmd_reset_notches", "Reset notches clears them", ["command:reset_notches"], async () => {
@@ -893,7 +914,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       const trimmed = j.assistant.gainDb.get(4) ?? 0;
       must(trimmed < start, "a clipping channel was not trimmed");
       await desk.expect(headampAddr(4), (trimmed + 12) / 72);
-      j.assistant.onFeatures(4, feat({ peakDbfs: -20 }), T(C.clip.recoverS + 1));
+      j.assistant.onFeatures(4, feat({ peakDbfs: -20 }), T(cfg.clip.recoverS + 1));
       const restored = j.assistant.gainDb.get(4) ?? 0;
       must(restored > trimmed, "a clean channel did not get its gain back");
       await desk.expect(headampAddr(4), (restored + 12) / 72);
@@ -901,12 +922,12 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
     });
     await S("job_vocal_ride", "Vocal ride job: a quiet lead vocal is raised", ["job:vocal_ride"], async () => {
       j.setEnabled("vocal_ride", true);
-      const start = j.assistant.faderDb.get(C.LEAD_VOCAL_CH) ?? 0;
-      j.assistant.onFeatures(C.LEAD_VOCAL_CH, feat({ rmsDbfs: -60 }), T());
-      await desk.con.flushRamps();
-      const now = j.assistant.faderDb.get(C.LEAD_VOCAL_CH) ?? 0;
+      const start = j.assistant.faderDb.get(cfg.LEAD_VOCAL_CH) ?? 0;
+      j.assistant.onFeatures(cfg.LEAD_VOCAL_CH, feat({ rmsDbfs: -60 }), T());
+      await con.flushRamps();
+      const now = j.assistant.faderDb.get(cfg.LEAD_VOCAL_CH) ?? 0;
       must(now > start, "a quiet lead vocal was not raised");
-      await desk.expect(`/ch/${zeroPad(C.LEAD_VOCAL_CH, 2)}/mix/fader`, dbToFader(now));
+      await desk.expect(`/ch/${zeroPad(cfg.LEAD_VOCAL_CH, 2)}/mix/fader`, dbToFader(now));
       j.setEnabled("vocal_ride", false);
       return `lead fader raised to ${fixed(now, 1)} dB`;
     });
@@ -924,7 +945,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       j.setEnabled("balance", true);
       const start = j.assistant.faderDb.get(5) ?? 0;
       j.assistant.onFeatures(5, feat({ rmsDbfs: -55 }), T(2));
-      await desk.con.flushRamps();
+      await con.flushRamps();
       const now = j.assistant.faderDb.get(5) ?? 0;
       must(now > start, "a channel that dropped was not raised");
       await desk.expect("/ch/05/mix/fader", dbToFader(now));
@@ -934,7 +955,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
     await S("job_phase", "Phase job: an out-of-polarity pair is flipped", ["job:phase"], async () => {
       j.setEnabled("phase", true);
       const rel: PhaseRelation = { zeroCorr: -0.9, bestCorr: -0.9, lagSamples: 0, lagMs: 0 };
-      for (let i = 0; i < C.phase.sustain + 4 && j.assistant.polarity.get(6) !== true; i++) j.assistant.handlePhase(5, 6, rel, T());
+      for (let i = 0; i < cfg.phase.sustain + 4 && j.assistant.polarity.get(6) !== true; i++) j.assistant.handlePhase(5, 6, rel, T());
       must(j.assistant.polarity.get(6) === true, "an inverted pair was not flipped");
       await desk.expect("/ch/06/preamp/invert", 1);
       j.setEnabled("phase", false);
@@ -946,10 +967,10 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       ["job:unmask"],
       async () => {
         j.setEnabled("unmask", true);
-        for (let i = 0; i < 20; i++) j.assistant.onFeatures(C.LEAD_VOCAL_CH, feat({ rmsDbfs: -20 }), T());
+        for (let i = 0; i < 20; i++) j.assistant.onFeatures(cfg.LEAD_VOCAL_CH, feat({ rmsDbfs: -20 }), T());
         const applied = j.assistant.duckApplied.get(2);
         must(applied !== undefined && applied < -1, "no dip was applied while the vocal was up");
-        const addr = `/ch/02/eq/${C.unmask.band}/g`;
+        const addr = `/ch/02/eq/${cfg.unmask.band}/g`;
         const held = await desk.num(addr);
         must(held !== null && held < 0.5 - 1 / 30, `the dip did not reach the console (${held === null ? "no answer" : fixed(held, 3)})`);
         j.setEnabled("unmask", false);
@@ -958,20 +979,20 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       },
     );
 
-    const src = new VetSource();
+    const src = new VetSource(cfg);
     const a = make(src);
     let sample = 0;
     const tone = (hz: number, amp: number, sign: number = 1): Float32Array => {
-      const out = new Float32Array(C.BLOCK);
-      for (let i = 0; i < C.BLOCK; i++) out[i] = sign * amp * Math.sin((2 * Math.PI * hz * (sample + i)) / C.SAMPLE_RATE);
+      const out = new Float32Array(cfg.BLOCK);
+      for (let i = 0; i < cfg.BLOCK; i++) out[i] = sign * amp * Math.sin((2 * Math.PI * hz * (sample + i)) / cfg.SAMPLE_RATE);
       return out;
     };
     const run = (frame: () => Frame, blocks: number, done: () => boolean): void => {
       src.next = frame;
       for (let i = 0; i < blocks && !done(); i++) {
         const last = t;
-        a.step(T(C.BLOCK / C.SAMPLE_RATE), last);
-        sample += C.BLOCK;
+        a.step(T(cfg.BLOCK / cfg.SAMPLE_RATE), last);
+        sample += cfg.BLOCK;
       }
       src.next = () => new Map();
     };
@@ -1011,7 +1032,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
               [5, tone(220, 0.2)],
               [6, tone(220, 0.2, -1)],
             ]),
-          C.phase.sustain + 8,
+          cfg.phase.sustain + 8,
           flipped,
         );
         must(flipped(), "an inverted pair in the samples was not flipped");
@@ -1051,7 +1072,7 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
       skipRow(rows, desk.log, moved, "needs a hand on the console: move a fader and watch the dashboard follow");
     } else {
       await S(moved.id, moved.title, moved.covers, async () => {
-        desk.con.subscribeMeters();
+        con.subscribeMeters();
         await desk.num("/ch/05/mix/fader");
         move(5, -7);
         const t0 = desk.clock.monotonic();
@@ -1063,8 +1084,6 @@ export async function vetSequence(rows: VetRow[], desk: Desk, opts: SequenceOpti
     }
   } finally {
     desk.onFader = null;
-    restoreChannelMapState(saved);
-    restoreTuning();
   }
 }
 

@@ -9,7 +9,7 @@ import { CaptureSourceBase } from "../src/core/capture.ts";
 import type { CaptureStatus, Frame } from "../src/core/capture.ts";
 import { loopbackPort } from "../src/core/capturelink.ts";
 import { ManualClock } from "../src/core/clock.ts";
-import { C, channelMapState, restoreChannelMapState } from "../src/core/config.ts";
+import { channelMapState, defaultConfig, restoreChannelMapState } from "../src/core/config.ts";
 import { OscConsole } from "../src/core/console.ts";
 import type { DatagramSink } from "../src/core/console.ts";
 import type {
@@ -38,7 +38,9 @@ import type { Io } from "../src/host/main.ts";
 import { NodeUdpFactory } from "../src/host/udp.ts";
 import { withEmulatorPorts } from "./emulatorports.ts";
 
-const RATE = C.SAMPLE_RATE / C.BLOCK;
+const testCfg = defaultConfig();
+
+const RATE = testCfg.SAMPLE_RATE / testCfg.BLOCK;
 
 const goodAudio = (over: Partial<AudioFacts> = {}): AudioFacts => ({
   name: "Console USB",
@@ -293,7 +295,7 @@ const host = (over: Partial<DiagHost> = {}): DiagHost => ({
 });
 
 const loudBlock = (): AnalysedBlock => ({
-  feats: new Map([...C.CHANNELS.keys()].map((ch) => [ch, { ...emptyFeatures(), rmsDbfs: -30, peakDbfs: -20 }])),
+  feats: new Map([...testCfg.CHANNELS.keys()].map((ch) => [ch, { ...emptyFeatures(), rmsDbfs: -30, peakDbfs: -20 }])),
   phases: [],
 });
 
@@ -302,7 +304,7 @@ const diagOf = (e: Engine): { status: string; report: DiagReport | null } =>
 
 test("the engine's check run measures the running source and console feed and publishes the report", async () => {
   const clock = new FeedingClock(100, 1_700_000_000);
-  const e = new Engine({ clock, source: new QuietSource(), sim: false });
+  const e = new Engine({ cfg: testCfg, clock, source: new QuietSource(), sim: false });
   e.diagHost = () => host();
   e.meterRx = { start: () => Promise.resolve(), stop: () => undefined };
   clock.onLongSleep = () => {
@@ -327,7 +329,7 @@ test("the engine's check run measures the running source and console feed and pu
 
 test("a check run with no audio arriving fails the flow check, and a second request while one runs is ignored", async () => {
   const clock = new FeedingClock(100, 1_700_000_000);
-  const e = new Engine({ clock, source: new QuietSource(), sim: false });
+  const e = new Engine({ cfg: testCfg, clock, source: new QuietSource(), sim: false });
   e.diagHost = () => host();
   let nested: Promise<void> | null = null;
   clock.onLongSleep = () => {
@@ -345,7 +347,7 @@ test("a check run with no audio arriving fails the flow check, and a second requ
 
 test("checks are refused during calibration, do nothing without host facts, and skip real gear in simulation", async () => {
   const clock = new FeedingClock(100, 1_700_000_000);
-  const e = new Engine({ clock, source: new QuietSource(), sim: false });
+  const e = new Engine({ cfg: testCfg, clock, source: new QuietSource(), sim: false });
   await e.runDiagnostics(8);
   assert.equal(diagOf(e).status, "idle");
   e.diagHost = () => host();
@@ -354,7 +356,7 @@ test("checks are refused during calibration, do nothing without host facts, and 
   assert.equal(diagOf(e).report, null);
   assert.ok(e.events.some((ev) => ev.msg.includes("checks cannot run during calibration")));
 
-  const sim = new Engine({ clock: new ManualClock(100, 1_700_000_000), sim: true });
+  const sim = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000), sim: true });
   sim.diagHost = () => host({ mode: "simulation" });
   sim.command({ type: "diagnose" });
   for (let i = 0; i < 20; i++) await Promise.resolve();
@@ -384,15 +386,19 @@ const meterPacket = (): Uint8Array => encodeMessage("/meters/1", [oscBlob(encode
 test("the console probe sends only the meter subscription, from the port it listens on, and hears the replies sent back there", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
   const net = new MemNetwork();
-  const desk = await net.bind(C.CONSOLE_PORT, "0.0.0.0");
+  const desk = await net.bind(testCfg.CONSOLE_PORT, "0.0.0.0");
   const seen: { address: string; port: number }[] = [];
   desk.onMessage((data, from) => {
     for (const m of decodePacket(data)) seen.push({ address: m.address, port: from.port });
     desk.send(meterPacket(), from);
   });
-  const rx = new MeterReceiver(net, { ip: "0.0.0.0" });
+  const rx = new MeterReceiver(net, { cfg: testCfg, ip: "0.0.0.0" });
   const fallback = new RecordingSink();
-  const con = new OscConsole(new SharedPortSink(rx, { host: "127.0.0.1", port: C.CONSOLE_PORT }, fallback), { clock, ip: "127.0.0.1" });
+  const con = new OscConsole(new SharedPortSink(rx, { host: "127.0.0.1", port: testCfg.CONSOLE_PORT }, fallback), {
+    cfg: testCfg,
+    clock,
+    ip: "127.0.0.1",
+  });
   const probe = new ConsoleProbe(con, rx, clock);
   await probe.start();
   for (let i = 0; i < 4; i++) await net.settle();
@@ -400,8 +406,8 @@ test("the console probe sends only the meter subscription, from the port it list
   const f = probe.facts(false, "127.0.0.1");
   probe.stop();
   assert.deepEqual(seen, [
-    { address: "/batchsubscribe", port: C.LOCAL_PORT },
-    { address: "/xremote", port: C.LOCAL_PORT },
+    { address: "/batchsubscribe", port: testCfg.LOCAL_PORT },
+    { address: "/xremote", port: testCfg.LOCAL_PORT },
   ]);
   assert.deepEqual(fallback.sent, []);
   assert.ok(fallback.closed);
@@ -411,10 +417,14 @@ test("the console probe sends only the meter subscription, from the port it list
 test("a probe that cannot listen sends nothing, and the console link falls back to a plain socket until it is listening", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
   const blocked = new MemNetwork();
-  await blocked.bind(C.LOCAL_PORT, "0.0.0.0");
-  const rx = new MeterReceiver(blocked, { ip: "0.0.0.0" });
+  await blocked.bind(testCfg.LOCAL_PORT, "0.0.0.0");
+  const rx = new MeterReceiver(blocked, { cfg: testCfg, ip: "0.0.0.0" });
   const fallback = new RecordingSink();
-  const con = new OscConsole(new SharedPortSink(rx, { host: "127.0.0.1", port: C.CONSOLE_PORT }, fallback), { clock, ip: "127.0.0.1" });
+  const con = new OscConsole(new SharedPortSink(rx, { host: "127.0.0.1", port: testCfg.CONSOLE_PORT }, fallback), {
+    cfg: testCfg,
+    clock,
+    ip: "127.0.0.1",
+  });
   const busy = new ConsoleProbe(con, rx, clock);
   await busy.start();
   assert.equal(busy.facts(false, "127.0.0.1").listening, false);
@@ -470,7 +480,7 @@ async function againstFakeConsole(answers: boolean): Promise<{ text: string; hea
   });
   await new Promise<void>((resolve, reject) => {
     desk.once("error", reject);
-    desk.bind(C.CONSOLE_PORT, "127.0.0.1", () => resolve());
+    desk.bind(testCfg.CONSOLE_PORT, "127.0.0.1", () => resolve());
   });
   const lines: string[] = [];
   try {
@@ -487,7 +497,7 @@ test("--diagnose hears a console that replies to the sending port, as a real one
     assert.ok(/\[PASS\] Console answers: \d+ meter packets from 127\.0\.0\.1 \(3 meters each\)/.test(text), text);
     assert.ok(text.includes("[SKIP] Chosen input opens: no audio input is selected"), text);
     assert.deepEqual([...new Set(heard.map((h) => h.address))].sort(), ["/batchsubscribe", "/xremote"]);
-    assert.deepEqual([...new Set(heard.map((h) => h.port))], [C.LOCAL_PORT]);
+    assert.deepEqual([...new Set(heard.map((h) => h.port))], [testCfg.LOCAL_PORT]);
   }));
 
 test("--diagnose reports a console that does not answer", () =>
@@ -573,8 +583,8 @@ class PacedFactory implements AudioInputFactory {
     let sent = 0;
     let t0 = 0;
     const feed = (): void => {
-      const due = Math.floor(((performance.now() - t0) / 1000) * (C.SAMPLE_RATE / C.BLOCK));
-      for (; sent < due; sent++) cb(new Float32Array(C.BLOCK * options.channels).fill(fake.level), false);
+      const due = Math.floor(((performance.now() - t0) / 1000) * (testCfg.SAMPLE_RATE / testCfg.BLOCK));
+      for (; sent < due; sent++) cb(new Float32Array(testCfg.BLOCK * options.channels).fill(fake.level), false);
     };
     return {
       start: () => {
@@ -590,7 +600,7 @@ class PacedFactory implements AudioInputFactory {
 }
 
 async function diagnoseInputs(fakes: FakeInput[], argv: string[]): Promise<{ code: number; text: string }> {
-  const saved = channelMapState();
+  const saved = channelMapState(testCfg);
   const factory = new PacedFactory(fakes);
   const lines: string[] = [];
   const io = testIo(lines, 1.5);
@@ -598,11 +608,11 @@ async function diagnoseInputs(fakes: FakeInput[], argv: string[]): Promise<{ cod
     const code = await run(argv, {
       ...io,
       audio: () => Promise.resolve(factory),
-      connect: () => loopbackPort(factory, io.clock, threadStamp),
+      connect: () => loopbackPort(factory, io.clock, threadStamp, testCfg),
     });
     return { code, text: lines.join("\n") };
   } finally {
-    restoreChannelMapState(saved);
+    restoreChannelMapState(saved, testCfg);
   }
 }
 

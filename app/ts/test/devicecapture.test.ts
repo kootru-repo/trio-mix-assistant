@@ -3,7 +3,7 @@ import test from "node:test";
 import { CaptureError } from "../src/core/capture.ts";
 import { ManualClock } from "../src/core/clock.ts";
 import type { Clock } from "../src/core/clock.ts";
-import { C, autoChannelMap, channelMapState, restoreChannelMapState } from "../src/core/config.ts";
+import { autoChannelMap, channelMapState, defaultConfig, restoreChannelMapState } from "../src/core/config.ts";
 import {
   DeviceCapture,
   autodetectInputs,
@@ -25,6 +25,8 @@ import type {
 import { loadNativeAudio, NativeAudioInputFactory } from "../src/host/audiodevice.ts";
 import { fixture } from "./helpers.ts";
 import { StepClock } from "./stepclock.ts";
+
+const testCfg = defaultConfig();
 
 class FakeStream implements AudioInputStream {
   started = 0;
@@ -95,17 +97,17 @@ type Extra = Partial<Omit<DeviceCaptureOptions, "factory" | "clock">>;
 const mk = (opts: Extra = {}, clock: Clock = new ManualClock(100)) => {
   const factory = new FakeFactory();
   const manual = clock as ManualClock;
-  const cap = new DeviceCapture({ factory, clock, ...opts });
+  const cap = new DeviceCapture({ cfg: testCfg, factory, clock, ...opts });
   return { cap, factory, clock: manual };
 };
 
 const constFrame = (ncols: number): Float32Array => {
-  const out = new Float32Array(C.BLOCK * ncols);
-  for (let i = 0; i < C.BLOCK; i++) for (let c = 0; c < ncols; c++) out[i * ncols + c] = c;
+  const out = new Float32Array(testCfg.BLOCK * ncols);
+  for (let i = 0; i < testCfg.BLOCK; i++) for (let c = 0; c < ncols; c++) out[i * ncols + c] = c;
   return out;
 };
 
-const fullFrame = (ncols: number, v: number): Float32Array => new Float32Array(C.BLOCK * ncols).fill(v);
+const fullFrame = (ncols: number, v: number): Float32Array => new Float32Array(testCfg.BLOCK * ncols).fill(v);
 
 const allClose = (a: ArrayLike<number>, v: number, tol = 1e-6): boolean => {
   for (let i = 0; i < a.length; i++) if (Math.abs(a[i]! - v) > tol) return false;
@@ -119,8 +121,8 @@ test("channel mapping picks the right device column", () => {
   const out = cap.block();
   assert.ok(allClose(out.get(1)!, 0));
   assert.ok(allClose(out.get(2)!, 1));
-  assert.ok(allClose(out.get(C.MEAS_MIC_CH)!, C.MEAS_MIC_CH - 1));
-  assert.equal(out.get(1)!.length, C.BLOCK);
+  assert.ok(allClose(out.get(testCfg.MEAS_MIC_CH)!, testCfg.MEAS_MIC_CH - 1));
+  assert.equal(out.get(1)!.length, testCfg.BLOCK);
 });
 
 test("drops backlog, keeps latest and counts overruns", () => {
@@ -156,8 +158,8 @@ test("captureMeas collects the meas channel", async () => {
   cap.start();
   const rec = await cap.captureMeas(0.05);
   assert.ok(rec);
-  assert.ok(allClose(rec, C.MEAS_MIC_CH - 1));
-  assert.equal(rec.length, Math.trunc(0.05 * C.SAMPLE_RATE));
+  assert.ok(allClose(rec, testCfg.MEAS_MIC_CH - 1));
+  assert.equal(rec.length, Math.trunc(0.05 * testCfg.SAMPLE_RATE));
 });
 
 test("captureMeas gives up at the deadline with no audio", async () => {
@@ -205,7 +207,7 @@ test("dead stream emits silence, not a frozen frame", () => {
 test("sustained silence is flagged", () => {
   const { cap, clock } = mk();
   cap.start();
-  cap.onAudio(new Float32Array(C.BLOCK * cap.ndev));
+  cap.onAudio(new Float32Array(testCfg.BLOCK * cap.ndev));
   cap.block();
   assert.equal(cap.silent(), false);
   clock.advance(cap.SILENCE_HOLD_S + 1);
@@ -216,7 +218,7 @@ test("sustained silence is flagged", () => {
 test("signal clears silence", () => {
   const { cap, clock } = mk();
   cap.start();
-  cap.onAudio(new Float32Array(C.BLOCK * cap.ndev));
+  cap.onAudio(new Float32Array(testCfg.BLOCK * cap.ndev));
   cap.block();
   clock.advance(10);
   assert.equal(cap.silent(), true);
@@ -297,7 +299,7 @@ test("start opens the stream once with the mapped channel count", () => {
   cap.start();
   cap.start();
   assert.equal(factory.opens.length, 1);
-  assert.deepEqual(factory.opens[0], { device: null, channels: 8, sampleRate: 48000, blockSize: C.BLOCK });
+  assert.deepEqual(factory.opens[0], { device: null, channels: 8, sampleRate: 48000, blockSize: testCfg.BLOCK });
   assert.equal(cap.status()["name"], "Fake");
   assert.equal(cap.status()["device"], "default");
 });
@@ -369,9 +371,9 @@ test("a custom channel map reaches capture", () => {
 });
 
 test("meas channel follows the active auto map", async () => {
-  const snap = channelMapState();
+  const snap = channelMapState(testCfg);
   try {
-    autoChannelMap(1);
+    autoChannelMap(1, testCfg);
     const clock = new FeedClock(100);
     const { cap } = mk({}, clock);
     clock.feed = () => cap.onAudio(fullFrame(cap.ndev, 0.2));
@@ -382,23 +384,23 @@ test("meas channel follows the active auto map", async () => {
     assert.ok(rec);
     assert.ok(allClose(rec, 0.2));
   } finally {
-    restoreChannelMapState(snap);
+    restoreChannelMapState(snap, testCfg);
   }
 });
 
 test("auto map with n inputs makes the last the meas mic", () => {
-  const snap = channelMapState();
+  const snap = channelMapState(testCfg);
   try {
-    autoChannelMap(1);
-    assert.deepEqual([...C.CHANNELS], [[1, "meas_mic"]]);
-    assert.equal(C.MEAS_MIC_CH, 1);
-    assert.equal(C.BALANCE_CHANNELS.length, 0);
-    autoChannelMap(4);
-    assert.equal(C.CHANNELS.size, 4);
-    assert.equal(C.CHANNELS.get(4), "meas_mic");
-    assert.equal(C.MEAS_MIC_CH, 4);
+    autoChannelMap(1, testCfg);
+    assert.deepEqual([...testCfg.CHANNELS], [[1, "meas_mic"]]);
+    assert.equal(testCfg.MEAS_MIC_CH, 1);
+    assert.equal(testCfg.BALANCE_CHANNELS.length, 0);
+    autoChannelMap(4, testCfg);
+    assert.equal(testCfg.CHANNELS.size, 4);
+    assert.equal(testCfg.CHANNELS.get(4), "meas_mic");
+    assert.equal(testCfg.MEAS_MIC_CH, 4);
   } finally {
-    restoreChannelMapState(snap);
+    restoreChannelMapState(snap, testCfg);
   }
 });
 
@@ -434,7 +436,7 @@ test("pick prefers native rate and modern API", () => {
 
 test("pick is null when there are no inputs", () => {
   const devs = [{ name: "Spk", max_input_channels: 0, default_samplerate: 48000, hostapi: 0 }];
-  assert.equal(pickInput(devs, [{ name: "MME" }], null), null);
+  assert.equal(pickInput(devs, [{ name: "MME" }], null, testCfg.SAMPLE_RATE), null);
 });
 
 test("external mic beats the built-in array even as default", () => {
@@ -448,7 +450,7 @@ test("external mic beats the built-in array even as default", () => {
 
 test("built-in is used when it is the only input", () => {
   const devs = [{ name: "Microphone Array (Realtek)", max_input_channels: 2, default_samplerate: 48000, hostapi: 0 }];
-  assert.notEqual(pickInput(devs, [{ name: "Windows WASAPI" }], null), null);
+  assert.notEqual(pickInput(devs, [{ name: "Windows WASAPI" }], null, testCfg.SAMPLE_RATE), null);
 });
 
 test("ASIO beats WASAPI for the same interface", () => {
@@ -489,7 +491,7 @@ test("listAudioDevices and autodetectInputs use the factory", () => {
   );
   f.listError = new Error("no portaudio");
   assert.equal(listAudioDevices(f), "could not list audio devices: no portaudio");
-  assert.deepEqual(autodetectInputs(f), []);
+  assert.deepEqual(autodetectInputs(f, testCfg.SAMPLE_RATE), []);
 });
 
 test("channel map parsing", () => {
@@ -515,7 +517,7 @@ test("channel map parsing", () => {
 
 test("ranking, picking, formatting and parsing match the recorded fixture", () => {
   const fx = fixture<any>("devices");
-  assert.equal(fx.sample_rate, C.SAMPLE_RATE);
+  assert.equal(fx.sample_rate, testCfg.SAMPLE_RATE);
   for (const row of fx.lists) {
     assert.deepEqual(rankInputs(row.devs, row.apis, row.default, row.prefer), row.ranked);
     assert.deepEqual(pickInput(row.devs, row.apis, row.default, row.prefer), row.picked);
@@ -605,8 +607,8 @@ test("a hot unmapped column does not hide silence on the mapped ones", () => {
     ]),
   });
   cap.start();
-  const data = new Float32Array(C.BLOCK * cap.ndev);
-  for (let i = 0; i < C.BLOCK; i++) data[i * cap.ndev + 1] = 0.5;
+  const data = new Float32Array(testCfg.BLOCK * cap.ndev);
+  for (let i = 0; i < testCfg.BLOCK; i++) data[i * cap.ndev + 1] = 0.5;
   cap.onAudio(data);
   cap.block();
   clock.advance(cap.SILENCE_HOLD_S + 1);
@@ -654,7 +656,7 @@ test("the factory's own output sink is used when none is given", async () => {
       played.push(s.length);
     },
   });
-  const cap = new DeviceCapture({ factory, clock: new ManualClock(0) });
+  const cap = new DeviceCapture({ cfg: testCfg, factory, clock: new ManualClock(0) });
   assert.equal(await cap.emitPinkNoise(new Float32Array(7)), true);
   assert.deepEqual(played, [7]);
 });
@@ -730,7 +732,7 @@ test("an unknown host API is reported as no API, not as the first one", () => {
   const devs = f.listDevices();
   assert.equal(devs[0]!.hostapi, 0);
   assert.equal(devs[2]!.hostapi, -1);
-  assert.equal(rankInputs(devs, f.listHostApis(), null).find((r) => r.index === 2)!.hostapi, "");
+  assert.equal(rankInputs(devs, f.listHostApis(), null, testCfg.SAMPLE_RATE).find((r) => r.index === 2)!.hostapi, "");
 });
 
 test("a device name only matches devices that have inputs", () => {
@@ -929,7 +931,7 @@ test("blocks that arrive in pairs are analysed one per tick instead of one being
   const { cap } = mk();
   cap.start();
   const level = (v: number): Float32Array => fullFrame(cap.ndev, v);
-  const first = [...C.CHANNELS.keys()][0]!;
+  const first = [...testCfg.CHANNELS.keys()][0]!;
   const seen: number[] = [];
   const tick = (): void => void seen.push(Math.round(cap.block().get(first)![0]! * 10));
   cap.onAudio(level(0.1));
@@ -991,7 +993,7 @@ test("a kernel-streaming entry ranks below the same device on any other host API
     { name: "USB Mic", max_input_channels: 2, default_samplerate: 48000, hostapi: 1 },
   ];
   assert.deepEqual(
-    rankInputs(devs, apis, null).map((r) => r.hostapi),
+    rankInputs(devs, apis, null, testCfg.SAMPLE_RATE).map((r) => r.hostapi),
     ["Windows WASAPI", "MME", "Windows WDM-KS"],
   );
 });
@@ -1056,7 +1058,7 @@ test("an output stream that will not start is released and rethrown, and one tha
   await f2.idle();
   assert.equal(sink2.lastError, "stream underflow");
   assert.equal(refused.opened[0]!.quit, 1);
-  const cap = new DeviceCapture({ factory: new FakeFactory(), clock: new ManualClock(0), outputSink: sink2 });
+  const cap = new DeviceCapture({ cfg: testCfg, factory: new FakeFactory(), clock: new ManualClock(0), outputSink: sink2 });
   assert.equal(cap.status()["outputError"], "stream underflow");
   const ok = fakeNative(offsetDevices);
   const f3 = new NativeAudioInputFactory(ok.native);

@@ -1,8 +1,8 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { C } from "../src/core/config.ts";
 import { dbToFader, OscConsole } from "../src/core/console.ts";
 import { EmulatedDesk } from "../src/core/emulator.ts";
 import { MemNetwork } from "../src/core/memtransport.ts";
@@ -14,6 +14,8 @@ import { SystemClock } from "../src/host/clock.ts";
 import { NodeUdpFactory } from "../src/host/udp.ts";
 import { fixture } from "./helpers.ts";
 import { StepClock } from "./stepclock.ts";
+
+const testCfg = defaultConfig();
 
 const scn = readFileSync(fileURLToPath(new URL("../../x32_default_nodes.scn", import.meta.url)), "utf8");
 const hex = (b: Uint8Array): string => Buffer.from(b).toString("hex");
@@ -79,6 +81,7 @@ async function memRig(opts: { meterHz?: number; externalMoves?: boolean } = {}) 
   const app = new Peerbox(await net.bind(0, "127.0.0.1"));
   const ed = new Peerbox(await net.bind(0, "127.0.0.1"));
   const desk = new EmulatedDesk(net, clock, {
+    cfg: testCfg,
     listenPort: 0,
     appIp: "127.0.0.1",
     appPort: app.ep.port,
@@ -106,7 +109,7 @@ class FakeApp {
 function bareDesk(opts: { meterHz?: number } = {}) {
   const net = new MemNetwork();
   const clock = new StepClock();
-  const desk = new EmulatedDesk(net, clock, opts);
+  const desk = new EmulatedDesk(net, clock, { cfg: testCfg, ...opts });
   const fake = new FakeApp();
   desk.setAppSender(fake.fn);
   return { net, clock, desk, fake };
@@ -185,11 +188,11 @@ test("discovery handshake answers /info /xinfo /status", async () => {
     const info = r.ed.inbox.shift()!;
     assert.equal(info.address, "/info");
     assert.equal(info.args.length, 4);
-    assert.deepEqual(strs(info), [C.X32_SERVER_VER, C.X32_NAME, C.X32_MODEL, C.X32_FW]);
+    assert.deepEqual(strs(info), [testCfg.X32_SERVER_VER, testCfg.X32_NAME, testCfg.X32_MODEL, testCfg.X32_FW]);
     r.ed.send("/xinfo");
     r.ed.send("/status");
     await r.net.settle();
-    assert.deepEqual(strs(r.ed.inbox.shift()!), ["10.0.0.5", C.X32_NAME, C.X32_MODEL, C.X32_FW]);
+    assert.deepEqual(strs(r.ed.inbox.shift()!), ["10.0.0.5", testCfg.X32_NAME, testCfg.X32_MODEL, testCfg.X32_FW]);
     const status = r.ed.inbox.shift()!;
     assert.equal(status.address, "/status");
     assert.equal(status.args[0]!.v, "active");
@@ -566,25 +569,25 @@ test("handler: mute, scene, xremote and default counters", () => {
 });
 
 test("extPick skips the measurement mic and handles a meas-only map", () => {
-  const savedChannels = C.CHANNELS;
-  const savedMeas = C.MEAS_MIC_CH;
+  const savedChannels = testCfg.CHANNELS;
+  const savedMeas = testCfg.MEAS_MIC_CH;
   try {
-    C.CHANNELS = new Map([[1, "meas_mic"]]);
-    C.MEAS_MIC_CH = 1;
-    assert.equal(EmulatedDesk.extPick(0), null);
-    C.CHANNELS = new Map([
+    testCfg.CHANNELS = new Map([[1, "meas_mic"]]);
+    testCfg.MEAS_MIC_CH = 1;
+    assert.equal(EmulatedDesk.extPick(0, testCfg), null);
+    testCfg.CHANNELS = new Map([
       [1, "meas_mic"],
       [2, "kick"],
       [3, "snare"],
     ]);
-    assert.equal(EmulatedDesk.extPick(0), 2);
-    assert.equal(EmulatedDesk.extPick(1), 3);
-    assert.equal(EmulatedDesk.extPick(2), 2);
+    assert.equal(EmulatedDesk.extPick(0, testCfg), 2);
+    assert.equal(EmulatedDesk.extPick(1, testCfg), 3);
+    assert.equal(EmulatedDesk.extPick(2, testCfg), 2);
   } finally {
-    C.CHANNELS = savedChannels;
-    C.MEAS_MIC_CH = savedMeas;
+    testCfg.CHANNELS = savedChannels;
+    testCfg.MEAS_MIC_CH = savedMeas;
   }
-  assert.notEqual(EmulatedDesk.extPick(0), null);
+  assert.notEqual(EmulatedDesk.extPick(0, testCfg), null);
 });
 
 test("handler: moveFaderExternally updates the model and tells the app", () => {
@@ -643,6 +646,7 @@ async function udpRig() {
   const faders: [number, number][] = [];
   const meters: number[][] = [];
   const rx = new MeterReceiver(udp, {
+    cfg: testCfg,
     ip: "127.0.0.1",
     port: 0,
     onFader: (ch, db) => faders.push([ch, db]),
@@ -650,6 +654,7 @@ async function udpRig() {
   });
   await rx.start();
   const desk = new EmulatedDesk(udp, new SystemClock(), {
+    cfg: testCfg,
     listenPort: 0,
     listenHost: "127.0.0.1",
     appIp: "127.0.0.1",
@@ -660,10 +665,13 @@ async function udpRig() {
   await desk.start();
   const peer = { host: "127.0.0.1", port: desk.listenPort };
   const consoleEp = await udp.bind(0, "127.0.0.1");
-  const con = new OscConsole({
-    send: (d) => consoleEp.send(d, peer),
-    close: () => consoleEp.close(),
-  });
+  const con = new OscConsole(
+    {
+      send: (d) => consoleEp.send(d, peer),
+      close: () => consoleEp.close(),
+    },
+    { cfg: testCfg },
+  );
   const editor = new Peerbox(await udp.bind(0, "127.0.0.1"));
   editor.target = peer;
   const stop = (): void => {
@@ -869,16 +877,16 @@ test("a node path with a long run of slashes is answered quickly", async () => {
 test("the meter rate is clamped", () => {
   const net = new MemNetwork();
   const clock = new StepClock();
-  assert.equal(new EmulatedDesk(net, clock, { meterHz: -1 }).meterHz, 0.1);
-  assert.equal(new EmulatedDesk(net, clock, { meterHz: 1e10 }).meterHz, 1000);
-  assert.equal(new EmulatedDesk(net, clock, { meterHz: Number.NaN }).meterHz, 10);
-  assert.equal(new EmulatedDesk(net, clock, { meterHz: 25 }).meterHz, 25);
+  assert.equal(new EmulatedDesk(net, clock, { cfg: testCfg, meterHz: -1 }).meterHz, 0.1);
+  assert.equal(new EmulatedDesk(net, clock, { cfg: testCfg, meterHz: 1e10 }).meterHz, 1000);
+  assert.equal(new EmulatedDesk(net, clock, { cfg: testCfg, meterHz: Number.NaN }).meterHz, 10);
+  assert.equal(new EmulatedDesk(net, clock, { cfg: testCfg, meterHz: 25 }).meterHz, 25);
 });
 
 test("start then stop leaves the port free and start works again", async () => {
   const net = new MemNetwork();
   const clock = new StepClock();
-  const desk = new EmulatedDesk(net, clock, { listenPort: 50200 });
+  const desk = new EmulatedDesk(net, clock, { cfg: testCfg, listenPort: 50200 });
   const first = desk.start();
   desk.stop();
   await first;
@@ -895,7 +903,7 @@ test("start, stop, start runs a single meter loop", async () => {
   const net = new MemNetwork();
   const clock = new StepClock();
   const app = await net.bind(0, "127.0.0.1");
-  const desk = new EmulatedDesk(net, clock, { listenPort: 50201, appPort: app.port, meterHz: 10 });
+  const desk = new EmulatedDesk(net, clock, { cfg: testCfg, listenPort: 50201, appPort: app.port, meterHz: 10 });
   await desk.start();
   desk.handleSubscribe();
   desk.stop();

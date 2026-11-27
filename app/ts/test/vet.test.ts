@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { ManualClock } from "../src/core/clock.ts";
-import { C, channelMapState } from "../src/core/config.ts";
+import { channelMapState, defaultConfig } from "../src/core/config.ts";
+import type { Config } from "../src/core/config.ts";
 import { ConsoleBase } from "../src/core/console.ts";
 import { EmulatedDesk } from "../src/core/emulator.ts";
 import { MemNetwork } from "../src/core/memtransport.ts";
@@ -26,7 +27,7 @@ import {
   vetSequence,
 } from "../src/core/vet.ts";
 import type { VetRow } from "../src/core/vet.ts";
-import { activeTuning, parseOverride, setTuning } from "../src/core/tuning.ts";
+import { parseOverride, withTuning } from "../src/core/tuning.ts";
 import { parseCliArgs } from "../src/host/args.ts";
 import { NativeAudioInputFactory } from "../src/host/audiodevice.ts";
 import { captureThread } from "../src/host/capturethread.ts";
@@ -41,6 +42,8 @@ import { NodeUdpFactory as RealUdp } from "../src/host/udp.ts";
 import { withEmulatorPorts } from "./emulatorports.ts";
 import { VET_EXPECTED_STEPS, VET_EXPECTED_STEPS_WITH_CONSOLE } from "../src/core/ports.ts";
 
+const testCfg = defaultConfig();
+
 interface Rig {
   desk: Desk;
   emu: EmulatedDesk;
@@ -50,16 +53,21 @@ interface Rig {
   close(): void;
 }
 
-async function rig(proof: "emulator" | "real console" = "emulator", answer = true): Promise<Rig> {
+async function rig(proof: "emulator" | "real console" = "emulator", answer = true, cfg: Config = defaultConfig()): Promise<Rig> {
   const clock = new ManualClock(100, 1_700_000_000);
   const net = new MemNetwork();
   const log = new VetLog(clock);
-  const rx = new MeterReceiver(net, { ip: "127.0.0.1", port: 0 });
+  const rx = new MeterReceiver(net, { cfg: testCfg, ip: "127.0.0.1", port: 0 });
   await rx.start();
-  const emu = new EmulatedDesk(net, clock, { listenPort: 0, listenHost: "127.0.0.1", appPort: proof === "emulator" ? rx.port : 1 });
+  const emu = new EmulatedDesk(net, clock, {
+    cfg: testCfg,
+    listenPort: 0,
+    listenHost: "127.0.0.1",
+    appPort: proof === "emulator" ? rx.port : 1,
+  });
   await emu.start();
   const target = { host: "127.0.0.1", port: answer ? emu.listenPort : 1 };
-  const desk = new Desk({ transmit: (data) => rx.send(data, target), clock, log, proof });
+  const desk = new Desk({ transmit: (data) => rx.send(data, target), clock, log, proof, cfg });
   rx.onMessage = (addr, args) => desk.receive(addr, args);
   return {
     desk,
@@ -84,7 +92,7 @@ const source = (name: string): string => readFileSync(fileURLToPath(new URL(`../
 
 test("the full sequence passes against the emulator and leaves the channel map as it found it", async () => {
   const r = await rig();
-  const before = channelMapState();
+  const before = channelMapState(r.desk.cfg);
   const rows: VetRow[] = [];
   try {
     await vetConsole(rows, r.desk, "Console", { channel: 2, main: true, gain: true });
@@ -98,11 +106,10 @@ test("the full sequence passes against the emulator and leaves the channel map a
     [],
   );
   assert.ok(rows.every((x) => x.proof === "emulator"));
-  assert.deepEqual(channelMapState(), before);
+  assert.deepEqual(channelMapState(r.desk.cfg), before);
 });
 
-test("the job steps run with the default tuning even when the app is tuned, and the tuning is put back", async () => {
-  const r = await rig();
+test("the job steps run on the full test's own config even when the desk's config is tuned, and leave that config alone", async () => {
   const tuned = [
     "feedback.ringDb=30",
     "feedback.sustainBlocks=20",
@@ -111,16 +118,22 @@ test("the job steps run with the default tuning even when the app is tuned, and 
     "unmask.voxGateDb=-10",
     "manual.holdS=60",
   ];
-  setTuning(tuned.map((t) => parseOverride(t, "test")));
+  const live = withTuning(
+    defaultConfig(),
+    tuned.map((t) => parseOverride(t, "test")),
+  );
+  const r = await rig("emulator", true, live);
   const rows: VetRow[] = [];
   try {
     await vetSequence(rows, r.desk, { externalMove: (ch, db) => r.emu.moveFaderExternally(ch, db) });
     assert.equal(failed(rows), "");
-    assert.equal(C.feedback.ringDb, 30);
-    assert.equal(activeTuning().length, tuned.length);
+    assert.equal(r.desk.cfg, live);
+    assert.equal(live.feedback.ringDb, 30);
+    assert.equal(live.TUNED.length, tuned.length);
+    assert.deepEqual([...live.CHANNELS], [...defaultConfig().CHANNELS]);
+    assert.deepEqual(live.STEREO_LINKS, []);
   } finally {
     r.close();
-    setTuning([]);
   }
 });
 
@@ -161,7 +174,7 @@ test("every console method, engine command and job has a row", async () => {
   assert.ok(commands.length >= 16, commands.join(","));
   for (const c of commands.filter((x) => x !== "vet"))
     assert.ok(covered.has(`command:${c}`), `no passing row covers the engine command ${c}`);
-  for (const job of Object.keys(C.DEFAULT_ENABLED)) assert.ok(covered.has(`job:${job}`), `no passing row covers the job ${job}`);
+  for (const job of Object.keys(testCfg.DEFAULT_ENABLED)) assert.ok(covered.has(`job:${job}`), `no passing row covers the job ${job}`);
 });
 
 test("a console that answers nothing is never written to", async () => {
@@ -373,7 +386,7 @@ test("--vet passes on this computer, covers every dashboard address and writes a
     writeFileSync(join(home, "show.conf"), "MODE=sim\nLAN=no\nPIN=secret-show-pin\n");
     const io = vetIo(lines, home);
     io.factory = await io.audio();
-    const out = await runVet(parseCliArgs(["--vet"]), io, { openSource: null, lanIp: () => Promise.resolve(null) });
+    const out = await runVet(parseCliArgs(["--vet"]), io, { cfg: defaultConfig(), openSource: null, lanIp: () => Promise.resolve(null) });
     const text = lines.join("\n");
     assert.equal(out.rows.length, VET_EXPECTED_STEPS, "update VET_EXPECTED_STEPS in core/ports.ts");
     const hasModule = out.rows.find((x) => x.id === "sys_audio_module")!.status === "pass";
@@ -410,7 +423,7 @@ test("--vet reports a broken show.conf instead of stopping", async () => {
   try {
     writeFileSync(join(home, "show.conf"), "MODE=hardwre\n");
     const io = vetIo(lines, home);
-    const out = await runVet(parseCliArgs(["--vet"]), io, { openSource: null, lanIp: () => Promise.resolve(null) });
+    const out = await runVet(parseCliArgs(["--vet"]), io, { cfg: defaultConfig(), openSource: null, lanIp: () => Promise.resolve(null) });
     const row = out.rows.find((x) => x.id === "conf_show")!;
     assert.equal(row.status, "fail");
     assert.match(row.detail, /MODE in show\.conf must be/);
@@ -456,7 +469,7 @@ test("the sound and phone layers run only when asked, and say what they need", a
       emitPinkNoise: () => Promise.resolve(true),
     };
     const args = parseCliArgs(["--vet", "--vet-sound", "--vet-phone", "--audio-device", "0"]);
-    const out = await runVet(args, io, { openSource: () => audio, lanIp: () => Promise.resolve(null) });
+    const out = await runVet(args, io, { cfg: defaultConfig(), openSource: () => audio, lanIp: () => Promise.resolve(null) });
     const snd = out.rows.find((x) => x.id === "sound_noise")!;
     assert.equal(snd.status, "pass", snd.detail);
     assert.match(snd.detail, /nothing was applied/);
@@ -469,6 +482,7 @@ test("the sound and phone layers run only when asked, and say what they need", a
     assert.equal(ph.status, "skip");
     assert.match(ph.detail, /--lan --pin/);
     const none = await runVet(parseCliArgs(["--vet", "--vet-sound"]), vetIo([], home), {
+      cfg: defaultConfig(),
       openSource: null,
       lanIp: () => Promise.resolve(null),
     });
@@ -482,7 +496,12 @@ test("the phone layer fails plainly when no phone signs in", async () => {
   const home = mkdtempSync(join(tmpdir(), "vet-home-"));
   try {
     const args = parseCliArgs(["--vet", "--vet-phone", "--lan", "--pin", "123456", "--port", "48771"]);
-    const out = await runVet(args, vetIo([], home), { openSource: null, lanIp: () => Promise.resolve("192.0.2.10"), phoneSeconds: 0.3 });
+    const out = await runVet(args, vetIo([], home), {
+      cfg: defaultConfig(),
+      openSource: null,
+      lanIp: () => Promise.resolve("192.0.2.10"),
+      phoneSeconds: 0.3,
+    });
     const ph = out.rows.find((x) => x.id === "phone_login")!;
     assert.equal(ph.status, "fail");
     assert.match(ph.detail, /no phone signed in within 0\.3 seconds/);
@@ -502,10 +521,14 @@ test("--vet sends nothing to the port a running app listens on", () =>
     });
     await new Promise<void>((resolve, reject) => {
       app.once("error", reject);
-      app.bind(C.LOCAL_PORT, "127.0.0.1", () => resolve());
+      app.bind(testCfg.LOCAL_PORT, "127.0.0.1", () => resolve());
     });
     try {
-      const out = await runVet(parseCliArgs(["--vet"]), vetIo([], home), { openSource: null, lanIp: () => Promise.resolve(null) });
+      const out = await runVet(parseCliArgs(["--vet"]), vetIo([], home), {
+        cfg: defaultConfig(),
+        openSource: null,
+        lanIp: () => Promise.resolve(null),
+      });
       assert.ok(out.rows.some((x) => x.id === "show_console_move" && x.status === "pass"));
       assert.deepEqual(strays, []);
     } finally {
@@ -515,7 +538,7 @@ test("--vet sends nothing to the port a running app listens on", () =>
   }));
 
 test("the full test and Run checks report why they are blocked, so the dashboard can grey them out", () => {
-  const e = new Engine({ clock: new ManualClock(100, 1_700_000_000), sim: true });
+  const e = new Engine({ cfg: testCfg, clock: new ManualClock(100, 1_700_000_000), sim: true });
   type VetView = { blocked: string; checksBlocked: string };
   const view = (): VetView => e.snapshot()["vet"] as VetView;
   assert.match(view().blocked, /not available/);
@@ -529,7 +552,7 @@ test("the full test and Run checks report why they are blocked, so the dashboard
 
 test("the dashboard command runs the full test, pauses the jobs while it runs and restores them", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
-  const e = new Engine({ clock, sim: true });
+  const e = new Engine({ cfg: testCfg, clock, sim: true });
   const during: boolean[] = [];
   let stateText = "";
   e.vetHost = {
@@ -566,9 +589,9 @@ test("the dashboard test gives the same result with harsh tuning and lists the t
     writeFileSync(join(home, "show.conf"), ["MODE=sim", "LAN=no", ""].join("\n"));
     const udp = new RealUdp();
     const clock = new SystemClock();
-    const emu = new EmulatedDesk(udp, clock, { listenPort: 0, listenHost: "127.0.0.1", appPort: C.LOCAL_PORT });
+    const emu = new EmulatedDesk(udp, clock, { cfg: testCfg, listenPort: 0, listenHost: "127.0.0.1", appPort: testCfg.LOCAL_PORT });
     await emu.start();
-    const rx = new MeterReceiver(udp, { ip: "127.0.0.1", port: C.LOCAL_PORT, allowFrom: "127.0.0.1" });
+    const rx = new MeterReceiver(udp, { cfg: testCfg, ip: "127.0.0.1", port: testCfg.LOCAL_PORT, allowFrom: "127.0.0.1" });
     await rx.start();
     const harsh = [
       "feedback.ringDb=30",
@@ -585,16 +608,20 @@ test("the dashboard test gives the same result with harsh tuning and lists the t
     try {
       const io: Io = { ...vetIo([], home), clock };
       io.factory = await io.audio();
-      const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null));
+      const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null), defaultConfig());
       const plain = await host.run({ channel: null, gain: false, main: false, identify: false }, idle);
       assert.match(plain.text, /Tuning: all defaults/);
-      setTuning(harsh.map((t) => parseOverride(t, "show.conf")));
-      const tuned = await host.run({ channel: null, gain: false, main: false, identify: false }, idle);
+      const live = withTuning(
+        defaultConfig(),
+        harsh.map((t) => parseOverride(t, "show.conf")),
+      );
+      const tunedHost = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null), live);
+      const tuned = await tunedHost.run({ channel: null, gain: false, main: false, identify: false }, idle);
       assert.equal(tuned.summary, plain.summary, tuned.text);
       assert.match(tuned.text, /feedback\.ringDb = 30 \(default 12, from show\.conf\)/);
-      assert.equal(C.feedback.ringDb, 30);
+      assert.equal(live.feedback.ringDb, 30);
+      assert.equal(live.TUNED.length, harsh.length);
     } finally {
-      setTuning([]);
       rx.stop();
       emu.stop();
       rmSync(home, { recursive: true, force: true });
@@ -607,15 +634,15 @@ test("the dashboard test reaches a real console through the app's own socket and
     writeFileSync(join(home, "show.conf"), ["MODE=sim", "LAN=no", ""].join("\n"));
     const udp = new RealUdp();
     const clock = new SystemClock();
-    const emu = new EmulatedDesk(udp, clock, { listenPort: 0, listenHost: "127.0.0.1", appPort: C.LOCAL_PORT });
+    const emu = new EmulatedDesk(udp, clock, { cfg: testCfg, listenPort: 0, listenHost: "127.0.0.1", appPort: testCfg.LOCAL_PORT });
     await emu.start();
-    const rx = new MeterReceiver(udp, { ip: "127.0.0.1", port: C.LOCAL_PORT, allowFrom: "127.0.0.1" });
+    const rx = new MeterReceiver(udp, { cfg: testCfg, ip: "127.0.0.1", port: testCfg.LOCAL_PORT, allowFrom: "127.0.0.1" });
     await rx.start();
     try {
       const lines: string[] = [];
       const io: Io = { ...vetIo(lines, home), clock };
       io.factory = await io.audio();
-      const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null));
+      const host = inAppVet(io, { rx, ip: "127.0.0.1", port: emu.listenPort }, () => Promise.resolve(null), defaultConfig());
       assert.ok(host.console);
       const seen: number[] = [];
       const out = await host.run(
@@ -660,7 +687,7 @@ test("the dashboard test reaches a real console through the app's own socket and
 
 test("while the full test runs other controls are ignored, a song change waits, and TAKEOVER aborts it", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
-  const e = new Engine({ clock, sim: true });
+  const e = new Engine({ cfg: testCfg, clock, sim: true });
   let release: () => void = () => undefined;
   const seen: { c: { stopped: () => boolean; takeover: () => boolean } | null } = { c: null };
   e.vetHost = {
@@ -708,7 +735,7 @@ class NeverWakes extends ManualClock {
 
 test("a stopping engine waits for the full test to put values back before it closes the console link", async () => {
   const clock = new NeverWakes(100, 1_700_000_000);
-  const e = new Engine({ clock, sim: true });
+  const e = new Engine({ cfg: testCfg, clock, sim: true });
   const order: string[] = [];
   let finish: () => void = () => undefined;
   e.vetHost = {
@@ -751,7 +778,7 @@ test("a takeover keeps the main bus muted when the test would put it back", asyn
 
 test("the dashboard shows a takeover pressed during the full test straight away", async () => {
   const clock = new ManualClock(100, 1_700_000_000);
-  const e = new Engine({ clock, sim: true });
+  const e = new Engine({ cfg: testCfg, clock, sim: true });
   let release: () => void = () => undefined;
   e.vetHost = {
     console: false,

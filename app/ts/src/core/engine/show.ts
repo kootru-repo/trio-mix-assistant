@@ -1,6 +1,4 @@
-import { C } from "../config.ts";
 import { percent, signed } from "../numfmt.ts";
-import { chan } from "../assistant/base.ts";
 import type { ShowState } from "../showclock.ts";
 import { songByName } from "../template.ts";
 import { buildModel, watchFreqs } from "../venue.ts";
@@ -56,13 +54,13 @@ export class EngineShow extends EngineControls {
       for (const [ch, v] of song.balance) if (v !== null) this.assistant.balanceTargets.set(ch, v);
     }
     const now2 = this.clock.monotonic();
-    for (const gch of C.GUEST_CHANNELS) {
-      if (!C.CHANNELS.has(gch) || this.status === "takeover") continue;
+    for (const gch of this.cfg.GUEST_CHANNELS) {
+      if (!this.cfg.CHANNELS.has(gch) || this.status === "takeover") continue;
       const want = !song.guest;
       if (this.muted.get(gch) === want) continue;
       if (now2 < (this.assistant.manualHoldUntil.get(gch) ?? -1e9)) continue;
       if (coach) {
-        this.assistant.recommend("guest", gch, `${want ? "Mute" : "Unmute"} ${chan(gch)} for '${song.name}'.`, true, { mute: want });
+        this.assistant.recommend("guest", gch, `${want ? "Mute" : "Unmute"} ${this.chan(gch)} for '${song.name}'.`, true, { mute: want });
       } else {
         this.con.setChannelMute(gch, want);
         this.muted.set(gch, want);

@@ -1,5 +1,4 @@
 import type { Clock } from "./clock.ts";
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import type {
   AudioDeviceInfo,
@@ -20,7 +19,7 @@ export interface TimedAudioOptions {
   content?: ContentFn | null;
   seed?: number;
   rng?: Rng | null;
-  cfg?: Config;
+  cfg: Config;
 }
 
 export class TimedAudioStream implements AudioInputStream {
@@ -40,11 +39,11 @@ export class TimedAudioStream implements AudioInputStream {
   private generation = 0;
   private i = 0;
 
-  constructor(callback: AudioInputCallback, channels: number, clock: Clock, opts: TimedAudioOptions = {}) {
+  constructor(callback: AudioInputCallback, channels: number, clock: Clock, opts: TimedAudioOptions) {
     this.callback = callback;
     this.channels = channels;
     this.clock = clock;
-    this.cfg = opts.cfg ?? C;
+    this.cfg = opts.cfg;
     this.sampleRate = opts.sampleRate ?? this.cfg.SAMPLE_RATE;
     this.blockSize = opts.blockSize ?? this.cfg.BLOCK;
     this.rng = opts.rng ?? new SeededRng(opts.seed ?? 5);
@@ -123,7 +122,7 @@ export class TimedAudioFactory implements AudioInputFactory {
   static readonly KEEP_STREAMS = 8;
   readonly streams: TimedAudioStream[] = [];
 
-  constructor(clock: Clock, maxChannels: number = 64, cfg: Config = C) {
+  constructor(clock: Clock, cfg: Config, maxChannels: number = 64) {
     this.clock = clock;
     this.maxChannels = maxChannels;
     this.cfg = cfg;

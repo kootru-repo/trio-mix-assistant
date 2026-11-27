@@ -2,25 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { C, defaultTuning } from "../src/core/config.ts";
+import { defaultConfig, defaultTuning } from "../src/core/config.ts";
 import { RemoteCapture } from "../src/core/capturelink.ts";
 import { ManualClock } from "../src/core/clock.ts";
 import { TemplateError, fromObject } from "../src/core/template.ts";
-import {
-  TUNABLE,
-  TuningError,
-  activeTuning,
-  checkedOverride,
-  parseOverride,
-  pinDefaultTuning,
-  setTuning,
-  tuningLines,
-  tuningTable,
-} from "../src/core/tuning.ts";
+import { TUNABLE, TuningError, checkedOverride, parseOverride, tuningLines, tuningTable, withTuning } from "../src/core/tuning.ts";
 import { UsageError, parseCliArgs } from "../src/host/args.ts";
 import { ConfError, buildArgv, parseConf } from "../src/host/launcher.ts";
 
-const reset = (): void => setTuning([]);
+const testCfg = defaultConfig();
 
 test("every tuning setting exists, has a number default and the default is inside its range", () => {
   const d = defaultTuning();
@@ -48,35 +38,34 @@ test("the hard guardrails and structural values cannot be tuned", () => {
   }
 });
 
-test("later overrides win, unset values keep their defaults, and an empty list restores every default", () => {
-  try {
-    setTuning([
-      parseOverride("feedback.ringDb=10", "template"),
-      parseOverride("feedback.ringDb=14", "show.conf"),
-      parseOverride("clip.trimDb=-3", "show.conf"),
-    ]);
-    assert.equal(C.feedback.ringDb, 14);
-    assert.equal(C.clip.trimDb, -3);
-    assert.equal(C.feedback.notchQ, defaultTuning().feedback.notchQ);
-    assert.equal(activeTuning().length, 3);
-    assert.deepEqual(tuningLines(), ["feedback.ringDb = 14 (default 12, from show.conf)", "clip.trimDb = -3 (default -2, from show.conf)"]);
-    reset();
-    assert.deepEqual({ ...C.feedback }, { ...defaultTuning().feedback });
-    assert.deepEqual(tuningLines(), []);
-  } finally {
-    reset();
-  }
+test("later overrides win, unset values keep their defaults, and an empty list keeps every default", () => {
+  const base = defaultConfig();
+  const cfg = withTuning(base, [
+    parseOverride("feedback.ringDb=10", "template"),
+    parseOverride("feedback.ringDb=14", "show.conf"),
+    parseOverride("clip.trimDb=-3", "show.conf"),
+  ]);
+  assert.equal(cfg.feedback.ringDb, 14);
+  assert.equal(cfg.clip.trimDb, -3);
+  assert.equal(cfg.feedback.notchQ, defaultTuning().feedback.notchQ);
+  assert.equal(cfg.TUNED.length, 3);
+  assert.deepEqual(tuningLines(cfg.TUNED), [
+    "feedback.ringDb = 14 (default 12, from show.conf)",
+    "clip.trimDb = -3 (default -2, from show.conf)",
+  ]);
+  assert.deepEqual({ ...base.feedback }, { ...defaultTuning().feedback });
+  assert.deepEqual(base.TUNED, []);
+  const plain = withTuning(base, []);
+  assert.deepEqual({ ...plain.feedback }, { ...defaultTuning().feedback });
+  assert.deepEqual(tuningLines(plain.TUNED), []);
 });
 
 test("tuned sections are read-only", () => {
-  try {
-    setTuning([parseOverride("ride.toleranceDb=3", "test")]);
-    assert.ok(Object.isFrozen(C.ride));
-    assert.equal(Reflect.set(C.ride, "toleranceDb", 9), false);
-    assert.equal(C.ride.toleranceDb, 3);
-  } finally {
-    reset();
-  }
+  const cfg = withTuning(defaultConfig(), [parseOverride("ride.toleranceDb=3", "test")]);
+  assert.ok(Object.isFrozen(cfg.ride));
+  assert.ok(Object.isFrozen(cfg.room));
+  assert.equal(Reflect.set(cfg.ride, "toleranceDb", 9), false);
+  assert.equal(cfg.ride.toleranceDb, 3);
 });
 
 test("names are matched without regard to case, as show.conf upper-cases its keys", () => {
@@ -93,39 +82,44 @@ test("unknown names, bad numbers, out-of-range and fractional whole-number value
 });
 
 test("a merge that leaves room.quietDb above room.loudDb is refused and changes nothing", () => {
-  try {
-    assert.throws(() => setTuning([parseOverride("room.quietDb=-20", "t"), parseOverride("room.loudDb=-30", "t")]), /must be below/);
-    assert.equal(C.room.quietDb, defaultTuning().room.quietDb);
-    assert.deepEqual(activeTuning(), []);
-  } finally {
-    reset();
-  }
+  const base = defaultConfig();
+  assert.throws(() => withTuning(base, [parseOverride("room.quietDb=-20", "t"), parseOverride("room.loudDb=-30", "t")]), /must be below/);
+  assert.equal(base.room.quietDb, defaultTuning().room.quietDb);
+  assert.deepEqual(base.TUNED, []);
 });
 
-test("the default restores after a pinned run", () => {
-  try {
-    setTuning([parseOverride("feedback.ringDb=20", "t")]);
-    const restore = pinDefaultTuning();
-    assert.equal(C.feedback.ringDb, 12);
-    assert.equal(activeTuning().length, 1);
-    restore();
-    assert.equal(C.feedback.ringDb, 20);
-  } finally {
-    reset();
-  }
+test("tuning builds a new config on top of its base and never changes the base", () => {
+  const base = defaultConfig();
+  base.CHANNELS = new Map([
+    [1, "lead_vox"],
+    [2, "meas_mic"],
+  ]);
+  const first = withTuning(base, [parseOverride("feedback.ringDb=20", "show.conf")]);
+  const second = withTuning(first, [parseOverride("clip.trimDb=-3", "--tune")]);
+  assert.notEqual(first, base);
+  assert.equal(base.feedback.ringDb, 12);
+  assert.equal(first.clip.trimDb, -2);
+  assert.equal(second.feedback.ringDb, 20);
+  assert.equal(second.clip.trimDb, -3);
+  assert.deepEqual(
+    second.TUNED.map((o) => o.path),
+    ["feedback.ringDb", "clip.trimDb"],
+  );
+  assert.equal(first.TUNED.length, 1);
+  assert.deepEqual([...second.CHANNELS.keys()], [1, 2]);
 });
 
 test("a template's tuning block is read and checked", () => {
-  const t = fromObject({ name: "Bench", tuning: { feedback: { ringDb: 10 }, clip: { peakDbfs: -2 } } });
+  const t = fromObject({ name: "Bench", tuning: { feedback: { ringDb: 10 }, clip: { peakDbfs: -2 } } }, testCfg);
   assert.deepEqual(t.tuning, [
     { path: "feedback.ringDb", value: 10, source: "template 'Bench'" },
     { path: "clip.peakDbfs", value: -2, source: "template 'Bench'" },
   ]);
-  assert.deepEqual(fromObject({}).tuning, []);
-  assert.throws(() => fromObject({ tuning: { feedback: { ringDb: 99 } } }), TemplateError);
-  assert.throws(() => fromObject({ tuning: { feedback: { ringDb: "10" } } }), TemplateError);
-  assert.throws(() => fromObject({ tuning: { nope: { x: 1 } } }), TemplateError);
-  assert.throws(() => fromObject({ tuning: [1] }), TemplateError);
+  assert.deepEqual(fromObject({}, testCfg).tuning, []);
+  assert.throws(() => fromObject({ tuning: { feedback: { ringDb: 99 } } }, testCfg), TemplateError);
+  assert.throws(() => fromObject({ tuning: { feedback: { ringDb: "10" } } }, testCfg), TemplateError);
+  assert.throws(() => fromObject({ tuning: { nope: { x: 1 } } }, testCfg), TemplateError);
+  assert.throws(() => fromObject({ tuning: [1] }, testCfg), TemplateError);
 });
 
 test("show.conf TUNE lines become --tune flags, and a bad one stops the launch", () => {
@@ -153,21 +147,18 @@ test("--tune is parsed and checked on the command line", () => {
   assert.match(tuningTable(), /feedback\.ringDb\s+12\s+6 to 30/);
 });
 
-test("the audio worker is sent the active tuning when capture opens, in its analysis settings, and never writes the shared settings", () => {
-  try {
-    setTuning([parseOverride("feedback.ringDb=18", "t")]);
-    const rc = new RemoteCapture({
-      connect: () => {
-        throw new Error("not used");
-      },
-      clock: new ManualClock(),
-      stamp: () => 0,
-    });
-    assert.deepEqual(rc.config().tuning, [{ path: "feedback.ringDb", value: 18, source: "t" }]);
-    assert.equal(rc.config().analysis.ringDb, 18);
-  } finally {
-    reset();
-  }
+test("the audio worker is sent its config's tuning when capture opens, in its analysis settings, and never writes the shared settings", () => {
+  const cfg = withTuning(defaultConfig(), [parseOverride("feedback.ringDb=18", "t")]);
+  const rc = new RemoteCapture({
+    connect: () => {
+      throw new Error("not used");
+    },
+    clock: new ManualClock(),
+    stamp: () => 0,
+    cfg,
+  });
+  assert.deepEqual(rc.config().tuning, [{ path: "feedback.ringDb", value: 18, source: "t" }]);
+  assert.equal(rc.config().analysis.ringDb, 18);
   const worker = readFileSync(fileURLToPath(new URL("../src/host/audioworker.ts", import.meta.url)), "utf8");
-  assert.doesNotMatch(worker, /setTuning|\bC\b/);
+  assert.doesNotMatch(worker, /setTuning|withTuning|\bC\b/);
 });

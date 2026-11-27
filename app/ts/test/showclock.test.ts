@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { C, configWith } from "../src/core/config.ts";
+import { configWith, defaultConfig } from "../src/core/config.ts";
 import { MemNetwork } from "../src/core/memtransport.ts";
 import { encodeMessage, oscStr } from "../src/core/oscwire.ts";
 import { AbleSetReceiver, SimShowClock } from "../src/core/showclock.ts";
@@ -8,16 +8,18 @@ import { fromObject } from "../src/core/template.ts";
 import type { ShowState } from "../src/core/showclock.ts";
 import { StepClock } from "./stepclock.ts";
 
+const testCfg = defaultConfig();
+
 test("a start that is stopped before it binds leaves the port free and the receiver stopped", async () => {
   const net = new MemNetwork();
-  const rx = new AbleSetReceiver(net, null, "127.0.0.1", 50210);
+  const rx = new AbleSetReceiver(net, testCfg, null, "127.0.0.1", 50210);
   const p = rx.start();
   rx.stop();
   await p;
   const probe = await net.bind(50210, "127.0.0.1");
   probe.close();
   const seen: string[] = [];
-  const rx2 = new AbleSetReceiver(net, (s) => seen.push(s.songName), "127.0.0.1", 50210);
+  const rx2 = new AbleSetReceiver(net, testCfg, (s) => seen.push(s.songName), "127.0.0.1", 50210);
   await rx2.start();
   rx2.stop();
   rx2.handle("/setlist/activeSongName", [oscStr("Late")]);
@@ -27,7 +29,7 @@ test("a start that is stopped before it binds leaves the port free and the recei
 test("starting twice binds once and the last start wins", async () => {
   const net = new MemNetwork();
   const seen: string[] = [];
-  const rx = new AbleSetReceiver(net, (s) => seen.push(s.songName), "127.0.0.1", 50211);
+  const rx = new AbleSetReceiver(net, testCfg, (s) => seen.push(s.songName), "127.0.0.1", 50211);
   const a = rx.start();
   const b = rx.start();
   await Promise.all([a, b]);
@@ -43,7 +45,7 @@ test("starting twice binds once and the last start wins", async () => {
 
 test("restarting the simulated show clock does not double its loop", async () => {
   const clock = new StepClock(0, 0);
-  const template = fromObject({ songs: [{ name: "A" }, { name: "B" }, { name: "C" }] });
+  const template = fromObject({ songs: [{ name: "A" }, { name: "B" }, { name: "C" }] }, testCfg);
   const states: ShowState[] = [];
   const sc = new SimShowClock(template, clock, (s) => states.push(s), 1.0);
   await sc.start();
@@ -58,10 +60,10 @@ test("restarting the simulated show clock does not double its loop", async () =>
 });
 
 test("the receiver listens on the injected config's AbleSet port when no port is given", async () => {
-  const before = C.ABLESET_PORT;
+  const before = testCfg.ABLESET_PORT;
   const net = new MemNetwork();
   const seen: string[] = [];
-  const rx = new AbleSetReceiver(net, (s) => seen.push(s.songName), "127.0.0.1", undefined, null, configWith({ ABLESET_PORT: 50219 }));
+  const rx = new AbleSetReceiver(net, configWith({ ABLESET_PORT: 50219 }), (s) => seen.push(s.songName), "127.0.0.1", undefined, null);
   await rx.start();
   const sender = await net.bind(0, "127.0.0.1");
   sender.send(encodeMessage("/setlist/activeSongName", [oscStr("Injected")]), { host: "127.0.0.1", port: 50219 });
@@ -69,13 +71,13 @@ test("the receiver listens on the injected config's AbleSet port when no port is
   assert.deepEqual(seen, ["Injected"]);
   rx.stop();
   sender.close();
-  assert.equal(C.ABLESET_PORT, before);
+  assert.equal(testCfg.ABLESET_PORT, before);
 });
 
 test("an explicit port wins over the injected config's AbleSet port", async () => {
   const net = new MemNetwork();
   const seen: string[] = [];
-  const rx = new AbleSetReceiver(net, (s) => seen.push(s.songName), "127.0.0.1", 50220, null, configWith({ ABLESET_PORT: 50221 }));
+  const rx = new AbleSetReceiver(net, configWith({ ABLESET_PORT: 50221 }), (s) => seen.push(s.songName), "127.0.0.1", 50220, null);
   await rx.start();
   const sender = await net.bind(0, "127.0.0.1");
   sender.send(encodeMessage("/setlist/activeSongName", [oscStr("Explicit")]), { host: "127.0.0.1", port: 50220 });

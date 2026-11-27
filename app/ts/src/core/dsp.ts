@@ -1,8 +1,10 @@
-import { C } from "./config.ts";
+import { defaultConfig } from "./config.ts";
 import type { CalibrationConfig } from "./config.ts";
 import { hanning, irfft, magnitude, rfft } from "./fft.ts";
 import { roundTo } from "./numfmt.ts";
 import type { Rng } from "./rng.ts";
+
+const DEFAULTS = defaultConfig();
 
 export type Samples = ArrayLike<number>;
 
@@ -49,7 +51,7 @@ export interface AnalyseOptions {
   ringDb?: number;
 }
 
-export function analyseBlock(samples: Samples, sr: number = C.SAMPLE_RATE, opts: AnalyseOptions = {}): ChannelFeatures {
+export function analyseBlock(samples: Samples, sr: number = DEFAULTS.SAMPLE_RATE, opts: AnalyseOptions = {}): ChannelFeatures {
   const n = samples.length;
   if (n === 0) return emptyFeatures();
   let sumSq = 0;
@@ -105,7 +107,7 @@ export function parabolicPeak(db: Float64Array, k: number): number {
   return k + delta;
 }
 
-export function findRingBin(db: Float64Array, ringDb: number = C.feedback.ringDb): number | null {
+export function findRingBin(db: Float64Array, ringDb: number = DEFAULTS.feedback.ringDb): number | null {
   if (db.length < 16) return null;
   const k = argmax(db);
   if (k === 0) return null;
@@ -137,7 +139,7 @@ export class RollingRingDetector {
   private buf = new Float32Array(0);
   private readonly win: Float64Array;
 
-  constructor(fftSize: number = C.feedback.detectFft, sr: number = C.SAMPLE_RATE, ringDb: number = C.feedback.ringDb) {
+  constructor(fftSize: number = DEFAULTS.feedback.detectFft, sr: number = DEFAULTS.SAMPLE_RATE, ringDb: number = DEFAULTS.feedback.ringDb) {
     this.n = Math.trunc(fftSize);
     this.sr = sr;
     this.ringDb = ringDb;
@@ -181,7 +183,12 @@ export interface PhaseRelation {
 
 const noPhase = (): PhaseRelation => ({ zeroCorr: 0, bestCorr: 0, lagSamples: 0, lagMs: 0 });
 
-export function phaseRelation(a: Samples, b: Samples, sr: number = C.SAMPLE_RATE, maxLagMs: number = C.phase.maxLagMs): PhaseRelation {
+export function phaseRelation(
+  a: Samples,
+  b: Samples,
+  sr: number = DEFAULTS.SAMPLE_RATE,
+  maxLagMs: number = DEFAULTS.phase.maxLagMs,
+): PhaseRelation {
   const n = Math.min(a.length, b.length);
   if (n < 16) return noPhase();
   const x = new Float64Array(n);
@@ -234,8 +241,8 @@ export function phaseRelation(a: Samples, b: Samples, sr: number = C.SAMPLE_RATE
 export function generatePinkNoise(
   seconds: number,
   rng: Rng,
-  sr: number = C.SAMPLE_RATE,
-  levelDbfs: number = C.calibration.noiseDbfs,
+  sr: number = DEFAULTS.SAMPLE_RATE,
+  levelDbfs: number = DEFAULTS.calibration.noiseDbfs,
 ): Float32Array {
   const n = Math.trunc(seconds * sr);
   const white = new Float64Array(n);
@@ -261,8 +268,8 @@ export function generatePinkNoise(
 
 export function octaveBandLevels(
   samples: Samples,
-  sr: number = C.SAMPLE_RATE,
-  bands: readonly number[] = C.calibration.octaveBands,
+  sr: number = DEFAULTS.SAMPLE_RATE,
+  bands: readonly number[] = DEFAULTS.calibration.octaveBands,
 ): Map<number, number> {
   const n = samples.length;
   const win = hanning(n);
@@ -291,9 +298,9 @@ export type BandPair = [number, number];
 
 export function findResonantPeaks(
   captured: Samples,
-  sr: number = C.SAMPLE_RATE,
+  sr: number = DEFAULTS.SAMPLE_RATE,
   precomputed: Map<number, number> | null = null,
-  cal: Readonly<CalibrationConfig> = C.calibration,
+  cal: Readonly<CalibrationConfig> = DEFAULTS.calibration,
 ): { corrections: BandPair[]; watchlist: BandPair[] } {
   const bands = precomputed ?? octaveBandLevels(captured, sr, cal.octaveBands);
   const fcs = [...bands.keys()];

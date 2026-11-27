@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Calibrator } from "../src/core/calibration.ts";
 import type { CalibrationResult } from "../src/core/calibration.ts";
-import { C, configWith, defaultConfig } from "../src/core/config.ts";
+import { configWith, defaultConfig } from "../src/core/config.ts";
 import type { Config } from "../src/core/config.ts";
 import { SimConsole } from "../src/core/console.ts";
+
+const testCfg = defaultConfig();
 
 class BusEqRecorder extends SimConsole {
   calls: [number, number, number, number][] = [];
@@ -45,21 +47,21 @@ const result: CalibrationResult = {
 };
 
 test("the calibrator plans with the injected calibration settings", () => {
-  const before = snapshot(C);
-  const steps = new Calibrator(new SimConsole(), injected()).plan(result);
+  const before = snapshot(testCfg);
+  const steps = new Calibrator(new SimConsole({ cfg: testCfg }), injected()).plan(result);
   assert.deepEqual(steps, [
     { band: 1, hz: 100, gain: -3, q: 9, kind: "room" },
     { band: 2, hz: 300, gain: -1, q: 7, kind: "predip", excess: 4.5 },
   ]);
-  const defaults = new Calibrator(new SimConsole()).plan(result);
+  const defaults = new Calibrator(new SimConsole({ cfg: testCfg }), testCfg).plan(result);
   assert.equal(defaults.length, 4);
-  assert.equal(defaults[0]!.q, C.calibration.roomQ);
-  assert.equal(snapshot(C), before);
+  assert.equal(defaults[0]!.q, testCfg.calibration.roomQ);
+  assert.equal(snapshot(testCfg), before);
 });
 
 test("the calibrator flattens the injected number of bus EQ bands at the injected flat point", () => {
-  const before = snapshot(C);
-  const con = new BusEqRecorder();
+  const before = snapshot(testCfg);
+  const con = new BusEqRecorder({ cfg: testCfg });
   const log: string[] = [];
   const used = new Calibrator(con, injected()).apply(result, (m) => log.push(m));
   assert.deepEqual(con.calls, [
@@ -70,22 +72,22 @@ test("the calibrator flattens the injected number of bus EQ bands at the injecte
   ]);
   assert.deepEqual([...used], [1, 2]);
   assert.equal(log.length, 2);
-  assert.equal(snapshot(C), before);
+  assert.equal(snapshot(testCfg), before);
 });
 
 test("the calibrator analyses at the injected sample rate", () => {
-  const before = snapshot(C);
+  const before = snapshot(testCfg);
   const n = 48000;
   const tone = Array.from({ length: n }, (_, i) => 0.5 * Math.sin((2 * Math.PI * 1000 * i) / 48000));
   const loudest = (r: CalibrationResult): number => [...r.baseline.entries()].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
-  assert.equal(loudest(new Calibrator(new SimConsole()).analyze(tone)), 1000);
-  assert.equal(loudest(new Calibrator(new SimConsole(), injected()).analyze(tone)), 2000);
-  assert.ok(new Calibrator(new SimConsole()).analyze(tone).corrections.length > 0);
+  assert.equal(loudest(new Calibrator(new SimConsole({ cfg: testCfg }), testCfg).analyze(tone)), 1000);
+  assert.equal(loudest(new Calibrator(new SimConsole({ cfg: testCfg }), injected()).analyze(tone)), 2000);
+  assert.ok(new Calibrator(new SimConsole({ cfg: testCfg }), testCfg).analyze(tone).corrections.length > 0);
   const deaf = configWith({ calibration: Object.freeze({ ...defaultConfig().calibration, peakThreshDb: 1000 }) });
-  assert.deepEqual(new Calibrator(new SimConsole(), deaf).analyze(tone).corrections, []);
+  assert.deepEqual(new Calibrator(new SimConsole({ cfg: testCfg }), deaf).analyze(tone).corrections, []);
   const fewBands = configWith({
     calibration: Object.freeze({ ...defaultConfig().calibration, octaveBands: Object.freeze([500, 1000, 2000]) }),
   });
-  assert.deepEqual([...new Calibrator(new SimConsole(), fewBands).analyze(tone).baseline.keys()], [500, 1000, 2000]);
-  assert.equal(snapshot(C), before);
+  assert.deepEqual([...new Calibrator(new SimConsole({ cfg: testCfg }), fewBands).analyze(tone).baseline.keys()], [500, 1000, 2000]);
+  assert.equal(snapshot(testCfg), before);
 });

@@ -1,3 +1,4 @@
+import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AnalysedBlock } from "../src/core/blockanalysis.ts";
@@ -7,13 +8,14 @@ import type { Frame } from "../src/core/capture.ts";
 import { RemoteCapture, loopbackPort } from "../src/core/capturelink.ts";
 import type { CapturePort, FromCapture, RemoteCaptureOptions, ToCapture } from "../src/core/capturelink.ts";
 import { ManualClock } from "../src/core/clock.ts";
-import { C } from "../src/core/config.ts";
 import { DeviceCapture } from "../src/core/devicecapture.ts";
 import type { AudioInputCallback, AudioInputFactory, AudioInputStream } from "../src/core/devicecapture.ts";
 import { Engine } from "../src/core/engine/index.ts";
 import { TimedAudioFactory } from "../src/core/timedaudio.ts";
 import { captureThread } from "../src/host/capturethread.ts";
 import { SystemClock, threadStamp } from "../src/host/clock.ts";
+
+const testCfg = defaultConfig();
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const busy = (ms: number): void => {
@@ -26,11 +28,11 @@ const tone = (n: number, amp: number): Float32Array =>
 
 test("the analyser works from the configuration it is given, not from this thread's settings", () => {
   const frame: Frame = new Map([
-    [1, tone(C.BLOCK, 0.5)],
-    [2, tone(C.BLOCK, 0.5)],
-    [3, tone(C.BLOCK, 0.25)],
+    [1, tone(testCfg.BLOCK, 0.5)],
+    [2, tone(testCfg.BLOCK, 0.5)],
+    [3, tone(testCfg.BLOCK, 0.25)],
   ]);
-  const out = new BlockAnalyser().analyse(frame, { channels: [2, 3], measCh: 3, phasePairs: [[2, 3]], sampleRate: 48000 });
+  const out = new BlockAnalyser(testCfg).analyse(frame, { channels: [2, 3], measCh: 3, phasePairs: [[2, 3]], sampleRate: 48000 });
   assert.deepEqual([...out.feats.keys()], [2, 3]);
   assert.ok(Math.abs(out.feats.get(2)!.rmsDbfs - -9.03) < 0.2);
   assert.deepEqual(
@@ -38,7 +40,7 @@ test("the analyser works from the configuration it is given, not from this threa
     [[2, 3]],
   );
   assert.ok(out.phases[0]!.relation.zeroCorr > 0.9);
-  const none = new BlockAnalyser().analyse(
+  const none = new BlockAnalyser(testCfg).analyse(
     frame,
     { channels: [2, 3], measCh: 3, phasePairs: [[2, 3]], sampleRate: 48000 },
     undefined,
@@ -72,12 +74,13 @@ class PushFactory implements AudioInputFactory {
   }
 }
 
-const frameOf = (cols: number, level: number): Float32Array => new Float32Array(C.BLOCK * cols).fill(level);
+const frameOf = (cols: number, level: number): Float32Array => new Float32Array(testCfg.BLOCK * cols).fill(level);
 
 test("in push mode every arriving block is handed over once, with no timer in between", () => {
   const factory = new PushFactory();
   const clock = new ManualClock(10);
   const cap = new DeviceCapture({
+    cfg: testCfg,
     factory,
     clock,
     channelMap: new Map([
@@ -97,7 +100,7 @@ test("in push mode every arriving block is handed over once, with no timer in be
 test("in push mode a device is dead when nothing has arrived for a while, and never just because it was stopped", () => {
   const factory = new PushFactory();
   const clock = new ManualClock(10);
-  const cap = new DeviceCapture({ factory, clock, channelMap: new Map([[8, 0]]) });
+  const cap = new DeviceCapture({ cfg: testCfg, factory, clock, channelMap: new Map([[8, 0]]) });
   cap.subscribeFrames(() => undefined);
   assert.equal(cap.dead(), false);
   cap.start();
@@ -129,6 +132,7 @@ test("in push mode a room-mic recording is cut from the arriving blocks", async 
   const factory = new PushFactory();
   const clock = new ManualClock(10);
   const cap = new DeviceCapture({
+    cfg: testCfg,
     factory,
     clock,
     channelMap: new Map([
@@ -138,14 +142,14 @@ test("in push mode a room-mic recording is cut from the arriving blocks", async 
   });
   cap.subscribeFrames(() => undefined);
   cap.start();
-  const seconds = (3 * C.BLOCK) / C.SAMPLE_RATE;
+  const seconds = (3 * testCfg.BLOCK) / testCfg.SAMPLE_RATE;
   const pending = cap.captureMeas(seconds);
-  const one = new Float32Array(C.BLOCK * 2);
-  for (let i = 0; i < C.BLOCK; i++) one[i * 2 + 1] = 0.5;
+  const one = new Float32Array(testCfg.BLOCK * 2);
+  for (let i = 0; i < testCfg.BLOCK; i++) one[i * 2 + 1] = 0.5;
   for (let i = 0; i < 4; i++) factory.callback!(one, false);
   const rec = await pending;
   assert.ok(rec !== null);
-  assert.equal(rec.length, 3 * C.BLOCK);
+  assert.equal(rec.length, 3 * testCfg.BLOCK);
   assert.ok(rec.every((v) => v === 0.5));
   assert.equal(await cap.captureMeas(1.0), null, "nothing arrived, so there is no recording");
 });
@@ -153,17 +157,23 @@ test("in push mode a room-mic recording is cut from the arriving blocks", async 
 const realClock = new SystemClock();
 
 const linked = (factory: AudioInputFactory, extra: Partial<RemoteCaptureOptions> = {}): RemoteCapture =>
-  new RemoteCapture({ connect: () => loopbackPort(factory, realClock, threadStamp), clock: realClock, stamp: threadStamp, ...extra });
+  new RemoteCapture({
+    cfg: testCfg,
+    connect: () => loopbackPort(factory, realClock, threadStamp, testCfg),
+    clock: realClock,
+    stamp: threadStamp,
+    ...extra,
+  });
 
 test("blocks cross the link already analysed, using the channel layout sent when the device was opened", async () => {
-  const src = linked(new TimedAudioFactory(realClock), {
+  const src = linked(new TimedAudioFactory(realClock, testCfg), {
     channelMap: new Map([
       [1, 0],
       [3, 7],
     ]),
     measCh: 3,
   });
-  const saved = { channels: C.CHANNELS, meas: C.MEAS_MIC_CH };
+  const saved = { channels: testCfg.CHANNELS, meas: testCfg.MEAS_MIC_CH };
   const blocks: AnalysedBlock[] = [];
   const ages: number[] = [];
   src.subscribe((b, age) => {
@@ -171,16 +181,16 @@ test("blocks cross the link already analysed, using the channel layout sent when
     ages.push(age);
   });
   try {
-    C.CHANNELS = new Map([
+    testCfg.CHANNELS = new Map([
       [1, "lead_vox"],
       [3, "meas_mic"],
     ]);
-    C.MEAS_MIC_CH = 3;
+    testCfg.MEAS_MIC_CH = 3;
     src.start();
     await src.ready();
   } finally {
-    C.CHANNELS = saved.channels;
-    C.MEAS_MIC_CH = saved.meas;
+    testCfg.CHANNELS = saved.channels;
+    testCfg.MEAS_MIC_CH = saved.meas;
   }
   for (let i = 0; i < 100 && blocks.length < 10; i++) await sleep(50);
   const st = src.status();
@@ -200,7 +210,7 @@ test("blocks cross the link already analysed, using the channel layout sent when
 });
 
 test("a device that will not open rejects with a capture error and is reported dead so the engine retries", async () => {
-  const src = linked(new TimedAudioFactory(realClock, 2));
+  const src = linked(new TimedAudioFactory(realClock, testCfg, 2));
   src.start();
   await assert.rejects(
     src.ready(),
@@ -215,13 +225,13 @@ test("a device that will not open rejects with a capture error and is reported d
 });
 
 test("restart, recording and input gain run on the capture side and report back", async () => {
-  const factory = new TimedAudioFactory(realClock);
+  const factory = new TimedAudioFactory(realClock, testCfg);
   const src = linked(factory);
   src.subscribe(() => undefined);
   src.start();
   await src.ready();
   const rec = await src.captureMeas(0.2);
-  assert.ok(rec instanceof Float32Array && rec.length === Math.trunc(0.2 * C.SAMPLE_RATE));
+  assert.ok(rec instanceof Float32Array && rec.length === Math.trunc(0.2 * testCfg.SAMPLE_RATE));
   assert.equal(await src.restart(), true);
   assert.equal(factory.streams.length, 2);
   const gain = await src.autoGain();
@@ -265,6 +275,7 @@ const scripted = () => {
   const ports: ScriptedPort[] = [];
   let stampMs = 5000;
   const src = new RemoteCapture({
+    cfg: testCfg,
     connect: () => {
       const p = new ScriptedPort();
       ports.push(p);
@@ -386,7 +397,7 @@ class PushSource {
 test("with a pushing source the engine analyses nothing on its timer and handles each block when it arrives", async () => {
   const clock = new ManualClock(50);
   const source = new PushSource();
-  const engine = new Engine({ clock, source, sim: true });
+  const engine = new Engine({ cfg: testCfg, clock, source, sim: true });
   const times: number[] = [];
   const onFeatures = engine.assistant.onFeatures.bind(engine.assistant);
   engine.assistant.onFeatures = (ch, feat, now) => {
@@ -397,12 +408,12 @@ test("with a pushing source the engine analyses nothing on its timer and handles
   assert.ok(source.handler !== null);
   engine.step(clock.monotonic(), clock.monotonic());
   assert.equal(source.pulls, 0);
-  const lead = C.LEAD_VOCAL_CH;
-  const block = new BlockAnalyser().analyse(new Map([[lead, tone(C.BLOCK, 0.2)]]), {
+  const lead = testCfg.LEAD_VOCAL_CH;
+  const block = new BlockAnalyser(testCfg).analyse(new Map([[lead, tone(testCfg.BLOCK, 0.2)]]), {
     channels: [lead],
-    measCh: C.MEAS_MIC_CH,
+    measCh: testCfg.MEAS_MIC_CH,
     phasePairs: [],
-    sampleRate: C.SAMPLE_RATE,
+    sampleRate: testCfg.SAMPLE_RATE,
   });
   const now = clock.monotonic();
   source.handler(block, 0.1);
@@ -418,8 +429,8 @@ test("with a pushing source the engine analyses nothing on its timer and handles
 });
 
 test("a real audio thread keeps capturing while the main thread is frozen, and the engine does not restart it", async () => {
-  const source = new RemoteCapture({ connect: () => captureThread("timed"), clock: realClock, stamp: threadStamp });
-  const engine = new Engine({ clock: realClock, source, sim: true, tick: C.BLOCK / C.SAMPLE_RATE });
+  const source = new RemoteCapture({ cfg: testCfg, connect: () => captureThread("timed"), clock: realClock, stamp: threadStamp });
+  const engine = new Engine({ cfg: testCfg, clock: realClock, source, sim: true, tick: testCfg.BLOCK / testCfg.SAMPLE_RATE });
   let handled = 0;
   const onPushed = engine.onPushedBlock.bind(engine);
   engine.onPushedBlock = (block, age) => {
@@ -438,7 +449,7 @@ test("a real audio thread keeps capturing while the main thread is frozen, and t
     for (let i = 0; i < 200 && handled <= before + 15; i++) await sleep(50);
     const seconds = (performance.now() - t0) / 1000;
     const produced = handled + source.stale - countBefore;
-    const expected = seconds * (C.SAMPLE_RATE / C.BLOCK);
+    const expected = seconds * (testCfg.SAMPLE_RATE / testCfg.BLOCK);
     assert.ok(source.stale > 20, `blocks captured during the freeze must arrive afterwards (stale ${source.stale})`);
     assert.ok(produced > expected * 0.7 && produced < expected * 1.15, `captured ${produced}, expected about ${expected.toFixed(0)}`);
     assert.ok(handled > before + 15, "fresh blocks are handled again after the freeze");

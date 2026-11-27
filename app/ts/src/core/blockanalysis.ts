@@ -1,5 +1,4 @@
 import type { Frame } from "./capture.ts";
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import { RollingRingDetector, analyseBlock, phaseRelation } from "./dsp.ts";
 import type { ChannelFeatures, PhaseRelation } from "./dsp.ts";
@@ -25,7 +24,7 @@ export interface AnalysedBlock {
   phases: PhaseReading[];
 }
 
-export const analysisConfig = (cfg: Config = C): AnalysisConfig => ({
+export const analysisConfig = (cfg: Config): AnalysisConfig => ({
   channels: [...cfg.CHANNELS.keys()],
   measCh: cfg.MEAS_MIC_CH,
   phasePairs: cfg.PHASE_PAIRS.map((p) => [...p]),
@@ -35,13 +34,11 @@ export const analysisConfig = (cfg: Config = C): AnalysisConfig => ({
   maxLagMs: cfg.phase.maxLagMs,
 });
 
-export const currentAnalysisConfig = (): AnalysisConfig => analysisConfig();
-
 export class BlockAnalyser {
   private readonly cfg: Config;
   private ring: RollingRingDetector | null = null;
 
-  constructor(cfg: Config = C) {
+  constructor(cfg: Config) {
     this.cfg = cfg;
   }
 

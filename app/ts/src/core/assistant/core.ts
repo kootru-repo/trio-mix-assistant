@@ -1,6 +1,5 @@
 import type { CalibrationResult, CalibrationStep } from "../calibration.ts";
 import type { Clock } from "../clock.ts";
-import { C } from "../config.ts";
 import type { Config } from "../config.ts";
 import type { ChannelFeatures, PhaseRelation } from "../dsp.ts";
 import type { AssistantEvent, CoachRec, EventHandler, LatencyHandler } from "./base.ts";
@@ -17,7 +16,7 @@ import { RoomModel, StageJob } from "./room.ts";
 export interface AssistantOptions {
   onEvent?: EventHandler | null;
   onLatency?: LatencyHandler | null;
-  config?: Config;
+  config: Config;
 }
 
 export class MixAssistant {
@@ -39,8 +38,8 @@ export class MixAssistant {
   readonly phase: PhaseJob;
   readonly unmask: UnmaskJob;
 
-  constructor(console: MixerPort, clock: Clock, opts: AssistantOptions = {}) {
-    this.cfg = opts.config ?? C;
+  constructor(console: MixerPort, clock: Clock, opts: AssistantOptions) {
+    this.cfg = opts.config;
     this.clock = clock;
     this.con = console;
     this.onEvent = opts.onEvent ?? null;

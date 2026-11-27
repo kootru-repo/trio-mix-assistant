@@ -26,6 +26,14 @@ const RULES: readonly Rule[] = [
     ),
   },
   { name: "a skipped or focused test", pattern: /\b(it|test|describe)\.(skip|only|todo)\s*\(|\bskip:\s*true\b/ },
+  { name: "a read of the shared config C (pass a Config instead)", pattern: /(?<![\w$])(?<!(?<!\.)\.)C\.[A-Za-z_$]/ },
+];
+
+const FILE_RULES: readonly Rule[] = [
+  {
+    name: "an import of the shared config C (pass a Config instead)",
+    pattern: /import\s+(type\s+)?\{[^}]*(?<![\w$])C(?![\w$])[^}]*\}\s*from\s*["'][^"']*config(\.ts)?["']/g,
+  },
 ];
 
 export interface Finding {
@@ -37,9 +45,16 @@ export interface Finding {
 
 export function scan(file: string, text: string): Finding[] {
   const out: Finding[] = [];
-  text.split(/\r?\n/).forEach((line, i) => {
+  const lines = text.split(/\r?\n/);
+  lines.forEach((line, i) => {
     for (const r of RULES) if (r.pattern.test(line)) out.push({ file, line: i + 1, rule: r.name, text: line.trim() });
   });
+  for (const r of FILE_RULES) {
+    for (const m of text.matchAll(r.pattern)) {
+      const at = text.slice(0, m.index).split(/\r?\n/).length;
+      out.push({ file, line: at, rule: r.name, text: (lines[at - 1] ?? "").trim() });
+    }
+  }
   return out;
 }
 

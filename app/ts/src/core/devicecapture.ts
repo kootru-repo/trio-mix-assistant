@@ -1,7 +1,6 @@
 import { CaptureError, CaptureSourceBase } from "./capture.ts";
 import type { CaptureStatus, Frame } from "./capture.ts";
 import type { Clock } from "./clock.ts";
-import { C } from "./config.ts";
 import type { Config } from "./config.ts";
 import { roundHalfEven, roundTo } from "./numfmt.ts";
 import { parseInteger } from "./util.ts";
@@ -75,7 +74,7 @@ export interface DeviceCaptureOptions {
   outputDevice?: AudioDeviceId | null;
   outputSink?: AudioOutputSink | null;
   gainDb?: number;
-  cfg?: Config;
+  cfg: Config;
 }
 
 interface QueuedFrame {
@@ -185,7 +184,7 @@ export class DeviceCapture extends CaptureSourceBase {
     this.outputOk = this.outputSink !== null;
     this.gainDb = Number(opts.gainDb ?? 0.0);
     this.gain = 10.0 ** (this.gainDb / 20.0);
-    const cfg = opts.cfg ?? C;
+    const cfg = opts.cfg;
     this.samplerate = opts.sampleRate ?? cfg.SAMPLE_RATE;
     this.blocksize = opts.block ?? cfg.BLOCK;
     this.measCh = opts.measCh ?? cfg.MEAS_MIC_CH;
@@ -555,7 +554,7 @@ export function rankInputs(
   devs: readonly AudioDeviceInfo[],
   hostapis: readonly AudioHostApiInfo[],
   defaultName: string | null,
-  preferSr: number = C.SAMPLE_RATE,
+  preferSr: number,
 ): RankedInput[] {
   const cands: [number, AudioDeviceInfo][] = [];
   devs.forEach((d, i) => {
@@ -596,13 +595,13 @@ export function pickInput(
   devs: readonly AudioDeviceInfo[],
   hostapis: readonly AudioHostApiInfo[],
   defaultName: string | null,
-  preferSr: number = C.SAMPLE_RATE,
+  preferSr: number,
 ): RankedInput | null {
   const r = rankInputs(devs, hostapis, defaultName, preferSr);
   return r[0] ?? null;
 }
 
-export function autodetectInputs(factory: AudioInputFactory, preferSr: number = C.SAMPLE_RATE): RankedInput[] {
+export function autodetectInputs(factory: AudioInputFactory, preferSr: number): RankedInput[] {
   try {
     const devs = factory.listDevices();
     const apis = factory.listHostApis();

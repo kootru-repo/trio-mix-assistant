@@ -1,5 +1,7 @@
-import { C, defaultTuning } from "./config.ts";
-import type { Tuning } from "./config.ts";
+import { defaultTuning } from "./config.ts";
+import type { Config, Tuning, TuningOverride } from "./config.ts";
+
+export type { TuningOverride } from "./config.ts";
 
 export class TuningError extends Error {
   constructor(message: string) {
@@ -9,12 +11,6 @@ export class TuningError extends Error {
 }
 
 export type TuningPath = { [S in keyof Tuning]: `${S}.${Extract<keyof Tuning[S], string>}` }[keyof Tuning];
-
-export interface TuningOverride {
-  path: string;
-  value: number;
-  source: string;
-}
 
 interface Tunable {
   path: TuningPath;
@@ -143,8 +139,16 @@ export function parseOverride(text: string, source: string): TuningOverride {
   return checkedOverride(text.slice(0, at), text.slice(at + 1), source);
 }
 
-function merged(overrides: readonly TuningOverride[]): Tuning {
+const SECTIONS = Object.keys(defaultTuning()) as readonly (keyof Tuning)[];
+
+function sectionsOf(cfg: Config): Tuning {
   const t = defaultTuning();
+  for (const k of SECTIONS) Reflect.set(t, k, Object.freeze({ ...cfg[k] }));
+  return t;
+}
+
+function merged(base: Config, overrides: readonly TuningOverride[]): Tuning {
+  const t = sectionsOf(base);
   for (const o of overrides) {
     const [section, key] = tunable(o.path).path.split(".");
     if (section === undefined || key === undefined) continue;
@@ -158,25 +162,12 @@ function merged(overrides: readonly TuningOverride[]): Tuning {
   return t;
 }
 
-let active: readonly TuningOverride[] = [];
-
-export function setTuning(overrides: readonly TuningOverride[]): void {
-  const t = merged(overrides);
-  Object.assign(C, t);
-  active = overrides.map((o) => ({ ...o }));
+export function withTuning(base: Config, overrides: readonly TuningOverride[]): Config {
+  const t = merged(base, overrides);
+  return { ...base, ...t, TUNED: [...base.TUNED, ...overrides.map((o) => ({ ...o }))] };
 }
 
-export function activeTuning(): readonly TuningOverride[] {
-  return active;
-}
-
-export function pinDefaultTuning(): () => void {
-  const keep = active;
-  Object.assign(C, defaultTuning());
-  return () => setTuning(keep);
-}
-
-export function tuningLines(overrides: readonly TuningOverride[] = active): string[] {
+export function tuningLines(overrides: readonly TuningOverride[]): string[] {
   const last = new Map<string, TuningOverride>();
   for (const o of overrides) last.set(o.path, o);
   return [...last.values()].map((o) => `${o.path} = ${o.value} (default ${shown(defaultValue(tunable(o.path).path))}, from ${o.source})`);
