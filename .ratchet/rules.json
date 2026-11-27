@@ -1,0 +1,13 @@
+[
+  {
+    "id": "no-shared-config",
+    "kind": "ban-pattern",
+    "pattern": "\\bC\\.[A-Za-z_]|import \\{[^}]*\\bC\\b[^}]*\\} from \"[./]*config",
+    "files": [
+      "app/ts/src/**/*.ts"
+    ],
+    "message": "Reads the shared global config C. Plan #5 injects config instead.",
+    "fix": "Take a Config parameter (or use the engine/context cfg) and read from it; in tests build one with defaultConfig() or configWith().",
+    "baseline": {}
+  }
+]

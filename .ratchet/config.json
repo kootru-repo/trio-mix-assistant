@@ -1,0 +1,86 @@
+{
+  "checks": [
+    {
+      "name": "dashboard-js-in-sync",
+      "command": "builtin:generated",
+      "when": [
+        "app/web/src/**",
+        "app/web/tsconfig.json",
+        "app/static/*.js"
+      ],
+      "build": "node app/web/node_modules/typescript/bin/tsc -p app/web --outDir {out}",
+      "into": "app/static",
+      "timeoutS": 90
+    },
+    {
+      "name": "ts-typecheck",
+      "when": [
+        "app/ts/src/**",
+        "app/ts/test/**",
+        "app/ts/tsconfig*.json",
+        "app/ts/package.json"
+      ],
+      "timeoutS": 180,
+      "command": "cd app/ts && npm run check"
+    },
+    {
+      "name": "lint-and-format",
+      "when": [
+        "app/ts/src/**",
+        "app/ts/test/**",
+        "app/ts/tools/**",
+        "app/web/src/**",
+        "app/biome.json"
+      ],
+      "timeoutS": 120,
+      "command": "cd app/ts && npm run lint"
+    },
+    {
+      "name": "fixtures-unchanged",
+      "command": "builtin:protected",
+      "when": [
+        "app/ts/fixtures/**"
+      ],
+      "timeoutS": 30
+    },
+    {
+      "name": "lf-line-endings",
+      "command": "builtin:lf",
+      "when": [
+        "app/ts/**/*.ts",
+        "app/web/src/**/*.ts",
+        "app/biome.json",
+        ".github/workflows/*.yml"
+      ],
+      "timeoutS": 30
+    }
+  ],
+  "tests": [
+    {
+      "name": "ts-suite",
+      "when": [
+        "app/ts/src/**",
+        "app/ts/test/**",
+        "app/ts/fixtures/**",
+        "app/ts/package.json"
+      ],
+      "timeoutS": 240,
+      "command": "cd app/ts && npm test"
+    }
+  ],
+  "drivers": [
+    {
+      "name": "cli-serves-and-guards",
+      "when": [
+        "app/ts/src/**",
+        "app/static/**"
+      ],
+      "timeoutS": 120,
+      "command": "cd app/ts && node --experimental-strip-types --no-warnings --test test/e2e.test.ts"
+    }
+  ],
+  "budgetS": {
+    "stop": 420
+  },
+  "hatchCeiling": 2
+}

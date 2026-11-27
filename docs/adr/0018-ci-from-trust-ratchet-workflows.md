@@ -6,11 +6,11 @@
 
 ## Context
 
-The gate and release workflows of 0015 were proven here and then made generic in Trust Ratchet (release v0.2.0), so other projects can call them instead of copying them. Keeping trio's own copies would mean fixing the same workflow in two places.
+The gate and release workflows of 0015 were proven here and then made generic in Trust Ratchet (release v0.2.1), so other projects can call them instead of copying them. Keeping trio's own copies would mean fixing the same workflow in two places.
 
 ## Decision
 
-**Gate.** `.github/workflows/ci.yml` calls Trust Ratchet's `gate.yml`, pinned to the commit of v0.2.0 (`d3d05c6`), twice:
+**Gate.** `.github/workflows/ci.yml` calls Trust Ratchet's `gate.yml`, pinned to the commit of v0.2.1 (`5a7c884`), twice:
 
 - Node 22 on Windows, Linux and both macOS runners, with lint, type check and tests.
 - Node 22.13 on Windows and Linux, with type check and tests.
@@ -28,7 +28,11 @@ The `dashboard` job and the `mac-app` build (the macOS downloads between release
 - Trio's build command keeps its own checks: the tag must match `package.json`, the exe is stamped with the commit, and the Node licence text must be present. The version command checks the reported commit as well as the version.
 - Run by hand with "rehearse" to build and check everything at a branch without publishing.
 
-**Agent turn checks.** The hand-written Trust Ratchet checks for line endings, recorded fixtures and the committed dashboard JavaScript are now its built-in checks (`builtin:lf`, `builtin:protected`, `builtin:generated`). They live in the local Ratchet configuration, not in this tree. `tools/guard.ts` stays: it is the lint gate CI runs for anyone, while Ratchet's checks run only at an agent's turn end.
+**Ratchet's checks, at the turn end and in CI.** The checks for line endings, recorded fixtures and the committed dashboard JavaScript are Ratchet's built-in checks (`builtin:lf`, `builtin:protected`, `builtin:generated`). The Ratchet configuration and rules live in `.ratchet/` in this tree, so an agent's turn end and CI read the same files.
+
+- **In CI.** The Node 22 gate call sets `ratchet-check`. Every change to `main` then meets Ratchet's file checks (syntax, the no-shared-config rule, escape hatches added) and its `lf-line-endings` and `fixtures-unchanged` checks, whoever made it. The dashboard check stays in the `dashboard` job.
+- **Re-recording fixtures.** A deliberate fixture re-record needs the trailer `Ratchet-Allow-Protected: app/ts/fixtures/**` in a commit of the push, so the permission shows in the history.
+- **`tools/guard.ts` stays.** It is the lint gate CI runs for anyone.
 
 ## Consequences
 

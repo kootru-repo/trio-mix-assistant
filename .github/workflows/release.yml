@@ -1,7 +1,7 @@
 name: Release
 
 # Builds the three downloads from a version tag in Trust Ratchet's reusable release, pinned
-# to one commit (release v0.2.0): the tag must have passed ci-ok, each build must report the
+# to one commit (release v0.2.1): the tag must have passed ci-ok, each build must report the
 # tag's version and commit, SHA256SUMS.txt is written and the files are attested, then
 # downloaded again and checked. If the release exists its files are replaced in place (the
 # owner's policy: a release is rebuilt, not re-versioned, for changes that are not new
@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   release:
-    uses: kootru-repo/trust-ratchet/.github/workflows/release.yml@d3d05c6a8981cc56f62c864609d7cfaeeaaed035 # v0.2.0
+    uses: kootru-repo/trust-ratchet/.github/workflows/release.yml@5a7c8843fdd1db81150b85dfcb093a46979778dd # v0.2.1
     with:
       tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
       dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.rehearse }}

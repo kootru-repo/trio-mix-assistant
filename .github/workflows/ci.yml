@@ -1,7 +1,8 @@
 name: CI
 
 # Lint, type-check and tests run in Trust Ratchet's reusable gate, pinned to one commit
-# (release v0.2.0). The dashboard build and the macOS app stay here. ci-ok stays here,
+# (release v0.2.1), and Ratchet's own checks (.ratchet/) run on every change there too.
+# The dashboard build and the macOS app stay here. ci-ok stays here,
 # so the ruleset on main can require it by name.
 on:
   push:
@@ -17,7 +18,7 @@ permissions:
 
 jobs:
   gate:
-    uses: kootru-repo/trust-ratchet/.github/workflows/gate.yml@d3d05c6a8981cc56f62c864609d7cfaeeaaed035 # v0.2.0
+    uses: kootru-repo/trust-ratchet/.github/workflows/gate.yml@5a7c8843fdd1db81150b85dfcb093a46979778dd # v0.2.1
     with:
       working-directory: app/ts
       node-version: "22"
@@ -26,9 +27,11 @@ jobs:
       lint-command: npm run lint
       check-command: npm run check
       test-command: npm test
+      ratchet-check: true
+      ratchet-checks: lf-line-endings,fixtures-unchanged
 
   gate-oldest-node:
-    uses: kootru-repo/trust-ratchet/.github/workflows/gate.yml@d3d05c6a8981cc56f62c864609d7cfaeeaaed035 # v0.2.0
+    uses: kootru-repo/trust-ratchet/.github/workflows/gate.yml@5a7c8843fdd1db81150b85dfcb093a46979778dd # v0.2.1
     with:
       working-directory: app/ts
       node-version: "22.13"
