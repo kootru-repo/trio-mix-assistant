@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { buildArgv, ConfError, readConf, vetArgv } from "./launcher.ts";
+import { buildArgv, ConfError, readCheckedConf, vetArgv } from "./launcher.ts";
 import { defaultIo, run } from "./main.ts";
 import type { Io } from "./main.ts";
 
@@ -23,7 +23,9 @@ export function openBrowser(url: string): void {
 
 export async function launch(argv: readonly string[], io: Io, open: (url: string) => void = openBrowser): Promise<number> {
   if (argv.includes("--list-devices")) return run(["--list-devices"], io);
-  const cfg = readConf(join(io.layout.appDir, "show.conf"));
+  const checked = readCheckedConf(join(io.layout.appDir, "show.conf"));
+  for (const note of checked.notes) io.out(`  [i] show.conf: ${note}`);
+  const cfg = checked.conf;
   const rehearse = argv.includes("--rehearse");
   let plan;
   try {

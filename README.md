@@ -142,6 +142,8 @@ These steps use the downloaded app. Wherever a step says `TrioMixAssistant`, typ
    - Mac: `~/Library/Application Support/TrioMixAssistant/show.conf`
    - Windows: `%LOCALAPPDATA%\TrioMixAssistant\show.conf`
 3. **Set** `MODE=hardware`, `CONSOLE_IP` and `AUDIO_DEVICE` (the number from step 1). With a small interface or a single USB mic, `AUTO=yes` picks the input for you instead; leave it off with the console's 32-input USB feed, where it would pick the wrong channel for the measurement mic. For a phone or tablet, set `LAN=yes` and a `PIN` of six or more characters.
+
+   At start, the app lists any line in `show.conf` it cannot use: a misspelt setting (with the name it probably means), a setting given twice, or a line with no `=`. It still starts with the rest, and it never rewrites the file. A show template gets the same check: a misspelt key such as `leadTarget` is named, with `lead_target` suggested, instead of being skipped without a word. Channel numbers in a template must be 1 to 32.
 4. **Start the app** the same way as before. On a Mac, click **Allow** when macOS asks to let Terminal use the microphone and the network, or the app hears silence.
 
    <img src="docs/screenshots/mac-network-prompt.svg" width="640" alt="Illustration: the macOS prompt asking whether TrioMixAssistant may accept incoming network connections, with Allow highlighted">

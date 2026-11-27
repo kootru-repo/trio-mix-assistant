@@ -629,6 +629,7 @@ const vetTemplate = (): ShowTemplate => ({
   name: "vet",
   channels: null,
   tuning: [],
+  warnings: [],
   songs: [
     { name: "Vet Song A", scene: 11, leadTarget: -14, balance: new Map(), guest: false },
     { name: "Vet Song B", scene: 12, leadTarget: null, balance: new Map(), guest: true },

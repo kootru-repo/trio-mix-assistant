@@ -526,6 +526,21 @@ test("the launcher runs the checks for the show.conf setup instead of starting t
   }
 });
 
+test("the launcher says what is wrong in show.conf, and still starts with what it can read", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "trio-conf-"));
+  try {
+    writeFileSync(join(dir, "show.conf"), "MODE=sim\nLAN=no\nVENU=Hall\n");
+    const lines: string[] = [];
+    const io = testIo(lines, 0.2);
+    await launch(["--diagnose"], { ...io, layout: { ...io.layout, appDir: dir } }, () => undefined);
+    const text = lines.join("\n");
+    assert.ok(text.includes("[i] show.conf: VENU is not a setting; did you mean VENUE?"), text);
+    assert.ok(text.includes("===== Trio Mix-Assistant checks ====="), text);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("the home folder is taken out of every line of the report", () => {
   const home = "C:\\Users\\someone";
   const report = buildReport(

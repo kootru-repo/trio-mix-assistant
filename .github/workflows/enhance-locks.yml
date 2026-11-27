@@ -2,7 +2,7 @@ name: Enhance locks
 
 # The enhancement engine's locks on its own pull requests (enhance/round-*), from a workflow the pull request cannot change:
 # pull_request_target always runs main's copy of this file, and the gate below is main's copy of the engine, judging the pull
-# request's tree with main's settings. Nothing from the pull request is run: its tree is only read through git.
+# request's tree with main's settings, compared with where the round branched off main (the merge base), so main moving on is not counted. Nothing from the pull request is run: its tree is only read through git.
 # When the locks pass, this turns GitHub auto-merge on (enhance.json autonomy.pr.auto_merge "after-locks"); when a later push fails
 # them, it turns auto-merge off. GitHub then merges only after ci-ok passes as well. Other pull requests pass straight through.
 on:
@@ -56,7 +56,9 @@ jobs:
           ENHANCE_ROLE: ci
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         working-directory: pr
-        run: node "$GITHUB_WORKSPACE/base/tools/engine/gate.mjs" turn --only vendor,protect --no-rerun --base "$BASE_SHA"
+        run: |
+          FORK=$(git merge-base "$BASE_SHA" HEAD)
+          node "$GITHUB_WORKSPACE/base/tools/engine/gate.mjs" turn --only vendor,protect --no-rerun --base "$FORK"
       - name: Locks passed, so auto-merge goes on
         if: ${{ success() && steps.locks.outcome == 'success' }}
         env:

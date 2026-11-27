@@ -21,6 +21,110 @@ export function parseConf(text: string): Conf {
   return cfg;
 }
 
+export const CONF_VERSION = 1;
+
+export const CONF_KEYS: readonly string[] = [
+  "CONF_VERSION",
+  "MODE",
+  "CONSOLE_IP",
+  "AUTO",
+  "AUDIO_DEVICE",
+  "OUTPUT_DEVICE",
+  "INPUT_GAIN",
+  "TEMPLATE",
+  "VENUE",
+  "LAN",
+  "HTTPS",
+  "TRUST",
+  "PIN",
+  "ALLOW_OPEN",
+  "PORT",
+  "SESSION_DB",
+  "ABLESET_PORT",
+  "ABLESET_FROM",
+  "VET_CHANNEL",
+  "VET_GAIN",
+  "VET_MAIN",
+  "VET_SOUND",
+  "VET_PHONE",
+];
+
+const CONF_MIGRATIONS: ReadonlyMap<number, (c: Conf) => Conf> = new Map();
+
+export function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = row[0]!;
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const up = row[j]!;
+      row[j] = Math.min(up + 1, row[j - 1]! + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = up;
+    }
+  }
+  return row[b.length]!;
+}
+
+export function closest(word: string, known: readonly string[]): string | null {
+  const plain = (s: string): string => s.replace(/[_\s-]/g, "").toLowerCase();
+  let best: string | null = null;
+  let bestD = Number.POSITIVE_INFINITY;
+  for (const k of known) {
+    const d = plain(k) === plain(word) ? 0 : editDistance(word.toUpperCase(), k.toUpperCase());
+    if (d < bestD) {
+      bestD = d;
+      best = k;
+    }
+  }
+  return best !== null && bestD <= Math.max(1, Math.floor(word.length / 4)) ? best : null;
+}
+
+export interface ConfCheck {
+  conf: Conf;
+  version: number;
+  notes: string[];
+}
+
+export function checkConf(text: string): ConfCheck {
+  const notes: string[] = [];
+  const seen = new Map<string, number>();
+  text.split(/\r?\n/).forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) return;
+    if (!line.includes("=")) {
+      notes.push(`line ${i + 1} has no '=' and is ignored: '${line.slice(0, 40)}'`);
+      return;
+    }
+    const key = line.slice(0, line.indexOf("=")).trim().toUpperCase();
+    const first = seen.get(key);
+    if (first !== undefined) notes.push(`${key} is set twice (lines ${first} and ${i + 1}); the last one is used`);
+    else seen.set(key, i + 1);
+    if (key.startsWith("TUNE.") || CONF_KEYS.includes(key)) return;
+    const near = closest(key, CONF_KEYS);
+    notes.push(near ? `${key} is not a setting; did you mean ${near}?` : `${key} is not a setting and is ignored`);
+  });
+  let conf = parseConf(text);
+  const raw = (conf["CONF_VERSION"] ?? "").trim();
+  let version = 1;
+  if (raw) {
+    if (!/^\d+$/.test(raw) || Number(raw) < 1)
+      notes.push(`CONF_VERSION must be a whole number from 1, not '${raw}'; read as ${CONF_VERSION}`);
+    else version = Number(raw);
+  }
+  if (version > CONF_VERSION)
+    notes.push(`show.conf was written for a newer version of the app (CONF_VERSION=${version}); settings it does not know are ignored`);
+  for (let v = version; v < CONF_VERSION; v++) {
+    const step = CONF_MIGRATIONS.get(v);
+    if (step) conf = step(conf);
+  }
+  return { conf, version: Math.min(Math.max(version, 1), CONF_VERSION), notes };
+}
+
+export function readCheckedConf(path: string): ConfCheck {
+  if (!existsSync(path)) return { conf: {}, version: CONF_VERSION, notes: [] };
+  return checkConf(readFileSync(path, "utf8"));
+}
+
 export function readConf(path: string): Conf {
   if (!existsSync(path)) return {};
   return parseConf(readFileSync(path, "utf8"));

@@ -91,6 +91,7 @@ function loadShowTemplate(args: Args, io: Pick<Io, "out">, cfg: Config): ShowTem
   if (t.channels) {
     io.out(`  Channel map: ${cfg.CHANNELS.size} channels from template '${t.name}'`);
   }
+  for (const w of t.warnings) io.out(`  [i] template: ${w}`);
   return t;
 }
 

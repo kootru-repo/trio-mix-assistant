@@ -23,6 +23,46 @@ export interface ShowTemplate {
   songs: Song[];
   channels: ChannelMapSpec | null;
   tuning: TuningOverride[];
+  warnings: string[];
+}
+
+export const TEMPLATE_VERSION = 1;
+
+const TOP_KEYS = ["version", "name", "songs", "channels", "tuning"];
+const SONG_KEYS = ["name", "scene", "lead_target", "balance", "guest"];
+const CHANNEL_KEYS = ["map", "labels", "lead", "meas_mic", "stage_mic", "balance", "guest", "stereo_links", "phase_pairs"];
+
+const TEMPLATE_MIGRATIONS: ReadonlyMap<number, (d: Record<string, unknown>) => Record<string, unknown>> = new Map();
+
+const plainKey = (s: string): string => s.replace(/[_\s-]/g, "").toLowerCase();
+
+function unknownKeys(obj: Record<string, unknown>, known: readonly string[], where: string, out: string[]): void {
+  for (const k of Object.keys(obj)) {
+    if (known.includes(k)) continue;
+    const near = known.find((n) => plainKey(n) === plainKey(k)) ?? known.find((n) => n.startsWith(k.slice(0, Math.max(4, k.length - 2))));
+    out.push(
+      near
+        ? `${where}${k} is not a template setting and is ignored; did you mean ${near}?`
+        : `${where}${k} is not a template setting and is ignored`,
+    );
+  }
+}
+
+export function migrateTemplate(d: Record<string, unknown>): { data: Record<string, unknown>; version: number; warnings: string[] } {
+  const raw = d["version"];
+  const warnings: string[] = [];
+  if (raw !== undefined && !(typeof raw === "number" && Number.isInteger(raw) && raw >= 1)) {
+    throw new TemplateError(`'version' must be a whole number from 1, got ${JSON.stringify(raw)}`);
+  }
+  const version = typeof raw === "number" ? raw : 1;
+  if (version > TEMPLATE_VERSION)
+    warnings.push(`this template was written for a newer version of the app (version ${version}); settings it does not know are ignored`);
+  let data = d;
+  for (let v = version; v < TEMPLATE_VERSION; v++) {
+    const step = TEMPLATE_MIGRATIONS.get(v);
+    if (step) data = step(data);
+  }
+  return { data, version, warnings };
 }
 
 export function songByName(t: ShowTemplate, name: string): Song | null {
@@ -56,6 +96,8 @@ function toInt(v: Json): number {
 
 const inMap = (nums: Set<number> | null, ch: number): boolean => nums === null || nums.has(ch);
 
+export const MAX_CHANNEL = 32;
+
 function parseChannels(spec: Json): ChannelMapSpec | null {
   if (spec === null || spec === undefined) return null;
   if (!isObject(spec)) throw new TemplateError("'channels' must be an object");
@@ -66,6 +108,8 @@ function parseChannels(spec: Json): ChannelMapSpec | null {
     nums = new Set<number>();
     for (const [k, v] of Object.entries(m)) {
       if (!/^\s*[+-]?\d+\s*$/.test(k)) throw new TemplateError(`channels.map key '${k}' is not a channel number`);
+      const n = Number(k.trim());
+      if (n < 1 || n > MAX_CHANNEL) throw new TemplateError(`channels.map key '${k}' is not a console channel (1 to ${MAX_CHANNEL})`);
       if (typeof v !== "string" || !v.trim()) throw new TemplateError(`channels.map[${k}] must be a non-empty role name`);
       nums.add(Number(k.trim()));
     }
@@ -127,8 +171,15 @@ function parseTuning(spec: Json, name: string): TuningOverride[] {
   return out;
 }
 
-export function fromObject(d: Json, cfg: Config): ShowTemplate {
-  if (!isObject(d)) throw new TemplateError("template must be a JSON object");
+export function fromObject(input: Json, cfg: Config): ShowTemplate {
+  if (!isObject(input)) throw new TemplateError("template must be a JSON object");
+  const migrated = migrateTemplate(input);
+  const d = migrated.data;
+  const warnings = [...migrated.warnings];
+  unknownKeys(d, TOP_KEYS, "", warnings);
+  if (isObject(d["channels"])) unknownKeys(d["channels"], CHANNEL_KEYS, "channels.", warnings);
+  if (Array.isArray(d["songs"]))
+    d["songs"].forEach((s: Json, i: number) => isObject(s) && unknownKeys(s, SONG_KEYS, `songs[${i}].`, warnings));
   const channels = parseChannels(d["channels"]);
   const validCh: Set<number> =
     channels && channels.map && Object.keys(channels.map).length
@@ -171,7 +222,7 @@ export function fromObject(d: Json, cfg: Config): ShowTemplate {
     });
   });
   const name = d["name"] === undefined ? "Show" : String(d["name"]);
-  return { name, songs, channels, tuning: parseTuning(d["tuning"], name) };
+  return { name, songs, channels, tuning: parseTuning(d["tuning"], name), warnings };
 }
 
 export function defaultTemplate(cfg: Config): ShowTemplate {
