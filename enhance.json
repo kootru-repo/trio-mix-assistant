@@ -1,6 +1,6 @@
 {
   "kind": "app",
-  "_about": "Settings of the enhancement engine for trio-mix-assistant, an app the owner named (the engine's docs/adr/0007). Narrow scope: rounds change only the dashboard, the docs and new tests; the safety logic, the fixtures and the ADRs are frozen; each round goes to the owner as a pull request and nothing is pushed to main. The engine copy in tools/engine reads only this file. A worker never edits it: it is a protected path below.",
+  "_about": "Settings of the enhancement engine for trio-mix-assistant, an app the owner named (the engine's docs/adr/0007). Narrow scope: rounds change only the dashboard, the docs and new tests; the safety logic, the fixtures and the ADRs are frozen; each round goes out as a pull request that GitHub merges by itself once ci-ok passes (auto-merge), and the owner's branch is fast-forwarded to main before the next round. The engine copy in tools/engine reads only this file. A worker never edits it: it is a protected path below.",
   "base_refs": ["origin/main"],
   "out_dir": "tools/engine/out",
   "port": null,
@@ -45,7 +45,7 @@
     "max_pending": 3,
     "park_after": 3,
     "worktrees": "engine",
-    "pr": { "base": "main", "remote": "origin", "prefix": "enhance/round-", "max_open": 1 }
+    "pr": { "base": "main", "remote": "origin", "prefix": "enhance/round-", "max_open": 1, "auto_merge": true, "sync_owner": true }
   },
   "judge": { "title": "the trio mix assistant's dashboard and docs", "calibrated": false, "dimensions": [] },
   "coverage": { "sources": {} }

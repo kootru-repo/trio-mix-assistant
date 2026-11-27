@@ -28,6 +28,18 @@ const defaultBranch = () => g(MAIN, ['rev-parse', '--abbrev-ref', 'HEAD']).out;
 const PR = A.land === 'pr';
 const upstream = () => (PR ? `${A.pr.remote}/${A.pr.base}` : defaultBranch());
 const runArgs = (argv, vars) => { const a = argv.map(x => x.replace(/\{(base|head|title|body)\}/g, (_, k) => vars[k] ?? '')); const r = spawnSync(a[0], a.slice(1), { cwd: MAIN, encoding: 'utf8', windowsHide: true }); return { ok: r.status === 0, out: ((r.stdout ?? '') + (r.stderr ?? '')).trim() }; };
+/** pr.sync_owner: the owner's checked-out branch takes remote/base by fast-forward, only when the tree is clean, idle, and has nothing of its own */
+export function syncOwner() {
+  if (!PR || !A.pr.sync_owner) return null;
+  const def = upstream(), own = defaultBranch();
+  const f = g(MAIN, ['fetch', '--quiet', A.pr.remote, A.pr.base]); if (!f.ok) return `not synced: could not fetch ${def}`;
+  if (g(MAIN, ['rev-list', '--count', `${own}..${def}`]).out === '0') return `${own} already has ${def}`;
+  const dirty = dirtyPaths(); if (dirty.length) return `not synced: the main tree has ${dirty.length} uncommitted change(s) (${dirty.slice(0, 4).join(', ')})`;
+  const busy = busyInMain(); if (busy) return `not synced: the main tree is busy (${busy})`;
+  const m = g(MAIN, ['merge', '--ff-only', '--quiet', def]);
+  return m.ok ? `synced: ${own} fast-forwarded to ${def} (${g(MAIN, ['rev-parse', '--short', 'HEAD']).out})` : `not synced: ${own} has commits of its own that ${def} lacks; the owner merges them`;
+}
+
 /** the engine's own open pull requests (head names under pr.prefix), or { error } */
 function openPrs() { const r = runArgs(A.pr.list, {}); return r.ok ? r.out.split(/\r?\n/).map(l => l.trim()).filter(l => l.startsWith(A.pr.prefix)) : { error: `could not list the open pull requests (${A.pr.list[0]}): ${r.out.split('\n').slice(-1)[0]}` }; }
 const RATCHET = join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.claude', 'ratchet', 'app', 'ratchet.ts');
@@ -95,6 +107,7 @@ async function plan(argv) {
   }
   const all = ranked(), cells = cellId ? all.filter(c => c.id === cellId && c.rank[0] < 7) : pick(n, all);
   if (!cells.length) say(5, cellId ? `${cellId} is not a cell that wants work now (unknown, claimed or parked): node ${ENGINE_REL}/coverage.mjs map` : 'no cell wants work: every cell is up to date, claimed or parked');
+  const synced = PR ? syncOwner() : null;
   if (PR && !goal) { const open = openPrs(); if (open.error) say(4, open.error); if (open.length >= A.pr.max_open) say(3, `waiting for the owner: the engine's pull request(s) ${open.join(', ')} are open (autonomy.pr.max_open ${A.pr.max_open}); merge or close them first`); }
   const int = integration(goal?.branch, { fresh: PR && !goal }); if (int.error) say(4, int.error);
   const workers = cells.map((c, i) => ({ index: i, cell: c.id, port: CFG.port ? CFG.port + 1 + i : null }));
@@ -108,7 +121,7 @@ async function plan(argv) {
   if (A.worktrees === 'engine') updateRound(id, { workers });
   const r = { id, integration: int };
   for (const w of workers) claim(w.cell, { status: 'working', round: id });
-  console.log(JSON.stringify({ round: id, integration: int, workers: workers.map((w, i) => ({ ...w, order: workOrder(cells[i]), brief: brief(r, w) })) }, null, 1));
+  console.log(JSON.stringify({ round: id, ...(synced ? { synced } : {}), integration: int, workers: workers.map((w, i) => ({ ...w, order: workOrder(cells[i]), brief: brief(r, w) })) }, null, 1));
   process.exit(0);
 }
 
@@ -220,6 +233,7 @@ function landPr(id) {
   const log = g(MAIN, ['log', '--reverse', '--format=- %s', `${def}..${int}`]).out;
   const body = [`Round ${id} of the enhancement engine: ${n} commit(s), each landed on ${int} by the trusted gate.`, '', log, '', 'The engine never merges this: the owner reviews it and merges or closes it. The next round waits while it is open.', '', '🤖 Generated with [Claude Code](https://claude.com/claude-code)'].join('\n');
   const c = runArgs(A.pr.create, { base: A.pr.base, head, title: `enhance round ${id}: ${n} commit(s)`, body });
+  if (c.ok && A.pr.auto_merge) { const m = runArgs(A.pr.merge, { base: A.pr.base, head }); return `offered: pull request ${c.out.split('\n').slice(-1)[0]} (${head} into ${A.pr.base}); ${m.ok ? 'auto-merge on: the host merges it when its required checks pass' : `auto-merge could not be turned on (${m.out.split('\n').slice(-1)[0]}); the owner merges it`}`; }
   return c.ok ? `offered: pull request ${c.out.split('\n').slice(-1)[0]} (${head} into ${A.pr.base})` : `pushed ${head}, but opening the pull request failed: ${c.out.split('\n').slice(-1)[0]}`;
 }
 

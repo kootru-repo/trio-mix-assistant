@@ -39,7 +39,10 @@ export const DEFAULTS = {
     // land "pr" (docs/adr/0007): each round's work goes to the owner as a pull request against pr.base and nothing else is pushed; the default
     // branch is never touched. A round starts from the remote's pr.base, and waits while max_open of the engine's own pull requests are open.
     // create and list are argument lists ({base} {head} {title} {body}), run without a shell
-    pr: { base: 'main', remote: 'origin', prefix: 'enhance/round-', max_open: 1,
+    // auto_merge: after opening it, ask the host to merge the pull request once its required checks pass (merge); the engine itself never
+    // merges. sync_owner: before a round, fast-forward the owner's checked-out branch to remote/base when the tree is clean and it can
+    pr: { base: 'main', remote: 'origin', prefix: 'enhance/round-', max_open: 1, auto_merge: false, sync_owner: false,
+      merge: ['gh', 'pr', 'merge', '{head}', '--auto', '--squash', '--delete-branch'],
       create: ['gh', 'pr', 'create', '--base', '{base}', '--head', '{head}', '--title', '{title}', '--body', '{body}'],
       list: ['gh', 'pr', 'list', '--state', 'open', '--json', 'headRefName', '--jq', '.[].headRefName'] } },
 };
