@@ -133,6 +133,22 @@ Preamp gain and polarity have no dashboard control: trigger the clip or phase jo
 
 ---
 
+## 8. Record a contract fixture (about 45 minutes, PA off)
+
+This records how your console really answers, so the built-in emulator can be checked against it. Nothing on the console is changed unless you add `--vet-channel` or `--vet-main`.
+
+1. Turn the PA off. Connect the laptop to the console's network as for a show.
+2. Run the full test with recording on:
+   ```
+   TrioMixAssistant --vet --hardware --console-ip <address> --vet-record contract.json
+   ```
+   Add `--vet-channel <spare channel>` to record the write steps too (the value is put back after each one).
+3. The file holds every datagram of each step and the answers to a set of read-only questions (`/info`, `/xinfo`, `/status`, `/node`, single reads and one second of meters). Addresses become 192.0.2.1 and every name is removed; the model and firmware stay.
+4. Send the file in an issue, or commit it as `app/ts/fixtures/contract/<model>-<firmware>.json` (a commit that adds a fixture needs the trailer `Ratchet-Allow-Protected: app/ts/fixtures/**`).
+5. `npm test` then compares the emulator with it. Each difference is either fixed in the emulator or listed in the fixture's `known_differences` with the reason. The eight guesses to check first: H1 meter blob size and alias, H2 whether the console echoes the app's own writes, H3 scene recall replies, H4 value rounding, H5 type tags, H6 argument order, H7 headamp index, H8 how long a subscription lasts.
+
+Two steps are not automated yet and need you at the console: moving a fader by hand while the test watches, and recalling a scene saved first for the purpose.
+
 ## Known limitations (by design; plan around these)
 
 - **One input device must expose all channels.** The listening half opens a single

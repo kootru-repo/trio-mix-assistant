@@ -30,6 +30,7 @@ export interface Args {
   vetMain: boolean;
   vetGain: boolean;
   vetKeepNames: boolean;
+  vetRecord: string | null;
   vetSound: boolean;
   vetPhone: boolean;
   https: boolean;
@@ -54,7 +55,7 @@ export const USAGE = `usage: TrioMixAssistant [-h] [--host HOST] [--lan] [--port
            [--channel-map CHANNEL_MAP] [--auto] [--trace-osc] [--list-devices]
            [--diagnose]
            [--vet] [--vet-channel N] [--vet-main] [--vet-gain] [--vet-sound] [--vet-phone]
-           [--vet-keep-names]
+           [--vet-keep-names] [--vet-record FILE]
            [--https] [--pin PIN] [--trust] [--insecure-open] [--template TEMPLATE]
            [--ableset-port ABLESET_PORT] [--ableset-from ADDRESS] [--no-show-clock]
            [--venue VENUE]
@@ -113,6 +114,9 @@ options:
                         preamp gain
   --vet-keep-names      (--vet) keep audio device names, IP addresses and show names in
                         the report and log. By default they are replaced
+  --vet-record FILE     (--vet) also record the console's answers to a set of read-only
+                        probes, and every datagram of each step, into FILE as a contract
+                        fixture (addresses and names removed; model and firmware kept)
   --vet-sound           (--vet) play pink noise and check that the measurement input
                         hears it; needs --audio-device
   --vet-phone           (--vet) serve the dashboard and wait for a phone to sign in;
@@ -168,6 +172,7 @@ const OPTIONS = {
   "vet-channel": { type: "string" },
   "vet-main": { type: "boolean" },
   "vet-keep-names": { type: "boolean" },
+  "vet-record": { type: "string" },
   "vet-gain": { type: "boolean" },
   "vet-sound": { type: "boolean" },
   "vet-phone": { type: "boolean" },
@@ -245,6 +250,7 @@ export function parseCliArgs(argv: readonly string[]): Args {
     vetMain: Boolean(values["vet-main"]),
     vetGain: Boolean(values["vet-gain"]),
     vetKeepNames: Boolean(values["vet-keep-names"]),
+    vetRecord: values["vet-record"]?.trim() || null,
     vetSound: Boolean(values["vet-sound"]),
     vetPhone: Boolean(values["vet-phone"]),
     https: Boolean(values["https"]),

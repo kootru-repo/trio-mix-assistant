@@ -14,6 +14,9 @@ import { makeScrubber, redact, templateWords } from "../core/diagnostics.ts";
 import { listAudioDevices } from "../core/devicecapture.ts";
 import { generatePinkNoise } from "../core/dsp.ts";
 import { EmulatedDesk } from "../core/emulator.ts";
+import { RecordingUdpFactory, buildFixture, runProbes } from "../core/contract.ts";
+
+const CONTRACT_STEP = "contract probes";
 import { Engine } from "../core/engine/index.ts";
 import { MeterReceiver } from "../core/metersrv.ts";
 import { decodeReply, encodeMessage, oscStr } from "../core/oscwire.ts";
@@ -941,9 +944,48 @@ export interface VetOutcome {
   logPath: string | null;
 }
 
+async function recordContract(ctx: Ctx, recorder: RecordingUdpFactory, plain: Io, file: string): Promise<void> {
+  const { args, io } = ctx;
+  recorder.step = CONTRACT_STEP;
+  let desk: EmulatedDesk | null = null;
+  try {
+    let to = { host: args.consoleIp || ctx.cfg.CONSOLE_IP, port: ctx.cfg.CONSOLE_PORT };
+    if (!args.hardware) {
+      desk = new EmulatedDesk(plain.udp, io.clock, { cfg: ctx.cfg, listenPort: 0, listenHost: "127.0.0.1" });
+      await desk.start();
+      to = { host: "127.0.0.1", port: desk.listenPort };
+    }
+    await runProbes(recorder, to, io.clock);
+    const fixture = buildFixture(recorder.exchanges, args.hardware ? "console" : "emulator");
+    writeFileSync(file, JSON.stringify(fixture, null, 1) + "\n", "utf8");
+    ctx.rows.push({
+      id: "vet_record",
+      area: "Contract recording",
+      title: "Console answers recorded for the contract tests",
+      status: "pass",
+      proof: args.hardware ? "real console" : "emulator",
+      detail: `${fixture.steps.reduce((n, s) => n + s.messages.length, 0)} messages in ${fixture.steps.length} steps from ${fixture.model} ${fixture.firmware}, written to ${file}`,
+      covers: [],
+    });
+  } catch (e) {
+    ctx.rows.push({
+      id: "vet_record",
+      area: "Contract recording",
+      title: "Console answers recorded for the contract tests",
+      status: "fail",
+      proof: "nothing",
+      detail: `could not record: ${errText(e)}`,
+      covers: [],
+    });
+  } finally {
+    if (desk !== null) desk.stop();
+  }
+}
+
 export async function runVet(args: Args, ioIn: Io, hooks: VetHooks): Promise<VetOutcome> {
   const scrub = args.vetKeepNames ? (text: string): string => text : scrubberFor(ioIn, args);
-  const io: Io = { ...ioIn, out: (line) => ioIn.out(scrub(line)) };
+  const recorder = args.vetRecord !== null ? new RecordingUdpFactory(ioIn.udp) : null;
+  const io: Io = { ...ioIn, udp: recorder ?? ioIn.udp, out: (line) => ioIn.out(scrub(line)) };
   const sys = systemFacts();
   const head = [
     "",
@@ -972,6 +1014,7 @@ export async function runVet(args: Args, ioIn: Io, hooks: VetHooks): Promise<Vet
     true,
   );
   const log = new VetLog(io.clock, (line) => write([line]));
+  if (recorder !== null) log.onBegin = (title) => (recorder.step = title);
   let stop = false;
   void io.waitForStop().then(() => {
     stop = true;
@@ -1000,6 +1043,7 @@ export async function runVet(args: Args, ioIn: Io, hooks: VetHooks): Promise<Vet
     if (args.hardware && !stop) await realConsole(ctx);
     if (args.vetSound) await sound(ctx);
     if (args.vetPhone) await phone(ctx);
+    if (recorder !== null && args.vetRecord !== null && !ctx.stopped()) await recordContract(ctx, recorder, ioIn, args.vetRecord);
   } catch (e) {
     ctx.rows.push({
       id: "vet_crash",

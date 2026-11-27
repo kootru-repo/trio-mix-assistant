@@ -28,6 +28,7 @@ import {
 } from "../src/core/vet.ts";
 import type { VetRow } from "../src/core/vet.ts";
 import { parseOverride, withTuning } from "../src/core/tuning.ts";
+import { parseFixture } from "../src/core/contract.ts";
 import { parseCliArgs } from "../src/host/args.ts";
 import { NativeAudioInputFactory } from "../src/host/audiodevice.ts";
 import { captureThread } from "../src/host/capturethread.ts";
@@ -823,4 +824,29 @@ test("a takeover pressed while a restore is being retried stops the retries from
   assert.match(row.detail, /left muted because TAKEOVER/);
   assert.equal(sent, 1);
   assert.equal(r.emu.params.get("/main/st/mix/on")?.[0]?.v, 0);
+});
+
+test("--vet-record writes a contract fixture from the full test, with the probe answers and no private names", async () => {
+  const home = mkdtempSync(join(tmpdir(), "vet-rec-"));
+  try {
+    writeFileSync(join(home, "show.conf"), "MODE=sim\nLAN=no\n");
+    const io = vetIo([], home);
+    io.factory = await io.audio();
+    const file = join(home, "contract.json");
+    const out = await runVet(parseCliArgs(["--vet", "--vet-record", file]), io, {
+      cfg: defaultConfig(),
+      openSource: null,
+      lanIp: () => Promise.resolve(null),
+    });
+    const row = out.rows.find((x) => x.id === "vet_record")!;
+    assert.equal(row.status, "pass", row.detail);
+    const f = parseFixture(readFileSync(file, "utf8"));
+    assert.equal(f.source, "emulator");
+    const probes = f.steps.find((s) => s.step === "contract probes")!;
+    assert.ok(probes.messages.some((m) => m.dir === "in" && m.address === "/info"));
+    assert.ok(f.steps.length > 3, "the full test's own steps are recorded too");
+    assert.ok(!JSON.stringify(f).includes(defaultConfig().X32_NAME), "the console's name is removed");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });

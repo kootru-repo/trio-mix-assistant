@@ -1,0 +1,211 @@
+{
+ "format": 1,
+ "model": "X32",
+ "firmware": "4.06-8",
+ "source": "emulator",
+ "known_differences": [],
+ "steps": [
+  {
+   "step": "contract probes",
+   "messages": [
+    {
+     "dir": "out",
+     "address": "/info",
+     "args": []
+    },
+    {
+     "dir": "in",
+     "address": "/info",
+     "args": [
+      {
+       "t": "s",
+       "v": "V2.07"
+      },
+      {
+       "t": "s",
+       "v": ""
+      },
+      {
+       "t": "s",
+       "v": "X32"
+      },
+      {
+       "t": "s",
+       "v": "4.06-8"
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/xinfo",
+     "args": []
+    },
+    {
+     "dir": "in",
+     "address": "/xinfo",
+     "args": [
+      {
+       "t": "s",
+       "v": "192.0.2.1"
+      },
+      {
+       "t": "s",
+       "v": ""
+      },
+      {
+       "t": "s",
+       "v": "X32"
+      },
+      {
+       "t": "s",
+       "v": "4.06-8"
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/status",
+     "args": []
+    },
+    {
+     "dir": "in",
+     "address": "/status",
+     "args": [
+      {
+       "t": "s",
+       "v": "active"
+      },
+      {
+       "t": "s",
+       "v": "192.0.2.1"
+      },
+      {
+       "t": "s",
+       "v": ""
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/node",
+     "args": [
+      {
+       "t": "s",
+       "v": "ch/01/mix"
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/node",
+     "args": [
+      {
+       "t": "s",
+       "v": "ch/01/config"
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/ch/01/mix/fader",
+     "args": []
+    },
+    {
+     "dir": "in",
+     "address": "/ch/01/mix/fader",
+     "args": [
+      {
+       "t": "f",
+       "v": 0.75
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/ch/01/mix/on",
+     "args": []
+    },
+    {
+     "dir": "in",
+     "address": "/ch/01/mix/on",
+     "args": [
+      {
+       "t": "i",
+       "v": 1
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/ch/01/preamp/invert",
+     "args": []
+    },
+    {
+     "dir": "in",
+     "address": "/ch/01/preamp/invert",
+     "args": [
+      {
+       "t": "i",
+       "v": 0
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/headamp/000/gain",
+     "args": []
+    },
+    {
+     "dir": "in",
+     "address": "/headamp/000/gain",
+     "args": [
+      {
+       "t": "f",
+       "v": 0.4444444477558136
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/main/st/mix/fader",
+     "args": []
+    },
+    {
+     "dir": "in",
+     "address": "/main/st/mix/fader",
+     "args": [
+      {
+       "t": "f",
+       "v": 0.75
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/-prefs/name",
+     "args": []
+    },
+    {
+     "dir": "in",
+     "address": "/-prefs/name",
+     "args": [
+      {
+       "t": "s",
+       "v": ""
+      }
+     ]
+    },
+    {
+     "dir": "out",
+     "address": "/meters",
+     "args": [
+      {
+       "t": "s",
+       "v": "/meters/1"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

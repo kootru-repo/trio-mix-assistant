@@ -74,6 +74,7 @@ export class VetLog {
   private readonly sink: ((line: string) => void) | null;
   private finished = 0;
   onProgress: ((done: number, title: string) => void) | null = null;
+  onBegin: ((title: string) => void) | null = null;
 
   constructor(clock: Clock, sink: ((line: string) => void) | null = null) {
     this.clock = clock;
@@ -82,6 +83,7 @@ export class VetLog {
   }
 
   began(title: string): void {
+    if (this.onBegin !== null) this.onBegin(title);
     if (this.onProgress !== null) this.onProgress(this.finished, title);
   }
 

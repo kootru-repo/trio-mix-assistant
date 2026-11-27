@@ -38,6 +38,7 @@ import { createServer, OpenDashboardRefused } from "./server.ts";
 import type { DashboardServer } from "./server.ts";
 import { SessionLog } from "./sessionlog.ts";
 import { allLanIps, ensureCert, ensureTrustedCert, hostPermittedByCa, tlsHosts } from "./tls.ts";
+import type { UdpFactory } from "../core/transport.ts";
 import { NodeUdpFactory } from "./udp.ts";
 import { UdpSink } from "./udpsink.ts";
 import { VenueStore } from "./venuestore.ts";
@@ -69,7 +70,7 @@ export interface Io {
   audio: () => Promise<AudioInputFactory>;
   factory: AudioInputFactory | null;
   connect: (kind: CaptureKind) => CapturePort;
-  udp: NodeUdpFactory;
+  udp: UdpFactory;
   waitForStop: () => Promise<void>;
   layout: Layout;
   diagnoseSeconds?: number;
