@@ -18,9 +18,10 @@ These records say why the code is the way it is. Each one is short: the context,
 | [0012](0012-privacy-scrubbing-by-default.md) | Privacy scrubbing by default | Accepted |
 | [0013](0013-dashboard-security-defaults.md) | Dashboard security defaults | Accepted |
 | [0014](0014-safety-model-hold.md) | Safety model: HOLD, read-back, link watch, write budget, hand moves win | Accepted |
-| [0015](0015-ci-gate-and-releases.md) | CI gate and CI-built releases | Accepted |
+| [0015](0015-ci-gate-and-releases.md) | CI gate and CI-built releases | Accepted, amended by [0018](0018-ci-from-trust-ratchet-workflows.md) |
 | [0016](0016-lint-biome-and-guard.md) | Lint: Biome plus a project-rules guard | Accepted |
 | [0017](0017-injected-config.md) | Injected config: every module gets its config explicitly | Accepted |
+| [0018](0018-ci-from-trust-ratchet-workflows.md) | CI and releases run in Trust Ratchet's reusable workflows | Accepted |
 
 ## How to add one
 

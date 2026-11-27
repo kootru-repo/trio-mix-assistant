@@ -1,5 +1,8 @@
 name: CI
 
+# Lint, type-check and tests run in Trust Ratchet's reusable gate, pinned to one commit
+# (release v0.2.0). The dashboard build and the macOS app stay here. ci-ok stays here,
+# so the ruleset on main can require it by name.
 on:
   push:
     branches: [main, dashboard-ts]
@@ -13,6 +16,27 @@ permissions:
   contents: read
 
 jobs:
+  gate:
+    uses: kootru-repo/trust-ratchet/.github/workflows/gate.yml@d3d05c6a8981cc56f62c864609d7cfaeeaaed035 # v0.2.0
+    with:
+      working-directory: app/ts
+      node-version: "22"
+      os-matrix: '["windows-2022","ubuntu-latest","macos-latest","macos-15-intel"]'
+      install-command: npm ci --foreground-scripts
+      lint-command: npm run lint
+      check-command: npm run check
+      test-command: npm test
+
+  gate-oldest-node:
+    uses: kootru-repo/trust-ratchet/.github/workflows/gate.yml@d3d05c6a8981cc56f62c864609d7cfaeeaaed035 # v0.2.0
+    with:
+      working-directory: app/ts
+      node-version: "22.13"
+      os-matrix: '["windows-2022","ubuntu-latest"]'
+      install-command: npm ci --foreground-scripts
+      check-command: npm run check
+      test-command: npm test
+
   dashboard:
     runs-on: windows-latest
     timeout-minutes: 15
@@ -36,9 +60,18 @@ jobs:
           test -z "$(git ls-files --others --exclude-standard -- ../static)"
         shell: bash
 
-  lint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  mac-app:
+    name: mac-app (${{ matrix.mac }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            mac: arm64
+          - os: macos-15-intel
+            mac: x64
     defaults:
       run:
         working-directory: app/ts
@@ -50,49 +83,12 @@ jobs:
           cache: npm
           cache-dependency-path: app/ts/package-lock.json
       - name: Install
-        run: npm ci --ignore-scripts
-      - name: Lint and project rules
-        run: npm run lint
-
-  typescript:
-    name: typescript (${{ matrix.os }}, node ${{ matrix.node }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-2022, ubuntu-latest]
-        node: ["22.13", "22"]
-        include:
-          - os: macos-latest
-            node: "22"
-            mac: arm64
-          - os: macos-15-intel
-            node: "22"
-            mac: x64
-    defaults:
-      run:
-        working-directory: app/ts
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-          cache-dependency-path: app/ts/package-lock.json
-      - name: Install
         run: npm ci --foreground-scripts
-      - name: Type-check (core must stay free of platform APIs)
-        run: npm run check
-      - name: Test against the recorded fixtures
-        run: npm test
       - name: Build the single-file app
-        if: runner.os == 'macOS'
         run: |
           npm run exe
           tar -czf TrioMixAssistant-macos-${{ matrix.mac }}.tar.gz -C dist/exe .
       - name: Keep the macOS app
-        if: runner.os == 'macOS'
         uses: actions/upload-artifact@v7
         with:
           name: TrioMixAssistant-macos-${{ matrix.mac }}
@@ -102,7 +98,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [lint, dashboard, typescript]
+    needs: [gate, gate-oldest-node, dashboard, mac-app]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

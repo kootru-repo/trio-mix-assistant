@@ -1,6 +1,6 @@
 # 0015. CI gate and CI-built releases
 
-- Status: Accepted
+- Status: Accepted, amended by [0018](0018-ci-from-trust-ratchet-workflows.md)
 - Date: 2026-11-26
 
 ## Context

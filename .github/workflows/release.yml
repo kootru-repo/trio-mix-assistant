@@ -1,152 +1,50 @@
 name: Release
 
-# Builds the three downloads from a version tag and puts them on that tag's
-# GitHub release. If the release already exists its files are replaced in place
-# (the owner's policy: a release is rebuilt, not re-versioned, for changes that
-# are not new features or fixes). Runs when a v* tag is pushed or moved, or by
-# hand with the tag name.
+# Builds the three downloads from a version tag in Trust Ratchet's reusable release, pinned
+# to one commit (release v0.2.0): the tag must have passed ci-ok, each build must report the
+# tag's version and commit, SHA256SUMS.txt is written and the files are attested, then
+# downloaded again and checked. If the release exists its files are replaced in place (the
+# owner's policy: a release is rebuilt, not re-versioned, for changes that are not new
+# features or fixes). Run by hand with "rehearse" to build and check without publishing.
 on:
   push:
     tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build, for example v0.2.9"
+        description: "Tag to build, for example v0.2.9"
         required: true
+      rehearse:
+        description: "Build and check at the chosen branch, publish nothing"
+        type: boolean
+        default: false
 
-permissions: {}
+permissions:
+  contents: write
+  checks: read
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release
   cancel-in-progress: false
 
-env:
-  TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-
 jobs:
-  gate:
-    name: tag passed CI
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      checks: read
-    outputs:
-      sha: ${{ steps.sha.outputs.sha }}
-    steps:
-      - name: Resolve the tag to its commit
-        id: sha
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          sha=$(gh api "repos/${{ github.repository }}/commits/${TAG}" --jq .sha)
-          echo "Tag ${TAG} is commit ${sha}"
-          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
-      - name: That commit passed ci-ok
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SHA: ${{ steps.sha.outputs.sha }}
-        run: |
-          ok=$(gh api "repos/${{ github.repository }}/commits/${SHA}/check-runs?check_name=ci-ok" --jq '[.check_runs[] | select(.conclusion == "success")] | length')
-          if [ "${ok}" = "0" ]; then
-            echo "Commit ${SHA} has no passing ci-ok check. Push it through dashboard-ts and main first."
-            exit 1
-          fi
-
-  build:
-    needs: gate
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - { os: macos-latest, asset: TrioMixAssistant-macos-arm64.tar.gz }
-          - { os: macos-15-intel, asset: TrioMixAssistant-macos-x64.tar.gz }
-          - { os: windows-2022, asset: TrioMixAssistant-windows-x64.zip }
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    defaults:
-      run:
-        working-directory: app/ts
-        shell: bash
-    env:
-      TRIO_MIX_COMMIT: ${{ needs.gate.outputs.sha }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.gate.outputs.sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-      - name: Tag matches the version in package.json
-        run: |
-          want="v$(node -p 'require("./package.json").version')"
-          if [ "${want}" != "${TAG}" ]; then
-            echo "Tag ${TAG} does not match package.json (${want})."
-            exit 1
-          fi
-      - run: npm ci --foreground-scripts
-      - run: npm run check
-      - run: npm run exe
-      - name: Licence text was downloaded
-        run: "! grep -q 'could not be downloaded' dist/exe/NODE-LICENSE.txt"
-      - name: The app reports this version and commit
-        run: |
-          shown=$(./dist/exe/TrioMixAssistant* --version)
-          echo "${shown}"
-          echo "${shown}" | grep -F "TrioMixAssistant ${TAG#v} (${TRIO_MIX_COMMIT:0:12})"
-      - name: Pack (macOS)
-        if: runner.os == 'macOS'
-        run: tar -czf "${RUNNER_TEMP}/${{ matrix.asset }}" -C dist/exe .
-      - name: Pack (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Compress-Archive -Path dist/exe/* -DestinationPath "$env:RUNNER_TEMP/${{ matrix.asset }}"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.asset }}
-          path: ${{ runner.temp }}/${{ matrix.asset }}
-          if-no-files-found: error
-          retention-days: 30
-
-  publish:
-    needs: [gate, build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          path: out
-          merge-multiple: true
-      - name: Checksums
-        working-directory: out
-        run: |
-          sha256sum -b TrioMixAssistant-macos-arm64.tar.gz TrioMixAssistant-macos-x64.tar.gz TrioMixAssistant-windows-x64.zip > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-      - uses: actions/attest-build-provenance@v4
-        with:
-          subject-path: out/TrioMixAssistant-*
-      - name: Create the release or replace its files
-        run: |
-          if gh release view "${TAG}" > /dev/null 2>&1; then
-            echo "Release ${TAG} exists: replacing its files in place."
-            gh release upload "${TAG}" out/* --clobber
-          else
-            gh release create "${TAG}" out/* --verify-tag --title "Trio Mix-Assistant ${TAG#v}" --generate-notes
-          fi
-      - name: Downloads match the checksums
-        run: |
-          mkdir check && cd check
-          for f in TrioMixAssistant-macos-arm64.tar.gz TrioMixAssistant-macos-x64.tar.gz TrioMixAssistant-windows-x64.zip; do
-            gh release download "${TAG}" --pattern "${f}"
-          done
-          sha256sum -c ../out/SHA256SUMS.txt
+  release:
+    uses: kootru-repo/trust-ratchet/.github/workflows/release.yml@d3d05c6a8981cc56f62c864609d7cfaeeaaed035 # v0.2.0
+    with:
+      tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.rehearse }}
+      rebuild-in-place: true
+      title: Trio Mix-Assistant ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      targets: '[{"os":"macos-latest","asset":"TrioMixAssistant-macos-arm64.tar.gz"},{"os":"macos-15-intel","asset":"TrioMixAssistant-macos-x64.tar.gz"},{"os":"windows-2022","asset":"TrioMixAssistant-windows-x64.zip"}]'
+      working-directory: app/ts
+      install-command: npm ci --foreground-scripts
+      build-command: |
+        want="v$(node -p 'require("./package.json").version')"
+        if [ "${want}" != "${TAG}" ]; then echo "Tag ${TAG} does not match package.json (${want})."; exit 1; fi
+        npm run check
+        TRIO_MIX_COMMIT="${RELEASE_COMMIT}" npm run exe
+        if grep -q 'could not be downloaded' dist/exe/NODE-LICENSE.txt; then echo "The Node licence text was not downloaded."; exit 1; fi
+      dist-dir: dist/exe
+      version-command: ./dist/exe/TrioMixAssistant* --version | grep -F "(${RELEASE_COMMIT:0:12})"
