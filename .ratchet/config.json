@@ -64,7 +64,7 @@
         "app/ts/fixtures/**",
         "app/ts/package.json"
       ],
-      "timeoutS": 240,
+      "timeoutS": 360,
       "command": "cd app/ts && npm test"
     }
   ],

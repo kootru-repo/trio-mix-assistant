@@ -117,7 +117,10 @@ const SHOW_ADDRESSES = new Set([
   "/song/beatsPerMinute",
 ]);
 
-const asFloat = (args: OscArg[]): number | null => (args.length ? argNumber(args[0]) : null);
+const asFloat = (args: OscArg[]): number | null => {
+  const v = args.length ? argNumber(args[0]) : null;
+  return v !== null && Number.isFinite(v) ? v : null;
+};
 
 const keyOf = (s: ShowState): string => `${s.songName}\u0000${s.section}\u0000${s.playing}`;
 

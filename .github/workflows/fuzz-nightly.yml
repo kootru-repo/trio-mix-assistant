@@ -1,0 +1,36 @@
+name: Fuzz (nightly)
+
+# The fuzz properties in app/ts/test/fuzz.test.ts with 200,000 cases each, from a new seed every night (the pull request
+# and push runs use 2,000 cases from a fixed seed). A failure saves its smallest input under app/ts/test/corpus/<property>/;
+# the job uploads that folder so it can be committed, after which every run replays it.
+on:
+  schedule:
+    - cron: "41 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: app/ts
+      - name: 200,000 cases per property
+        working-directory: app/ts
+        env:
+          FUZZ_CASES: "200000"
+          FUZZ_SEED: ${{ github.run_number }}000000
+        run: node --experimental-strip-types --no-warnings --test test/fuzz.test.ts
+      - name: The smallest failing inputs, to commit to the corpus
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-corpus
+          path: app/ts/test/corpus/

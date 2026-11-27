@@ -13,10 +13,13 @@ const hostKey = (host: string): string =>
     .toLowerCase()
     .replace(/^::ffff:/, "");
 
+export const CONSOLE_CHANNELS = 32;
+
 export function chFromFaderAddr(addr: string): number | null {
   const parts = addr.split("/");
   if (parts.length === 5 && parts[1] === "ch" && parts[3] === "mix" && parts[4] === "fader") {
-    return parseInteger(parts[2]!);
+    const ch = parseInteger(parts[2]!);
+    return ch !== null && ch >= 1 && ch <= CONSOLE_CHANNELS ? ch : null;
   }
   return null;
 }
@@ -73,8 +76,8 @@ export class MeterReceiver {
     const ch = chFromFaderAddr(address);
     if (ch === null || args.length === 0) return;
     const pos = argFloat(args[0]);
-    if (pos === null) return;
-    if (this.onFader) this.onFader(ch, faderToDb(pos));
+    if (pos === null || !Number.isFinite(pos)) return;
+    if (this.onFader) this.onFader(ch, faderToDb(Math.min(1, Math.max(0, pos))));
   }
 
   dispatch(data: Uint8Array, from: Peer | null = null): void {
