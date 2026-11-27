@@ -99,10 +99,30 @@ jobs:
           path: app/ts/TrioMixAssistant-macos-${{ matrix.mac }}.tar.gz
           retention-days: 30
 
+  enhance-locks:
+    # The enhancement engine's locks on its own pull requests (enhance/round-*): the vendored engine matches its manifest, and nothing
+    # outside enhance.json "writable" or under a protected rule changed, with the settings read from main. Part of ci-ok, so GitHub's
+    # auto-merge of a round waits for it. Other changes pass through.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        if: startsWith(github.head_ref, 'enhance/')
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        if: startsWith(github.head_ref, 'enhance/')
+        with:
+          node-version: 22
+      - name: Vendored engine and protected or writable paths
+        if: startsWith(github.head_ref, 'enhance/')
+        run: node tools/engine/gate.mjs turn --only vendor,protect --no-rerun --base origin/main
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [gate, gate-oldest-node, dashboard, mac-app]
+    needs: [gate, gate-oldest-node, dashboard, mac-app, enhance-locks]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

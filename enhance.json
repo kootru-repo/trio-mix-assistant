@@ -1,0 +1,52 @@
+{
+  "kind": "app",
+  "_about": "Settings of the enhancement engine for trio-mix-assistant, an app the owner named (the engine's docs/adr/0007). Narrow scope: rounds change only the dashboard, the docs and new tests; the safety logic, the fixtures and the ADRs are frozen; each round goes out as a pull request that GitHub merges by itself once ci-ok passes (auto-merge), and the owner's branch is fast-forwarded to main before the next round. The engine copy in tools/engine reads only this file. A worker never edits it: it is a protected path below.",
+  "base_refs": ["origin/main"],
+  "out_dir": "tools/engine/out",
+  "port": null,
+  "product": ["app/web/src/**", "app/static/**", "docs/**", "README.md", "app/*.md", "app/web/README.md", "app/ts/README.md"],
+  "writable": ["app/web/src/**", "app/static/**", "docs/**", "README.md", "app/*.md", "app/web/README.md", "app/ts/README.md", "app/ts/test/**"],
+  "protected": [
+    { "paths": ["enhance.json", "tools/engine/**", ".claude/**", ".ratchet/**", ".github/**", "**/package.json", "**/package-lock.json", ".gitignore", "app/biome.json", "app/web/tsconfig.json", "app/ts/tsconfig*.json"], "mode": "frozen", "why": "The engine, its settings, and what the checks run on. A round never changes them." },
+    { "paths": ["app/ts/src/**", "app/ts/tools/**"], "mode": "frozen", "why": "The safety logic and the app itself (console writes, holds, limits, the guard). Only the owner changes them." },
+    { "paths": ["app/ts/fixtures/**"], "mode": "frozen", "why": "Recorded fixtures: the oracles the tests compare with. Only the owner re-records them." },
+    { "paths": ["docs/adr/**"], "mode": "frozen", "why": "Architecture decisions are the owner's." },
+    { "paths": ["app/ts/test/**"], "mode": "append", "why": "The checks themselves, the safety tests among them: a round may add a test, never change or delete an existing one." }
+  ],
+  "tiers": {
+    "turn": ["vendor", "protect", "tuning", "guard", "separation", "dashboard", "typecheck", "lint", "test"],
+    "merge": ["hold", "vendor", "protect", "tuning", "guard", "separation", "dashboard", "typecheck", "lint", "test"],
+    "nightly": ["vendor", "protect", "guard", "typecheck", "lint", "test", "tighten"]
+  },
+  "commands": {
+    "dashboard": { "run": "node app/web/node_modules/typescript/bin/tsc -p app/web && git diff --exit-code --stat -- app/static", "timeoutS": 120, "why": "app/static is the dashboard's compiled TypeScript: a round that changes app/web/src commits the rebuilt app/static with it" },
+    "typecheck": { "run": "cd app/ts && npm run check", "timeoutS": 300 },
+    "lint": { "run": "cd app/ts && npm run lint", "timeoutS": 300 },
+    "test": { "run": "cd app/ts && npm test", "timeoutS": 900 },
+    "tighten": { "run": "node tools/engine/guard.mjs census", "timeoutS": 120, "info": true, "why": "rule backlogs that can be lowered now" }
+  },
+  "mutate": { "copy": [], "targets": [] },
+  "worker": {
+    "setup": ["cd app/ts && npm ci", "cd app/web && npm ci"],
+    "server": null,
+    "rules": [
+      "Change only the dashboard (app/web/src, and the rebuilt app/static), the docs (docs/, README.md, app/*.md) and new tests under app/ts/test. Everything else is frozen; the protect step fails the round otherwise.",
+      "After changing app/web/src, rebuild app/static with: node app/web/node_modules/typescript/bin/tsc -p app/web, and commit both.",
+      "Never change or delete an existing test; add new ones. Never touch app/ts/src, the fixtures or docs/adr.",
+      "TypeScript rules: no comments in app/ts; no 'as any', 'as unknown as' or @ts- directives; no skipped tests; erasable syntax only; never the Effect library.",
+      "Docs: plain, short sentences; say what the reader can do, not how the code works."
+    ]
+  },
+  "autonomy": {
+    "land": "pr",
+    "push": false,
+    "max_workers": 2,
+    "max_rounds_per_day": 4,
+    "max_pending": 3,
+    "park_after": 3,
+    "worktrees": "engine",
+    "pr": { "base": "main", "remote": "origin", "prefix": "enhance/round-", "max_open": 1, "auto_merge": true, "sync_owner": true }
+  },
+  "judge": { "title": "the trio mix assistant's dashboard and docs", "calibrated": false, "dimensions": [] },
+  "coverage": { "sources": {} }
+}

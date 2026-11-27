@@ -37,3 +37,6 @@ node_modules/
 
 # --- TypeScript port ---
 app/ts/dist/
+
+# --- Enhancement engine records ---
+tools/engine/out/

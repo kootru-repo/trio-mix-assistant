@@ -1,0 +1,29 @@
+{
+ "engine": "enhance-engine",
+ "version": "0.1.0",
+ "commit": "fe81b3d",
+ "synced": "2026-11-27T20:34:36.837Z",
+ "about": "A pinned copy of the enhancement engine. Never edit it here: change the engine repository and sync again (node <engine repo>/engine/cli.mjs sync <game>).",
+ "files": {
+  "checks.mjs": "4638f5a3cf2ea9dd",
+  "cli.mjs": "665ee0e9220b95a5",
+  "coverage.mjs": "1ce2543b08f3c399",
+  "enumerate.mjs": "fe613d4923b49895",
+  "gate.mjs": "1aaa65ed951f21de",
+  "goal.mjs": "715300e4da904d90",
+  "guard.mjs": "042f35b5001afee7",
+  "hold.mjs": "05f5c10052ec3bf5",
+  "judge.mjs": "041fa283bb2838b7",
+  "lib.mjs": "c78c3dcfe7408d50",
+  "mutate.mjs": "318a089a5417f745",
+  "requests.mjs": "e56477520cf0b500",
+  "round.mjs": "69897f6cc5fc8ed9",
+  "scope.mjs": "8eef8eddedb1fd4a",
+  "shim/portshim.py": "ca9591e6ae6a6f10",
+  "shim/replay.py": "80974ecd8db2cac6",
+  "shim/shimlib.py": "bba317ef442d2ab3",
+  "shim/sitecustomize.py": "bee1a07d10415e39",
+  "state.mjs": "d63bd87ba01b7447",
+  "vendor.mjs": "002f763c03246bee"
+ }
+}
