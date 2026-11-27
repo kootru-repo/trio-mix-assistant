@@ -1,4 +1,5 @@
 import { C } from "./config.ts";
+import type { CalibrationConfig } from "./config.ts";
 import { hanning, irfft, magnitude, rfft } from "./fft.ts";
 import { roundTo } from "./numfmt.ts";
 import type { Rng } from "./rng.ts";
@@ -45,6 +46,7 @@ const argmax = (xs: ArrayLike<number>): number => {
 
 export interface AnalyseOptions {
   ring?: boolean;
+  ringDb?: number;
 }
 
 export function analyseBlock(samples: Samples, sr: number = C.SAMPLE_RATE, opts: AnalyseOptions = {}): ChannelFeatures {
@@ -80,7 +82,7 @@ export function analyseBlock(samples: Samples, sr: number = C.SAMPLE_RATE, opts:
     for (let i = 1; i < db.length; i++) if (db[i]! > maxDb) maxDb = db[i]!;
     const floor = median(db);
     f.contrastDb = maxDb - floor;
-    const k = opts.ring === false ? null : findRingBin(db);
+    const k = opts.ring === false ? null : findRingBin(db, opts.ringDb);
     if (k !== null) {
       f.fbFreq = binToHz(parabolicPeak(db, k), mag.length, sr);
       f.harmonicity = harmonicityOf(db, k, floor);
@@ -103,7 +105,7 @@ export function parabolicPeak(db: Float64Array, k: number): number {
   return k + delta;
 }
 
-export function findRingBin(db: Float64Array): number | null {
+export function findRingBin(db: Float64Array, ringDb: number = C.feedback.ringDb): number | null {
   if (db.length < 16) return null;
   const k = argmax(db);
   if (k === 0) return null;
@@ -113,7 +115,7 @@ export function findRingBin(db: Float64Array): number | null {
   for (let i = lo; i < k; i++) neighbourhood.push(db[i]!);
   for (let i = k + 1; i < hi; i++) neighbourhood.push(db[i]!);
   if (neighbourhood.length === 0) return null;
-  return db[k]! - median(neighbourhood) > C.feedback.ringDb ? k : null;
+  return db[k]! - median(neighbourhood) > ringDb ? k : null;
 }
 
 export function harmonicityOf(db: Float64Array, k: number, floor: number = median(db)): number {
@@ -131,16 +133,26 @@ export function harmonicityOf(db: Float64Array, k: number, floor: number = media
 export class RollingRingDetector {
   private readonly n: number;
   private readonly sr: number;
+  private readonly ringDb: number;
   private buf = new Float32Array(0);
   private readonly win: Float64Array;
 
-  constructor(fftSize: number | null = null, sr: number = C.SAMPLE_RATE) {
-    this.n = Math.trunc(fftSize || C.feedback.detectFft);
+  constructor(fftSize: number = C.feedback.detectFft, sr: number = C.SAMPLE_RATE, ringDb: number = C.feedback.ringDb) {
+    this.n = Math.trunc(fftSize);
     this.sr = sr;
+    this.ringDb = ringDb;
     this.win = hanning(this.n);
   }
 
-  update(samples: Samples): [number | null, number] {
+  get fftSize(): number {
+    return this.n;
+  }
+
+  get sampleRate(): number {
+    return this.sr;
+  }
+
+  update(samples: Samples, ringDb: number = this.ringDb): [number | null, number] {
     if (samples.length) {
       const merged = new Float32Array(this.buf.length + samples.length);
       merged.set(this.buf, 0);
@@ -154,7 +166,7 @@ export class RollingRingDetector {
     for (let i = 0; i < buf.length; i++) windowed[i] = buf[i]! * w[i]!;
     const mag = magnitude(rfft(windowed));
     const db = toDb(mag);
-    const k = findRingBin(db);
+    const k = findRingBin(db, ringDb);
     if (k === null) return [null, 0];
     return [binToHz(parabolicPeak(db, k), mag.length, this.sr), harmonicityOf(db, k)];
   }
@@ -173,7 +185,7 @@ export function phaseRelation(
   a: Samples,
   b: Samples,
   sr: number = C.SAMPLE_RATE,
-  maxLagMs: number | null = null,
+  maxLagMs: number = C.phase.maxLagMs,
 ): PhaseRelation {
   const n = Math.min(a.length, b.length);
   if (n < 16) return noPhase();
@@ -204,7 +216,7 @@ export function phaseRelation(
   if (na < 1e-9 || nb < 1e-9) return noPhase();
   const denom = na * nb;
   const zero = xy / denom;
-  let maxLag = Math.trunc(((maxLagMs ?? C.phase.maxLagMs) / 1000) * sr);
+  let maxLag = Math.trunc((maxLagMs / 1000) * sr);
   maxLag = Math.max(1, Math.min(maxLag, n - 1));
   let bestLag = -maxLag;
   let bestVal = 0;
@@ -252,14 +264,18 @@ export function generatePinkNoise(
   return out;
 }
 
-export function octaveBandLevels(samples: Samples, sr: number = C.SAMPLE_RATE): Map<number, number> {
+export function octaveBandLevels(
+  samples: Samples,
+  sr: number = C.SAMPLE_RATE,
+  bands: readonly number[] = C.calibration.octaveBands,
+): Map<number, number> {
   const n = samples.length;
   const win = hanning(n);
   const windowed = new Float64Array(n);
   for (let i = 0; i < n; i++) windowed[i] = samples[i]! * win[i]!;
   const mag = magnitude(rfft(windowed));
   const out = new Map<number, number>();
-  for (const fc of C.calibration.octaveBands) {
+  for (const fc of bands) {
     const lo = fc / Math.SQRT2;
     const hi = fc * Math.SQRT2;
     let sum = 0;
@@ -282,8 +298,9 @@ export function findResonantPeaks(
   captured: Samples,
   sr: number = C.SAMPLE_RATE,
   precomputed: Map<number, number> | null = null,
+  cal: Readonly<CalibrationConfig> = C.calibration,
 ): { corrections: BandPair[]; watchlist: BandPair[] } {
-  const bands = precomputed ?? octaveBandLevels(captured, sr);
+  const bands = precomputed ?? octaveBandLevels(captured, sr, cal.octaveBands);
   const fcs = [...bands.keys()];
   const vals = fcs.map((f) => bands.get(f)!);
   const corrections: BandPair[] = [];
@@ -292,8 +309,8 @@ export function findResonantPeaks(
     if (i === 0 || i === fcs.length - 1) continue;
     const avg = ((vals[i - 1] ?? 0) + vals[i]! + (vals[i + 1] ?? 0)) / 3;
     const excess = vals[i]! - avg;
-    if (excess > C.calibration.peakThreshDb) {
-      const cut = Math.max(C.calibration.maxCutDb, -excess);
+    if (excess > cal.peakThreshDb) {
+      const cut = Math.max(cal.maxCutDb, -excess);
       corrections.push([fcs[i]!, roundTo(cut, 1)]);
       watch.push([fcs[i]!, roundTo(excess, 1)]);
     }

@@ -1,9 +1,10 @@
-import { BlockAnalyser, currentAnalysisConfig } from "./blockanalysis.ts";
+import { BlockAnalyser, analysisConfig } from "./blockanalysis.ts";
 import type { AnalysedBlock, AnalysisConfig } from "./blockanalysis.ts";
 import { CaptureError, CaptureSourceBase } from "./capture.ts";
 import type { BlockHandler, CaptureStatus, Frame } from "./capture.ts";
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
+import type { Config } from "./config.ts";
 import { DeviceCapture } from "./devicecapture.ts";
 import { activeTuning } from "./tuning.ts";
 import type { TuningOverride } from "./tuning.ts";
@@ -61,16 +62,19 @@ export class CaptureHost {
   private readonly clock: Clock;
   private readonly post: (message: FromCapture) => void;
   private readonly stamp: () => number;
+  private readonly cfg: Config;
   private cap: DeviceCapture | null = null;
-  private analyser = new BlockAnalyser();
+  private analyser: BlockAnalyser;
   private analysis: AnalysisConfig | null = null;
   private gen = 0;
 
-  constructor(factory: AudioInputFactory, clock: Clock, post: (message: FromCapture) => void, stamp: () => number) {
+  constructor(factory: AudioInputFactory, clock: Clock, post: (message: FromCapture) => void, stamp: () => number, cfg: Config = C) {
     this.factory = factory;
     this.clock = clock;
     this.post = post;
     this.stamp = stamp;
+    this.cfg = cfg;
+    this.analyser = new BlockAnalyser(cfg);
   }
 
   handle(message: ToCapture): void {
@@ -86,7 +90,7 @@ export class CaptureHost {
   private open(config: CaptureConfig): void {
     this.shutdown();
     const gen = this.gen;
-    this.analyser = new BlockAnalyser();
+    this.analyser = new BlockAnalyser(this.cfg);
     this.analysis = config.analysis;
     let cap: DeviceCapture;
     try {
@@ -100,6 +104,7 @@ export class CaptureHost {
         block: config.block,
         measCh: config.measCh,
         gainDb: config.gainDb,
+        cfg: this.cfg,
       });
       cap.subscribeFrames((frame) => this.onFrame(gen, frame));
       this.cap = cap;
@@ -180,6 +185,7 @@ export interface RemoteCaptureOptions {
   sampleRate?: number;
   block?: number;
   measCh?: number | null;
+  cfg?: Config;
 }
 
 type LinkState = "idle" | "opening" | "open" | "down";
@@ -202,6 +208,7 @@ export class RemoteCapture extends CaptureSourceBase {
 
   private readonly opts: RemoteCaptureOptions;
   private readonly clock: Clock;
+  private readonly cfg: Config;
   private port: CapturePort | null = null;
   private state: LinkState = "idle";
   private handler: BlockHandler | null = null;
@@ -219,6 +226,7 @@ export class RemoteCapture extends CaptureSourceBase {
     super();
     this.opts = opts;
     this.clock = opts.clock;
+    this.cfg = opts.cfg ?? C;
     this.device = opts.device ?? null;
     this.gainDb = Number(opts.gainDb ?? 0.0);
   }
@@ -228,16 +236,16 @@ export class RemoteCapture extends CaptureSourceBase {
     const map: [number, number][] =
       given && given.size > 0
         ? [...given]
-        : [...C.CHANNELS.keys()].sort((a, b) => a - b).map((ch) => [ch, ch - 1] as [number, number]);
+        : [...this.cfg.CHANNELS.keys()].sort((a, b) => a - b).map((ch) => [ch, ch - 1] as [number, number]);
     return {
       device: this.device,
       outputDevice: this.opts.outputDevice ?? null,
       channelMap: map,
-      measCh: this.opts.measCh ?? C.MEAS_MIC_CH,
+      measCh: this.opts.measCh ?? this.cfg.MEAS_MIC_CH,
       gainDb: this.gainDb,
-      sampleRate: this.opts.sampleRate ?? C.SAMPLE_RATE,
-      block: this.opts.block ?? C.BLOCK,
-      analysis: currentAnalysisConfig(),
+      sampleRate: this.opts.sampleRate ?? this.cfg.SAMPLE_RATE,
+      block: this.opts.block ?? this.cfg.BLOCK,
+      analysis: analysisConfig(this.cfg),
       tuning: [...activeTuning()],
     };
   }
@@ -453,7 +461,7 @@ export class RemoteCapture extends CaptureSourceBase {
   }
 
   override async emitPinkNoise(samples: Float32Array): Promise<boolean> {
-    const seconds = samples.length / (this.opts.sampleRate ?? C.SAMPLE_RATE);
+    const seconds = samples.length / (this.opts.sampleRate ?? this.cfg.SAMPLE_RATE);
     return (await this.call({ op: "pink", samples }, seconds + this.CALL_WAIT_S)) === true;
   }
 
@@ -468,7 +476,7 @@ export class RemoteCapture extends CaptureSourceBase {
   }
 }
 
-export function loopbackPort(factory: AudioInputFactory, clock: Clock, stamp: () => number): CapturePort {
+export function loopbackPort(factory: AudioInputFactory, clock: Clock, stamp: () => number, cfg: Config = C): CapturePort {
   let handler: ((message: FromCapture) => void) | null = null;
   let open = true;
   const later = (fn: () => void): void => void Promise.resolve().then(fn);
@@ -480,6 +488,7 @@ export function loopbackPort(factory: AudioInputFactory, clock: Clock, stamp: ()
         if (open && handler !== null) handler(m);
       }),
     stamp,
+    cfg,
   );
   return {
     post: (m) =>

@@ -330,7 +330,7 @@ trio-mix-assistant/
     └── mix-assistant-design.html  ← design infographic
 ```
 
-**Go deeper:** [app/README.md](app/README.md) (architecture & internals) · [app/RUNBOOK.md](app/RUNBOOK.md) (show‑day) · [app/HARDWARE_BRINGUP.md](app/HARDWARE_BRINGUP.md) (real‑desk validation).
+**Go deeper:** [app/README.md](app/README.md) (architecture & internals) · [app/RUNBOOK.md](app/RUNBOOK.md) (show‑day) · [app/HARDWARE_BRINGUP.md](app/HARDWARE_BRINGUP.md) (real‑desk validation) · [docs/adr/](docs/adr/README.md) (decision records).
 
 ## Tests
 

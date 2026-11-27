@@ -37,6 +37,7 @@ issue yourself and put their name in *Whose feedback is this?*.
 Anything that moves the console must stay inside the guardrails, be logged, and
 yield to a human move. Changes that touch the OSC wire format need a note on how
 they were checked (see [HARDWARE_BRINGUP.md](app/HARDWARE_BRINGUP.md)).
+The decisions behind the design are recorded in [docs/adr/](docs/adr/README.md).
 
 ## Licence of contributions
 

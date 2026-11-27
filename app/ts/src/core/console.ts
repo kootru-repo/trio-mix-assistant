@@ -1,5 +1,6 @@
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
+import type { Config } from "./config.ts";
 import { encodeMessage, oscFloat, oscInt, oscStr } from "./oscwire.ts";
 import type { OscArg } from "./oscwire.ts";
 import { clamp, zeroPad } from "./util.ts";
@@ -70,11 +71,13 @@ interface RampJob {
 export interface ConsoleOptions {
   clock?: Clock | null;
   ip?: string | null;
+  cfg?: Config;
 }
 
 export abstract class ConsoleBase {
   protected readonly rampClock: Clock | null;
   readonly ip: string | null;
+  protected readonly cfg: Config;
   private rampChain: Promise<void> = Promise.resolve();
   private rampGen = new Map<number, number>();
   private rampEpoch = 0;
@@ -90,6 +93,7 @@ export abstract class ConsoleBase {
   constructor(opts: ConsoleOptions = {}) {
     this.rampClock = opts.clock ?? null;
     this.ip = opts.ip ?? null;
+    this.cfg = opts.cfg ?? C;
   }
 
   protected abstract send(addr: string, ...args: OscArg[]): void;
@@ -153,12 +157,12 @@ export abstract class ConsoleBase {
   setFaderDb(ch: number, db: number): number {
     finite(db);
     this.bumpRamp(ch);
-    return this.writeFader(ch, db, C.limits.faderMinDb, C.limits.faderMaxDb);
+    return this.writeFader(ch, db, this.cfg.limits.faderMinDb, this.cfg.limits.faderMaxDb);
   }
 
-  rampFaderDb(ch: number, startDb: number, endDb: number, ms: number = C.ride.rampMs, steps: number = 12): number {
+  rampFaderDb(ch: number, startDb: number, endDb: number, ms: number = this.cfg.ride.rampMs, steps: number = 12): number {
     finite(startDb, endDb, ms, steps);
-    const end = clamp(endDb, C.limits.faderMinDb, C.limits.faderMaxDb);
+    const end = clamp(endDb, this.cfg.limits.faderMinDb, this.cfg.limits.faderMaxDb);
     const job: RampJob = { ch, startDb, endDb: end, ms, steps, gen: this.bumpRamp(ch), epoch: this.rampEpoch, created: this.rampClock ? this.rampClock.monotonic() : null, lane: this.lane };
     this.rampChain = this.rampChain.then(() => this.runRamp(job)).catch((exc: unknown) => {
       this.lastRampError = exc;
@@ -188,18 +192,18 @@ export abstract class ConsoleBase {
   private async runRamp(job: RampJob): Promise<void> {
     const clock = this.rampClock;
     if (!this.live(job)) return;
-    if (clock && job.created !== null && clock.monotonic() - job.created > job.ms / 1000 + C.safety.rampLateS) {
+    if (clock && job.created !== null && clock.monotonic() - job.created > job.ms / 1000 + this.cfg.safety.rampLateS) {
       this.abortRamp(job);
       return;
     }
     const stepS = job.ms / 1000 / job.steps;
     for (let i = 1; i <= job.steps; i++) {
       if (!this.live(job)) return;
-      this.withLane(job.lane, () => this.writeFader(job.ch, job.startDb + (job.endDb - job.startDb) * (i / job.steps), C.limits.faderMinDb, C.limits.faderMaxDb));
+      this.withLane(job.lane, () => this.writeFader(job.ch, job.startDb + (job.endDb - job.startDb) * (i / job.steps), this.cfg.limits.faderMinDb, this.cfg.limits.faderMaxDb));
       if (!clock) continue;
       const before = clock.monotonic();
       await clock.sleep(stepS);
-      if (i < job.steps && clock.monotonic() - before - stepS > C.safety.rampOverrunS) {
+      if (i < job.steps && clock.monotonic() - before - stepS > this.cfg.safety.rampOverrunS) {
         if (this.live(job)) this.abortRamp(job);
         return;
       }
@@ -208,7 +212,7 @@ export abstract class ConsoleBase {
 
   nudgeGainDb(ch: number, currentDb: number, deltaDb: number): number {
     finite(currentDb, deltaDb);
-    const next = clamp(currentDb + deltaDb, C.limits.headampMinDb, C.limits.headampMaxDb);
+    const next = clamp(currentDb + deltaDb, this.cfg.limits.headampMinDb, this.cfg.limits.headampMaxDb);
     this.send(`/headamp/${zeroPad(ch - 1, 3)}/gain`, oscFloat((next + 12) / 72));
     this.record({ kind: "gain", ch, db: next });
     return next;
@@ -232,8 +236,8 @@ export abstract class ConsoleBase {
     ch: number,
     band: number,
     hz: number,
-    gainDb: number = C.feedback.notchGainDb,
-    q: number = C.feedback.notchQ,
+    gainDb: number = this.cfg.feedback.notchGainDb,
+    q: number = this.cfg.feedback.notchQ,
   ): void {
     this.eqBand(`/ch/${zeroPad(ch, 2)}/eq/${band}`, hz, gainDb, q);
     this.send(`/ch/${zeroPad(ch, 2)}/eq/on`, oscInt(1));
@@ -241,8 +245,8 @@ export abstract class ConsoleBase {
   }
 
   setBusEq(band: number, hz: number, gainDb: number, q: number = 4.0): void {
-    this.eqBand(`/${C.MAIN_BUS}/eq/${band}`, hz, gainDb, q);
-    this.send(`/${C.MAIN_BUS}/eq/on`, oscInt(1));
+    this.eqBand(`/${this.cfg.MAIN_BUS}/eq/${band}`, hz, gainDb, q);
+    this.send(`/${this.cfg.MAIN_BUS}/eq/on`, oscInt(1));
     this.record({ kind: "bus_eq", band, hz, gainDb, q });
   }
 
@@ -273,7 +277,7 @@ export abstract class ConsoleBase {
   }
 
   setMainMute(muted: boolean): void {
-    this.withLane("safety", () => this.send(`/${C.MAIN_BUS}/mix/on`, oscInt(muted ? 0 : 1)));
+    this.withLane("safety", () => this.send(`/${this.cfg.MAIN_BUS}/mix/on`, oscInt(muted ? 0 : 1)));
     this.record({ kind: "main_mute", muted });
   }
 
@@ -301,7 +305,7 @@ export abstract class ConsoleBase {
   setMainFader(db: number): number {
     finite(db);
     const v = clamp(db, -90, 10);
-    this.send(`/${C.MAIN_BUS}/mix/fader`, oscFloat(dbToFader(v)));
+    this.send(`/${this.cfg.MAIN_BUS}/mix/fader`, oscFloat(dbToFader(v)));
     this.record({ kind: "master", db: v });
     return v;
   }
@@ -340,7 +344,7 @@ export class OscConsole extends ConsoleBase {
   constructor(sink: DatagramSink, opts: ConsoleOptions = {}) {
     super(opts);
     this.sink = sink;
-    const s = C.safety;
+    const s = this.cfg.safety;
     this.governor =
       opts.clock === null || opts.clock === undefined
         ? null

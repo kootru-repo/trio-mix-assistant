@@ -1,10 +1,9 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { CaptureHost } from "../core/capturelink.ts";
 import type { FromCapture, ToCapture } from "../core/capturelink.ts";
-import { C } from "../core/config.ts";
+import { defaultConfig } from "../core/config.ts";
 import type { AudioInputFactory } from "../core/devicecapture.ts";
 import { TimedAudioFactory } from "../core/timedaudio.ts";
-import { setTuning } from "../core/tuning.ts";
 import { NativeAudioInputFactory } from "./audiodevice.ts";
 import { SystemClock, threadStamp } from "./clock.ts";
 
@@ -13,13 +12,11 @@ if (port === null) throw new Error("the audio worker must be started as a worker
 
 const kind: unknown = (workerData as { kind?: unknown } | null)?.kind;
 const clock = new SystemClock();
-const factory: AudioInputFactory = kind === "timed" ? new TimedAudioFactory(clock) : await NativeAudioInputFactory.create();
-const host = new CaptureHost(factory, clock, (message: FromCapture) => port.postMessage(message), threadStamp);
+const cfg = defaultConfig();
+const factory: AudioInputFactory = kind === "timed" ? new TimedAudioFactory(clock, 64, cfg) : await NativeAudioInputFactory.create();
+const host = new CaptureHost(factory, clock, (message: FromCapture) => port.postMessage(message), threadStamp, cfg);
 
 port.on("message", (message: ToCapture) => {
-  if (message.type === "open") {
-    C.MEAS_MIC_CH = message.config.measCh;
-    setTuning(message.config.tuning);
-  }
+  if (message.type === "open") cfg.MEAS_MIC_CH = message.config.measCh;
   host.handle(message);
 });

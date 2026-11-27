@@ -1,4 +1,5 @@
 import { C } from "./config.ts";
+import type { Config } from "./config.ts";
 import { faderToDb } from "./console.ts";
 import type { DatagramSink } from "./console.ts";
 import { argFloat } from "./oscargs.ts";
@@ -24,6 +25,7 @@ export interface MeterReceiverOptions {
   ip?: string;
   port?: number;
   allowFrom?: string | null;
+  cfg?: Config;
 }
 
 export class MeterReceiver {
@@ -49,7 +51,7 @@ export class MeterReceiver {
     this.onMeters = opts.onMeters ?? null;
     this.onMessage = opts.onMessage ?? null;
     this.ip = opts.ip ?? "0.0.0.0";
-    this.port = opts.port ?? C.LOCAL_PORT;
+    this.port = opts.port ?? (opts.cfg ?? C).LOCAL_PORT;
     const from = opts.allowFrom ?? null;
     this.allowFrom = from !== null && from.trim() !== "" ? hostKey(from) : null;
   }

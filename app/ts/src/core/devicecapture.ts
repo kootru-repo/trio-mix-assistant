@@ -2,6 +2,7 @@ import { CaptureError, CaptureSourceBase } from "./capture.ts";
 import type { CaptureStatus, Frame } from "./capture.ts";
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
+import type { Config } from "./config.ts";
 import { roundHalfEven, roundTo } from "./numfmt.ts";
 import { parseInteger } from "./util.ts";
 
@@ -74,6 +75,7 @@ export interface DeviceCaptureOptions {
   outputDevice?: AudioDeviceId | null;
   outputSink?: AudioOutputSink | null;
   gainDb?: number;
+  cfg?: Config;
 }
 
 interface QueuedFrame {
@@ -183,13 +185,14 @@ export class DeviceCapture extends CaptureSourceBase {
     this.outputOk = this.outputSink !== null;
     this.gainDb = Number(opts.gainDb ?? 0.0);
     this.gain = 10.0 ** (this.gainDb / 20.0);
-    this.samplerate = opts.sampleRate ?? C.SAMPLE_RATE;
-    this.blocksize = opts.block ?? C.BLOCK;
-    this.measCh = opts.measCh ?? C.MEAS_MIC_CH;
+    const cfg = opts.cfg ?? C;
+    this.samplerate = opts.sampleRate ?? cfg.SAMPLE_RATE;
+    this.blocksize = opts.block ?? cfg.BLOCK;
+    this.measCh = opts.measCh ?? cfg.MEAS_MIC_CH;
     if (opts.channelMap && opts.channelMap.size > 0) {
       this.channelMap = opts.channelMap;
     } else {
-      const chans = [...C.CHANNELS.keys()].sort((a, b) => a - b);
+      const chans = [...cfg.CHANNELS.keys()].sort((a, b) => a - b);
       this.channelMap = new Map(chans.map((ch) => [ch, ch - 1] as [number, number]));
     }
     let top = -Infinity;

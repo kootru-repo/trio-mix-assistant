@@ -1,4 +1,5 @@
 import { C } from "./config.ts";
+import type { Config } from "./config.ts";
 import type { SimConsole } from "./console.ts";
 import { generatePinkNoise } from "./dsp.ts";
 import type { Samples } from "./dsp.ts";
@@ -69,11 +70,11 @@ export abstract class CaptureSourceBase implements CaptureSource {
   }
 }
 
-export function simRoomCapture(rng: Rng): Float64Array {
-  const noise = generatePinkNoise(C.calibration.durationS, rng);
+export function simRoomCapture(rng: Rng, cfg: Config = C): Float64Array {
+  const noise = generatePinkNoise(cfg.calibration.durationS, rng, cfg.SAMPLE_RATE, cfg.calibration.noiseDbfs);
   const out = new Float64Array(noise.length);
   for (let i = 0; i < noise.length; i++) {
-    const t = i / C.SAMPLE_RATE;
+    const t = i / cfg.SAMPLE_RATE;
     out[i] = noise[i]! + 0.3 * Math.sin(2 * Math.PI * 250.0 * t) + 0.22 * Math.sin(2 * Math.PI * 2500.0 * t);
   }
   return out;
@@ -85,6 +86,7 @@ export class SimCapture extends CaptureSourceBase {
   static readonly BOOM_FREQ = 250.0;
 
   private readonly con: SimConsole;
+  private readonly cfg: Config;
   readonly rng: Rng;
   private n = 0;
   private blockI = 0;
@@ -93,9 +95,10 @@ export class SimCapture extends CaptureSourceBase {
   private clipUntil = -1;
   private nextClip = 90;
 
-  constructor(console: SimConsole, seed: number | bigint = 7, rng: Rng | null = null) {
+  constructor(console: SimConsole, seed: number | bigint = 7, rng: Rng | null = null, cfg: Config = C) {
     super();
     this.con = console;
+    this.cfg = cfg;
     this.rng = rng ?? new SeededRng(seed);
   }
 
@@ -105,22 +108,23 @@ export class SimCapture extends CaptureSourceBase {
   }
 
   private normals(): Float64Array {
-    const out = new Float64Array(C.BLOCK);
-    for (let i = 0; i < C.BLOCK; i++) out[i] = this.rng.standardNormal();
+    const out = new Float64Array(this.cfg.BLOCK);
+    for (let i = 0; i < this.cfg.BLOCK; i++) out[i] = this.rng.standardNormal();
     return out;
   }
 
   block(): Frame {
-    const nb = C.BLOCK;
+    const cfg = this.cfg;
+    const nb = cfg.BLOCK;
     const t = new Float64Array(nb);
-    for (let k = 0; k < nb; k++) t[k] = (this.n + k) / C.SAMPLE_RATE;
+    for (let k = 0; k < nb; k++) t[k] = (this.n + k) / cfg.SAMPLE_RATE;
     this.n += nb;
     this.blockI += 1;
     const i = this.blockI;
     const frame: Frame = new Map();
     const sin = (freq: number, k: number): number => Math.sin((2 * Math.PI * freq * t[k]!) as number);
 
-    for (const [ch, roleName] of C.CHANNELS) {
+    for (const [ch, roleName] of cfg.CHANNELS) {
       const x = this.normals();
       for (let k = 0; k < nb; k++) x[k] = SimCapture.NOISE * x[k]!;
       const lin = this.gaintrimLin(ch);
@@ -157,7 +161,7 @@ export class SimCapture extends CaptureSourceBase {
     for (let k = 0; k < nb; k++) room[k] = SimCapture.NOISE * room[k]! + 0.055 * sin(SimCapture.BOOM_FREQ, k);
     if (i >= this.nextRing && this.ringAmp === 0) this.ringAmp = 0.05;
     if (this.ringAmp > 0) {
-      if (this.con.isTamed(C.MEAS_MIC_CH, SimCapture.RING_FREQ)) {
+      if (this.con.isTamed(cfg.MEAS_MIC_CH, SimCapture.RING_FREQ)) {
         this.ringAmp *= 0.55;
         if (this.ringAmp < 0.01) {
           this.ringAmp = 0;
@@ -168,7 +172,7 @@ export class SimCapture extends CaptureSourceBase {
       }
       for (let k = 0; k < nb; k++) room[k] = room[k]! + this.ringAmp * sin(SimCapture.RING_FREQ, k);
     }
-    frame.set(C.MEAS_MIC_CH, Float32Array.from(room));
+    frame.set(cfg.MEAS_MIC_CH, Float32Array.from(room));
 
     if (i >= this.nextClip && i > this.clipUntil) {
       this.clipUntil = i + 5;
@@ -178,7 +182,7 @@ export class SimCapture extends CaptureSourceBase {
   }
 
   override captureMeas(_seconds: number): Promise<Samples | null> {
-    return Promise.resolve(simRoomCapture(this.rng));
+    return Promise.resolve(simRoomCapture(this.rng, this.cfg));
   }
 
   override status(): CaptureStatus {

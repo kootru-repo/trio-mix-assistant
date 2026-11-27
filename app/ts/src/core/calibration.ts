@@ -1,4 +1,5 @@
 import { C } from "./config.ts";
+import type { Config } from "./config.ts";
 import type { ConsoleBase } from "./console.ts";
 import { findResonantPeaks, octaveBandLevels } from "./dsp.ts";
 import type { BandPair, Samples } from "./dsp.ts";
@@ -23,36 +24,38 @@ export interface CalibrationStep {
 
 export class Calibrator {
   private readonly con: ConsoleBase;
+  private readonly cfg: Config;
 
-  constructor(console: ConsoleBase) {
+  constructor(console: ConsoleBase, cfg: Config = C) {
     this.con = console;
+    this.cfg = cfg;
   }
 
   analyze(captured: Samples): CalibrationResult {
-    const baseline = octaveBandLevels(captured);
-    const { corrections, watchlist } = findResonantPeaks(captured, C.SAMPLE_RATE, baseline);
+    const baseline = octaveBandLevels(captured, this.cfg.SAMPLE_RATE, this.cfg.calibration.octaveBands);
+    const { corrections, watchlist } = findResonantPeaks(captured, this.cfg.SAMPLE_RATE, baseline, this.cfg.calibration);
     return { baseline, corrections, watchlist };
   }
 
   plan(res: CalibrationResult): CalibrationStep[] {
     const steps: CalibrationStep[] = [];
     const corrected = new Set<number>();
-    res.corrections.slice(0, C.calibration.roomBands).forEach(([fc, cut], i) => {
-      steps.push({ band: i + 1, hz: fc, gain: cut, q: C.calibration.roomQ, kind: "room" });
+    res.corrections.slice(0, this.cfg.calibration.roomBands).forEach(([fc, cut], i) => {
+      steps.push({ band: i + 1, hz: fc, gain: cut, q: this.cfg.calibration.roomQ, kind: "room" });
       corrected.add(fc);
     });
     let nPredip = 0;
     for (const [fc, excess] of res.watchlist) {
-      if (nPredip >= C.calibration.predipCount) break;
+      if (nPredip >= this.cfg.calibration.predipCount) break;
       if (corrected.has(fc)) continue;
-      steps.push({ band: C.calibration.roomBands + 1 + nPredip, hz: fc, gain: C.calibration.predipDb, q: C.calibration.predipQ, kind: "predip", excess });
+      steps.push({ band: this.cfg.calibration.roomBands + 1 + nPredip, hz: fc, gain: this.cfg.calibration.predipDb, q: this.cfg.calibration.predipQ, kind: "predip", excess });
       nPredip++;
     }
     return steps;
   }
 
   apply(res: CalibrationResult, log: (msg: string) => void = () => {}): Set<number> {
-    for (let band = 1; band <= C.BUS_EQ_BANDS; band++) this.con.setBusEq(band, C.EQ_FLAT_FREQ, 0.0, C.EQ_FLAT_Q);
+    for (let band = 1; band <= this.cfg.BUS_EQ_BANDS; band++) this.con.setBusEq(band, this.cfg.EQ_FLAT_FREQ, 0.0, this.cfg.EQ_FLAT_Q);
     const used = new Set<number>();
     for (const s of this.plan(res)) {
       this.con.setBusEq(s.band, s.hz, s.gain, s.q);

@@ -132,14 +132,15 @@ test("--tune is parsed and checked on the command line", () => {
   assert.match(tuningTable(), /feedback\.ringDb\s+12\s+6 to 30/);
 });
 
-test("the audio worker is sent the active tuning when capture opens, and applies it", () => {
+test("the audio worker is sent the active tuning when capture opens, in its analysis settings, and never writes the shared settings", () => {
   try {
     setTuning([parseOverride("feedback.ringDb=18", "t")]);
     const rc = new RemoteCapture({ connect: () => { throw new Error("not used"); }, clock: new ManualClock(), stamp: () => 0 });
     assert.deepEqual(rc.config().tuning, [{ path: "feedback.ringDb", value: 18, source: "t" }]);
+    assert.equal(rc.config().analysis.ringDb, 18);
   } finally {
     reset();
   }
   const worker = readFileSync(fileURLToPath(new URL("../src/host/audioworker.ts", import.meta.url)), "utf8");
-  assert.match(worker, /setTuning\(message\.config\.tuning\)/);
+  assert.doesNotMatch(worker, /setTuning|\bC\b/);
 });

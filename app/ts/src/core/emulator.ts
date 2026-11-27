@@ -1,5 +1,6 @@
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
+import type { Config } from "./config.ts";
 import { dbToFader, faderToDb } from "./console.ts";
 import { argFloat, argInt, argText } from "./oscargs.ts";
 import { parseInteger, zeroPad } from "./util.ts";
@@ -21,6 +22,7 @@ export interface EmulatedDeskOptions {
   localIp?: string;
   nodeScn?: string | null;
   onTrace?: ((line: string) => void) | null;
+  cfg?: Config;
 }
 
 interface MeterSub {
@@ -166,6 +168,7 @@ export class EmulatedDesk {
   private table: Map<string, string> | null = null;
   private readonly udp: UdpFactory;
   private readonly clock: Clock;
+  private readonly cfg: Config;
   private endpoint: UdpEndpoint | null = null;
   private appSender: AppSender | null = null;
   private stopped = false;
@@ -180,10 +183,11 @@ export class EmulatedDesk {
   constructor(udp: UdpFactory, clock: Clock, opts: EmulatedDeskOptions = {}) {
     this.udp = udp;
     this.clock = clock;
-    this.listenPort = opts.listenPort ?? C.CONSOLE_PORT;
+    this.cfg = opts.cfg ?? C;
+    this.listenPort = opts.listenPort ?? this.cfg.CONSOLE_PORT;
     this.listenHost = opts.listenHost ?? "0.0.0.0";
     this.appHost = opts.appIp ?? "127.0.0.1";
-    this.appPort = opts.appPort ?? C.LOCAL_PORT;
+    this.appPort = opts.appPort ?? this.cfg.LOCAL_PORT;
     const hz = opts.meterHz ?? 10.0;
     this.meterHz = Number.isFinite(hz) ? Math.min(MAX_METER_HZ, Math.max(MIN_METER_HZ, hz)) : 10.0;
     this.nMeters = opts.nMeters ?? 16;
@@ -338,8 +342,8 @@ export class EmulatedDesk {
 
   private seedParams(): void {
     for (let ch = 1; ch <= 32; ch++) {
-      const role = C.CHANNELS.get(ch);
-      const name = role ? Array.from(C.ROLE_LABELS.get(role) ?? role).slice(0, 12).join("") : "";
+      const role = this.cfg.CHANNELS.get(ch);
+      const name = role ? Array.from(this.cfg.ROLE_LABELS.get(role) ?? role).slice(0, 12).join("") : "";
       const p = `/ch/${zeroPad(ch, 2)}`;
       this.params.set(`${p}/config/name`, [oscStr(name)]);
       this.params.set(`${p}/config/color`, [oscInt((ch % 8) + 1)]);
@@ -352,7 +356,7 @@ export class EmulatedDesk {
     this.params.set("/main/st/mix/fader", [oscFloat(dbToFader(0.0))]);
     this.params.set("/main/st/mix/on", [oscInt(1)]);
     this.params.set("/main/st/config/name", [oscStr("Main LR")]);
-    this.params.set("/-prefs/name", [oscStr(C.X32_NAME)]);
+    this.params.set("/-prefs/name", [oscStr(this.cfg.X32_NAME)]);
   }
 
   private reply(client: Peer, addr: string, args: readonly OscArg[]): void {
@@ -415,7 +419,7 @@ export class EmulatedDesk {
 
   nodeBody(full: string): string {
     if (full === "/-show/showfile/show") {
-      return `${full} "${C.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "${C.X32_FW}"`;
+      return `${full} "${this.cfg.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "${this.cfg.X32_FW}"`;
     }
     let m = /^\/-show\/showfile\/scene\/(\d{3})$/.exec(full);
     if (m) {
@@ -464,24 +468,24 @@ export class EmulatedDesk {
 
     if (addr === "/info") {
       this.reply(client, "/info", [
-        oscStr(C.X32_SERVER_VER),
-        oscStr(C.X32_NAME),
-        oscStr(C.X32_MODEL),
-        oscStr(C.X32_FW),
+        oscStr(this.cfg.X32_SERVER_VER),
+        oscStr(this.cfg.X32_NAME),
+        oscStr(this.cfg.X32_MODEL),
+        oscStr(this.cfg.X32_FW),
       ]);
       return;
     }
     if (addr === "/xinfo") {
       this.reply(client, "/xinfo", [
         oscStr(this.localIp),
-        oscStr(C.X32_NAME),
-        oscStr(C.X32_MODEL),
-        oscStr(C.X32_FW),
+        oscStr(this.cfg.X32_NAME),
+        oscStr(this.cfg.X32_MODEL),
+        oscStr(this.cfg.X32_FW),
       ]);
       return;
     }
     if (addr === "/status") {
-      this.reply(client, "/status", [oscStr("active"), oscStr(this.localIp), oscStr(C.X32_NAME)]);
+      this.reply(client, "/status", [oscStr("active"), oscStr(this.localIp), oscStr(this.cfg.X32_NAME)]);
       return;
     }
     if (addr === "/node") {
@@ -516,7 +520,7 @@ export class EmulatedDesk {
     }
     if (addr === "/showdump") {
       this.reply(client, "node", [
-        oscStr(`/-show/showfile/show "${C.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "${C.X32_FW}"\n`),
+        oscStr(`/-show/showfile/show "${this.cfg.X32_NAME}" 0 0 0 0 0 0 0 0 0 0 "${this.cfg.X32_FW}"\n`),
       ]);
       return;
     }
@@ -631,8 +635,8 @@ export class EmulatedDesk {
     }
   }
 
-  static extPick(k: number): number | null {
-    const chans = [...C.CHANNELS.keys()].filter((c) => c !== C.MEAS_MIC_CH);
+  static extPick(k: number, cfg: Config = C): number | null {
+    const chans = [...cfg.CHANNELS.keys()].filter((c) => c !== cfg.MEAS_MIC_CH);
     return chans.length > 0 ? (chans[k % chans.length] ?? null) : null;
   }
 
@@ -640,7 +644,7 @@ export class EmulatedDesk {
     let k = 0;
     while (!(await this.waitOrStop(12.0, gen))) {
       if (!this.subscribed) continue;
-      const ch = EmulatedDesk.extPick(k);
+      const ch = EmulatedDesk.extPick(k, this.cfg);
       if (ch === null) continue;
       k++;
       this.moveFaderExternally(ch, -8.0 + 4.0 * ((k % 3) - 1));

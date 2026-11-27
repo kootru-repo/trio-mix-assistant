@@ -1,5 +1,5 @@
 import { C } from "./config.ts";
-import type { ChannelMapSpec } from "./config.ts";
+import type { ChannelMapSpec, Config } from "./config.ts";
 import { TuningError, checkedOverride } from "./tuning.ts";
 import type { TuningOverride } from "./tuning.ts";
 import { intOf } from "./util.ts";
@@ -128,13 +128,13 @@ function parseTuning(spec: Json, name: string): TuningOverride[] {
   return out;
 }
 
-export function fromObject(d: Json): ShowTemplate {
+export function fromObject(d: Json, cfg: Config = C): ShowTemplate {
   if (!isObject(d)) throw new TemplateError("template must be a JSON object");
   const channels = parseChannels(d["channels"]);
   const validCh: Set<number> =
     channels && channels.map && Object.keys(channels.map).length
       ? new Set(Object.keys(channels.map).map((k) => Number(k.trim())))
-      : new Set(C.CHANNELS.keys());
+      : new Set(cfg.CHANNELS.keys());
   const songsRaw = d["songs"] === undefined ? [] : d["songs"];
   if (!Array.isArray(songsRaw)) throw new TemplateError("'songs' must be a list");
   if (songsRaw.length > 1000) throw new TemplateError("too many songs (max 1000)");
@@ -175,14 +175,17 @@ export function fromObject(d: Json): ShowTemplate {
   return { name, songs, channels, tuning: parseTuning(d["tuning"], name) };
 }
 
-export function defaultTemplate(): ShowTemplate {
-  return fromObject({
-    name: "Acoustic Trio — demo set",
-    songs: [
-      { name: "Gravity", scene: 1, lead_target: -6.0 },
-      { name: "Bloom", scene: 2, lead_target: -7.0, balance: { "5": -21.0, "7": -26.0 } },
-      { name: "Wildflower", scene: 3, lead_target: -5.0 },
-      { name: "Tide", scene: 4, lead_target: -6.5, guest: true },
-    ],
-  });
+export function defaultTemplate(cfg: Config = C): ShowTemplate {
+  return fromObject(
+    {
+      name: "Acoustic Trio — demo set",
+      songs: [
+        { name: "Gravity", scene: 1, lead_target: -6.0 },
+        { name: "Bloom", scene: 2, lead_target: -7.0, balance: { "5": -21.0, "7": -26.0 } },
+        { name: "Wildflower", scene: 3, lead_target: -5.0 },
+        { name: "Tide", scene: 4, lead_target: -6.5, guest: true },
+      ],
+    },
+    cfg,
+  );
 }

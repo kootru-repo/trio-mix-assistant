@@ -1,5 +1,6 @@
 import type { Clock } from "./clock.ts";
 import { C } from "./config.ts";
+import type { Config } from "./config.ts";
 import type {
   AudioDeviceInfo,
   AudioHostApiInfo,
@@ -19,6 +20,7 @@ export interface TimedAudioOptions {
   content?: ContentFn | null;
   seed?: number;
   rng?: Rng | null;
+  cfg?: Config;
 }
 
 export class TimedAudioStream implements AudioInputStream {
@@ -32,6 +34,7 @@ export class TimedAudioStream implements AudioInputStream {
   private readonly clock: Clock;
   private readonly content: ContentFn;
   private readonly rng: Rng;
+  private readonly cfg: Config;
   private stopped = true;
   private task: Promise<void> = Promise.resolve();
   private generation = 0;
@@ -41,8 +44,9 @@ export class TimedAudioStream implements AudioInputStream {
     this.callback = callback;
     this.channels = channels;
     this.clock = clock;
-    this.sampleRate = opts.sampleRate ?? C.SAMPLE_RATE;
-    this.blockSize = opts.blockSize ?? C.BLOCK;
+    this.cfg = opts.cfg ?? C;
+    this.sampleRate = opts.sampleRate ?? this.cfg.SAMPLE_RATE;
+    this.blockSize = opts.blockSize ?? this.cfg.BLOCK;
     this.rng = opts.rng ?? new SeededRng(opts.seed ?? 5);
     this.content = opts.content ?? ((i) => this.defaultContent(i));
   }
@@ -52,7 +56,7 @@ export class TimedAudioStream implements AudioInputStream {
     const ch = this.channels;
     const frame = new Float32Array(n * ch);
     for (let k = 0; k < frame.length; k++) frame[k] = 0.004 * this.rng.standardNormal();
-    const measCol = C.MEAS_MIC_CH - 1;
+    const measCol = this.cfg.MEAS_MIC_CH - 1;
     if (measCol >= 0 && measCol < ch) {
       const amp = Math.min(0.6, 0.03 * 1.25 ** (i % 60));
       for (let k = 0; k < n; k++) {
@@ -115,16 +119,18 @@ export class TimedAudioStream implements AudioInputStream {
 export class TimedAudioFactory implements AudioInputFactory {
   private readonly clock: Clock;
   private readonly maxChannels: number;
+  private readonly cfg: Config;
   static readonly KEEP_STREAMS = 8;
   readonly streams: TimedAudioStream[] = [];
 
-  constructor(clock: Clock, maxChannels: number = 64) {
+  constructor(clock: Clock, maxChannels: number = 64, cfg: Config = C) {
     this.clock = clock;
     this.maxChannels = maxChannels;
+    this.cfg = cfg;
   }
 
   queryDevice(): AudioDeviceInfo {
-    return { name: "timed audio (emulated)", max_input_channels: this.maxChannels, default_samplerate: C.SAMPLE_RATE, hostapi: 0 };
+    return { name: "timed audio (emulated)", max_input_channels: this.maxChannels, default_samplerate: this.cfg.SAMPLE_RATE, hostapi: 0 };
   }
 
   listDevices(): AudioDeviceInfo[] {
@@ -143,6 +149,7 @@ export class TimedAudioFactory implements AudioInputFactory {
     const stream = new TimedAudioStream(callback, options.channels, this.clock, {
       sampleRate: options.sampleRate,
       blockSize: options.blockSize,
+      cfg: this.cfg,
     });
     this.streams.push(stream);
     if (this.streams.length > TimedAudioFactory.KEEP_STREAMS) this.streams.shift();

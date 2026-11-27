@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { C, configWith } from "../src/core/config.ts";
 import { MemNetwork } from "../src/core/memtransport.ts";
 import { encodeMessage, oscStr } from "../src/core/oscwire.ts";
 import { AbleSetReceiver, SimShowClock } from "../src/core/showclock.ts";
@@ -54,4 +55,32 @@ test("restarting the simulated show clock does not double its loop", async () =>
   assert.ok(states.length <= 5, String(states.length));
   await clock.advance(5.0);
   assert.ok(states.length <= 5, String(states.length));
+});
+
+test("the receiver listens on the injected config's AbleSet port when no port is given", async () => {
+  const before = C.ABLESET_PORT;
+  const net = new MemNetwork();
+  const seen: string[] = [];
+  const rx = new AbleSetReceiver(net, (s) => seen.push(s.songName), "127.0.0.1", undefined, null, configWith({ ABLESET_PORT: 50219 }));
+  await rx.start();
+  const sender = await net.bind(0, "127.0.0.1");
+  sender.send(encodeMessage("/setlist/activeSongName", [oscStr("Injected")]), { host: "127.0.0.1", port: 50219 });
+  await net.settle();
+  assert.deepEqual(seen, ["Injected"]);
+  rx.stop();
+  sender.close();
+  assert.equal(C.ABLESET_PORT, before);
+});
+
+test("an explicit port wins over the injected config's AbleSet port", async () => {
+  const net = new MemNetwork();
+  const seen: string[] = [];
+  const rx = new AbleSetReceiver(net, (s) => seen.push(s.songName), "127.0.0.1", 50220, null, configWith({ ABLESET_PORT: 50221 }));
+  await rx.start();
+  const sender = await net.bind(0, "127.0.0.1");
+  sender.send(encodeMessage("/setlist/activeSongName", [oscStr("Explicit")]), { host: "127.0.0.1", port: 50220 });
+  await net.settle();
+  assert.deepEqual(seen, ["Explicit"]);
+  rx.stop();
+  sender.close();
 });
