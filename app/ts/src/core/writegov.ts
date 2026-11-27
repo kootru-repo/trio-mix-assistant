@@ -119,7 +119,8 @@ export class WriteGovernor {
   }
 
   storming(now: number): boolean {
-    return this.autoSince !== null && Math.max(now, this.clock) - this.autoSince >= this.opts.stormS;
+    const at = Number.isFinite(now) ? Math.max(now, this.clock) : this.clock;
+    return this.autoSince !== null && at - this.autoSince >= this.opts.stormS;
   }
 
   clearRepeats(): void {
@@ -184,6 +185,6 @@ export class WriteGovernor {
 
   private trackStorm(): void {
     if (this.backlog("auto") === 0) this.autoSince = null;
-    else if (this.autoSince === null) this.autoSince = this.clock;
+    else if (this.autoSince === null && this.started) this.autoSince = this.clock;
   }
 }

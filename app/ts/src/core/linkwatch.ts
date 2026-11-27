@@ -30,11 +30,13 @@ export class LinkWatch {
   }
 
   heard(now: number): void {
+    if (!Number.isFinite(now)) return;
     const start = this.run === null || now - this.run.last > this.opts.staleS ? now : this.run.start;
     this.run = { start, last: now };
   }
 
   tick(now: number): LinkTick {
+    if (!Number.isFinite(now)) return { state: this.current, changed: false, probe: false, recovered: false };
     const origin = this.firstTick ?? now;
     this.firstTick = origin;
     const prev = this.current;

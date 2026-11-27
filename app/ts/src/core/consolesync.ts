@@ -92,7 +92,7 @@ export class ConsoleSync {
   }
 
   poll(now: number): SyncStatus {
-    if (!this.active || now - this.lastSend < this.opts.retryS) return this.status;
+    if (!this.active || !Number.isFinite(now) || now - this.lastSend < this.opts.retryS) return this.status;
     if (this.tries < this.opts.tries) {
       this.tries += 1;
       this.lastSend = now;

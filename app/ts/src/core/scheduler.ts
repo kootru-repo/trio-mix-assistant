@@ -18,10 +18,11 @@ export class TickScheduler {
   }
 
   start(now: number): void {
-    this.nextT = now;
+    if (Number.isFinite(now)) this.nextT = now;
   }
 
   plan(now: number): TickPlan {
+    if (!Number.isFinite(now)) return { sleepS: this.opts.tick, resumed: false, gapS: 0 };
     this.nextT += this.opts.tick;
     const lag = now - this.nextT;
     if (lag > this.opts.maxLagS) {
@@ -38,27 +39,22 @@ export interface WallWatchOptions {
 
 export class WallWatch {
   private readonly opts: WallWatchOptions;
-  private offset: number | null = null;
+  private prev: { mono: number; wall: number } | null = null;
 
   constructor(opts: WallWatchOptions) {
     this.opts = opts;
   }
 
   observe(mono: number, wall: number): number | null {
-    const current = wall - mono;
-    if (this.offset === null) {
-      this.offset = current;
-      return null;
-    }
-    const drift = current - this.offset;
-    if (Math.abs(drift) > this.opts.jumpS) {
-      this.offset = current;
-      return drift;
-    }
-    return null;
+    if (!Number.isFinite(mono) || !Number.isFinite(wall)) return null;
+    const prev = this.prev;
+    this.prev = { mono, wall };
+    if (prev === null) return null;
+    const step = wall - prev.wall - (mono - prev.mono);
+    return Math.abs(step) > this.opts.jumpS ? step : null;
   }
 
   reset(): void {
-    this.offset = null;
+    this.prev = null;
   }
 }

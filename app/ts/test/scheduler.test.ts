@@ -102,14 +102,14 @@ test("a small drift between the clocks is not reported", () => {
   const w = new WallWatch({ jumpS: 2 });
   w.observe(10, 1000);
   assert.equal(w.observe(20, 1011.5), null);
-  assert.equal(w.observe(30, 1018.5), null);
+  assert.equal(w.observe(30, 1020), null);
 });
 
 test("a drift exactly at the limit is not reported in either direction", () => {
   const w = new WallWatch({ jumpS: 2 });
   w.observe(10, 1000);
   assert.equal(w.observe(20, 1012), null);
-  assert.equal(w.observe(30, 1018), null);
+  assert.equal(w.observe(30, 1020), null);
 });
 
 test("a forward wall jump just over the limit is reported once and then it is quiet", () => {
@@ -141,4 +141,67 @@ test("reset forgets the offset so the next observation is a fresh start", () => 
   assert.equal(w.observe(20, 5000), null);
   assert.equal(w.observe(30, 5010), null);
   assert.equal(w.observe(40, 5030), 10);
+});
+
+const bad = [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY];
+
+test("a plan at a time that is not a finite number sleeps one tick and changes nothing", () => {
+  for (const t of bad) {
+    const s = scheduler(0);
+    const twin = scheduler(0);
+    s.plan(step);
+    twin.plan(step);
+    assert.deepEqual(s.plan(t), normal(tick));
+    assert.deepEqual(s.plan(t), normal(tick));
+    for (const now of [tick + step, 2 * tick + step, 3600]) assert.deepEqual(s.plan(now), twin.plan(now));
+  }
+});
+
+test("a plan at infinity does not jam later plans", () => {
+  const s = scheduler(0);
+  s.plan(Number.POSITIVE_INFINITY);
+  const { plans } = runSteps(s, 0, 10);
+  for (const plan of plans) assert.ok(Number.isFinite(plan.sleepS) && plan.sleepS <= tick);
+});
+
+test("a start at a time that is not a finite number is ignored", () => {
+  for (const t of bad) {
+    const s = scheduler(100);
+    s.start(t);
+    assert.deepEqual(s.plan(100 + step), normal(tick - step));
+    const { plans } = runSteps(s, 100 + tick, 5);
+    for (const plan of plans) assert.deepEqual(plan, normal(tick - step));
+  }
+});
+
+test("a wall reading that is not a finite number is ignored and does not become the baseline", () => {
+  const w = new WallWatch({ jumpS: 2 });
+  assert.equal(w.observe(0, Number.NaN), null);
+  assert.equal(w.observe(1, 1), null);
+  assert.equal(w.observe(2, 3602), 3600);
+});
+
+test("a monotonic reading that is not a finite number is ignored", () => {
+  for (const t of bad) {
+    const w = new WallWatch({ jumpS: 2 });
+    assert.equal(w.observe(0, 100), null);
+    assert.equal(w.observe(t, 100), null);
+    assert.equal(w.observe(1, 101), null);
+    assert.equal(w.observe(2, 105), 3);
+  }
+});
+
+test("a step between two readings is reported even after a slow drift the other way", () => {
+  const w = new WallWatch({ jumpS: 2 });
+  assert.equal(w.observe(0, 0), null);
+  assert.equal(w.observe(1, 2.5), null);
+  assert.equal(w.observe(2, 0.5), -3);
+});
+
+test("two small drifts in a row are not reported as one jump", () => {
+  const w = new WallWatch({ jumpS: 2 });
+  w.observe(0, 0);
+  assert.equal(w.observe(1, 2.5), null);
+  assert.equal(w.observe(2, 5), null);
+  assert.equal(w.observe(3, 7.5), null);
 });

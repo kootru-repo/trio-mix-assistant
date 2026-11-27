@@ -302,3 +302,19 @@ test("an empty channel list is done at begin without sending anything", () => {
   assert.equal(sync.poll(0), "done");
   assert.equal(sync.result().size, 0);
 });
+
+test("a poll at a time that is not a finite number is ignored and later retries keep their timing", () => {
+  const { sync, sent } = rig([1], 0.5, 3);
+  sync.begin(10);
+  sent.length = 0;
+  for (const t of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) assert.equal(sync.poll(t), "pending");
+  assert.deepEqual(sent, []);
+  assert.equal(sync.poll(10.25), "pending");
+  assert.deepEqual(sent, []);
+  assert.equal(sync.poll(10.5), "pending");
+  assert.equal(sent.length, 3);
+  assert.equal(sync.poll(Number.NaN), "pending");
+  assert.equal(sync.poll(11), "pending");
+  assert.equal(sent.length, 6);
+  assert.equal(sync.poll(11.5), "failed");
+});

@@ -298,3 +298,58 @@ test("changing the options object after construction does not change the watch",
   const t = upAt(w, 0);
   assert.equal(w.tick(t + 2).state, "stale");
 });
+
+const twinTicks = (bad: (w: LinkWatch) => void, script: (w: LinkWatch) => LinkTick[]): { got: LinkTick[]; want: LinkTick[] } => {
+  const a = watch();
+  const b = watch();
+  bad(a);
+  return { got: script(a), want: script(b) };
+};
+
+test("a datagram heard at a time that is not a finite number is ignored and the link still comes up", () => {
+  for (const t of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const w = watch();
+    w.heard(t);
+    const ticks: LinkTick[] = [];
+    for (let now = 0; now <= 3; now += 0.5) ticks.push(both(w, now));
+    assert.equal(w.state, "up");
+    assert.deepEqual(ticks[2], tickOf("up", true, false, false));
+  }
+});
+
+test("a datagram heard at a time that is not a finite number does not keep a silent up link from going stale and down", () => {
+  const { got, want } = twinTicks(
+    (w) => {
+      upAt(w, 0);
+      w.heard(Number.NaN);
+    },
+    (w) => {
+      if (w.state === "waiting") upAt(w, 0);
+      const out: LinkTick[] = [];
+      for (let now = 1.5; now <= 10; now += 0.5) out.push(w.tick(now));
+      return out;
+    },
+  );
+  assert.deepEqual(got, want);
+  assert.equal(got.at(-1)?.state, "down");
+  assert.ok(got.filter((t) => t.probe).length <= got.length / 2);
+});
+
+test("a tick at a time that is not a finite number changes nothing, probes nothing and keeps the probe spacing", () => {
+  for (const t of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const w = watch();
+    assert.deepEqual(w.tick(0), tickOf("waiting", false, false, false));
+    assert.deepEqual(w.tick(t), tickOf("waiting", false, false, false));
+    assert.deepEqual(w.tick(0.5), tickOf("waiting", false, false, false));
+    assert.deepEqual(w.tick(1), tickOf("waiting", false, true, false));
+    assert.deepEqual(w.tick(1.25), tickOf("waiting", false, false, false));
+  }
+});
+
+test("a first tick at a time that is not a finite number does not become the probe origin", () => {
+  const w = watch();
+  w.tick(Number.NaN);
+  assert.equal(w.tick(10).probe, false);
+  assert.equal(w.tick(10.5).probe, false);
+  assert.equal(w.tick(10.75 + 1 / 64).probe, true);
+});

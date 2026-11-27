@@ -339,3 +339,48 @@ test("a flood of a thousand writes in one second to ten faders stays in budget a
   const st = gov.stats();
   assert.equal(st.sent + st.merged + st.skipped, 1000);
 });
+
+test("storming at a time that is not a finite number answers by the governor's own clock", () => {
+  const { gov } = rig({ autoBurst: 1, autoPerS: 0.01 });
+  gov.submit("auto", "/a/0", f(0), 0);
+  gov.submit("auto", "/a/1", f(1), 0);
+  assert.equal(gov.storming(Number.NaN), false);
+  assert.equal(gov.storming(Number.POSITIVE_INFINITY), false);
+  assert.equal(gov.storming(Number.NEGATIVE_INFINITY), false);
+  gov.pump(2);
+  assert.equal(gov.storming(Number.NaN), true);
+  assert.equal(gov.storming(Number.POSITIVE_INFINITY), true);
+  assert.equal(gov.storming(Number.NEGATIVE_INFINITY), true);
+});
+
+test("an auto backlog built before the first real time does not count as an old storm", () => {
+  const { gov } = rig({ autoBurst: 1, autoPerS: 0.01 });
+  gov.submit("auto", "/a/0", f(0), Number.NaN);
+  gov.submit("auto", "/a/1", f(1), Number.NaN);
+  assert.equal(gov.backlog("auto"), 1);
+  gov.pump(1000);
+  assert.equal(gov.storming(1000), false);
+  assert.equal(gov.storming(1001.5), false);
+  assert.equal(gov.storming(1002), true);
+});
+
+test("submits and pumps at times that are not finite numbers neither refill tokens nor move the clock", () => {
+  for (const t of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const { gov, out } = rig();
+    for (let i = 0; i < 3; i++) gov.submit("manual", `/m/${i}`, f(i), 10);
+    gov.submit("manual", "/m/9", f(9), t);
+    gov.pump(t);
+    assert.equal(out.length, 2);
+    gov.submit("manual", "/m/0", f(0), t);
+    assert.equal(gov.stats().skipped, 1);
+    gov.pump(10.25);
+    assert.equal(out.length, 2);
+    gov.pump(10.5);
+    assert.equal(out.length, 3);
+    gov.submit("manual", "/m/0", f(0), 10.75);
+    assert.equal(gov.stats().skipped, 2);
+    gov.submit("manual", "/m/0", f(0), 11);
+    gov.pump(12);
+    assert.equal(out.filter((s) => s.address === "/m/0").length, 2);
+  }
+});
