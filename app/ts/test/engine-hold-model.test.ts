@@ -12,6 +12,7 @@ import type { HoldReason } from "../src/core/engine/hold.ts";
 import { oscFloat, oscInt } from "../src/core/oscwire.ts";
 import type { OscArg } from "../src/core/oscwire.ts";
 import type { MeterReceiverPort } from "../src/core/ports.ts";
+import { newShowState } from "../src/core/showclock.ts";
 import { fromObject } from "../src/core/template.ts";
 import type { Lane } from "../src/core/writegov.ts";
 
@@ -26,9 +27,19 @@ const cfg = configWith({
   ]),
   MEAS_MIC_CH: 3,
   BALANCE_CHANNELS: [],
+  GUEST_CHANNELS: [1],
 });
 
-const template = fromObject({ name: "hold model", songs: [{ name: "Song", scene: 5 }] }, cfg);
+const template = fromObject(
+  {
+    name: "hold model",
+    songs: [
+      { name: "Song", scene: 5 },
+      { name: "Guest Song", scene: 6, guest: true },
+    ],
+  },
+  cfg,
+);
 
 const TICK = 0.5;
 const START = 100;
@@ -41,6 +52,8 @@ const FADER = /^\/ch\/(\d\d)\/mix\/fader$/;
 const GAIN = /^\/headamp\/(\d\d\d)\/gain$/;
 const INVERT = /^\/ch\/(\d\d)\/preamp\/invert$/;
 const CH_ADDR = /^\/ch\/(\d\d)\//;
+const SCENE = "/-action/goscene";
+const GUEST_MUTE = "/ch/01/mix/on";
 
 const isRead = (address: string): boolean => FADER.test(address) || GAIN.test(address) || INVERT.test(address);
 
@@ -127,6 +140,7 @@ const EVENTS = [
   "hand",
   "auto",
   "scene",
+  "song",
 ] as const;
 
 type Ev = (typeof EVENTS)[number];
@@ -147,6 +161,9 @@ interface Coverage {
   rearms: number;
   bareReleases: number;
   laterAdoptions: number;
+  heldSongs: number;
+  songRecalls: number;
+  replays: number;
 }
 
 const newCoverage = (): Coverage => ({
@@ -158,6 +175,9 @@ const newCoverage = (): Coverage => ({
   rearms: 0,
   bareReleases: 0,
   laterAdoptions: 0,
+  heldSongs: 0,
+  songRecalls: 0,
+  replays: 0,
 });
 
 class Harness {
@@ -179,6 +199,8 @@ class Harness {
   frozenNominal: Map<number, number> | null = null;
   violation: string | null = null;
   event: Ev | null = null;
+  burst = false;
+  songs = 0;
 
   constructor(e: ModelEngine, con: LaneConsole, clock: ParkedClock, cov: Coverage) {
     this.e = e;
@@ -201,7 +223,21 @@ class Harness {
       return;
     }
     const reasons = this.e.reasons();
-    if (w.lane === "manual" && reasons.length > 0 && this.event !== "scene")
+    const operator = this.event === "scene";
+    const guestMute = w.addr === GUEST_MUTE && w.args.length > 0;
+    if (w.addr === SCENE && !operator) {
+      if (reasons.length > 0) this.violation ??= `automatic scene recall on ${String(this.event)} while on hold for ${reasons.join(", ")}`;
+      else if (this.e.status === "takeover") this.violation ??= "automatic scene recall during TAKEOVER";
+      this.burst = true;
+      this.cov.songRecalls += 1;
+      if (TIMED.has(this.event ?? "hear")) this.cov.replays += 1;
+    }
+    if (guestMute) {
+      if (reasons.length > 0 && !this.burst)
+        this.violation ??= `guest mute on ${String(this.event)} while on hold for ${reasons.join(", ")}`;
+      else if (this.e.status === "takeover") this.violation ??= "guest mute during TAKEOVER";
+    }
+    if (w.lane === "manual" && reasons.length > 0 && !operator && !(guestMute && this.burst))
       this.violation ??= `${w.addr} sent on ${String(this.event)} while on hold for ${reasons.join(", ")}`;
     if (w.lane !== "auto") return;
     const ch = channelOf(w.addr);
@@ -228,6 +264,7 @@ class Harness {
     const n = Math.round(seconds / TICK);
     for (let i = 0; i < n; i++) {
       const pre = this.state();
+      this.burst = false;
       this.clock.advance(TICK);
       this.stepTo(this.clock.monotonic());
       this.check(pre, ev);
@@ -268,6 +305,8 @@ class Harness {
     if (ev === "wait1") return this.advance(cfg.link.steadyS, ev);
     if (ev === "waitDown") return this.advance(cfg.link.downS, ev);
     const pre = this.state();
+    this.burst = false;
+    if (ev === "song" && pre.reasons.size > 0 && !pre.takeover) this.cov.heldSongs += 1;
     this.apply(ev);
     this.check(pre, ev);
   }
@@ -318,6 +357,10 @@ class Harness {
         break;
       case "scene":
         e.command({ type: "scene", index: 5 });
+        break;
+      case "song":
+        this.songs += 1;
+        e.onSongChange({ ...newShowState(), songName: this.songs % 2 === 1 ? "Song" : "Guest Song", playing: true });
         break;
     }
   }
@@ -460,6 +503,13 @@ const SEEDS: readonly Seed[] = [
   { name: "locked", busy: false, prefix: [...ARMED, "hand", "hand"], expect: [], depth: 2 },
   { name: "failing", busy: false, prefix: ["hear", "replyFail", "wait1", "wait1"], expect: ["unsynced"], depth: 2 },
   { name: "woken", busy: false, prefix: [...ARMED, "resume", "reply"], expect: ["resume", "unsynced"], depth: 2 },
+  {
+    name: "song-held",
+    busy: false,
+    prefix: [...ARMED, "hear", "waitDown", "song", "hear", "wait1", "tick"],
+    expect: ["link", "unsynced"],
+    depth: 2,
+  },
 ];
 
 const build = async (seed: Seed, cov: Coverage): Promise<Harness> => {
@@ -514,6 +564,7 @@ test("hold model: every event sequence up to the bound keeps the hold invariants
   assert.ok(cov.autoWrites > 0, "no automatic write was ever seen, so the write checks are vacuous");
   assert.ok(cov.locks > 0 && cov.unlocks > 0, "no channel was locked and handed back");
   assert.ok(cov.rearms > 0 && cov.bareReleases > 0 && cov.laterAdoptions > 0, JSON.stringify(cov));
+  assert.ok(cov.heldSongs > 0 && cov.songRecalls > 0 && cov.replays > 0, `song coverage ${JSON.stringify(cov)}`);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   console.log(
     `hold model: ${total} sequences ${JSON.stringify(counts)}, ${EVENTS.length} events, ${Math.round(ms)} ms, ${JSON.stringify({ ...cov, entered: cov.entered.size, exited: cov.exited.size })}`,

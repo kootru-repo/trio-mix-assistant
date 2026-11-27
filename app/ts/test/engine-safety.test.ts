@@ -699,6 +699,63 @@ test("a wall-clock jump with no monotonic gap is also treated as a resume", asyn
   }
 });
 
+test("a backward wall-clock step is logged as the clock jumping back and still holds for resume", async () => {
+  const clock = new JumpClock(100, 1_700_000_000);
+  const r = await armedRig(clock);
+  try {
+    const from = r.sink.sent.length;
+    clock.shiftWall(-600);
+    await drive(r, 0.1, true);
+    assert.equal(count(r.e, "the computer clock jumped back by about 600 s"), 1);
+    assert.equal(count(r.e, "the engine was paused"), 0);
+    assert.ok(reasonsOf(r.e).includes("resume"));
+    assert.deepEqual(new Set(readsSince(r, from)), new Set(deskAddresses()));
+    answerReads(r, from);
+    await drive(r, 1.3, true);
+    assert.equal(r.e.held, false);
+    noErrors(r.e);
+  } finally {
+    await r.e.stop();
+  }
+});
+
+test("the EQ flatten sent when the jobs re-arm goes on the auto lane and waits behind a full auto budget", async () => {
+  const r = await armedRig();
+  try {
+    r.e.setEnabled("unmask", true);
+    for (let i = 0; i < 10; i++) r.e.onPushedBlock(block([[1, { rmsDbfs: -10, peakDbfs: -8 }]]), 0);
+    assert.ok(r.e.assistant.duckApplied.size > 0);
+    await drive(r, 1.7, false);
+    assert.equal(r.e.held, true);
+    const from = r.sink.sent.length;
+    await drive(r, 1.3, true);
+    answerReads(r, from);
+    const auto = autoLane(r.e.con);
+    for (let ch = 9; ch <= 32 && gov(r.con).backlog("auto") < 60; ch++) {
+      for (let band = 1; band <= 4; band++) auto.setEqBand(ch, band, 500 + band * 100, -3, 2, true);
+    }
+    assert.ok(gov(r.con).backlog("auto") >= 60, "the auto lane never filled");
+    const rearm = r.sink.sent.length;
+    await r.clock.advance(0.05);
+    for (let i = 0; i < 4 && r.e.held; i++) {
+      r.e.consoleHeard();
+      await r.clock.advance(0.05);
+    }
+    assert.equal(r.e.held, false);
+    const flat = `/ch/02/eq/${testCfg.unmask.band}/g`;
+    assert.deepEqual(writesTo(r, flat, rearm), [], "the flatten jumped the auto queue");
+    assert.equal(gov(r.con).backlog("manual"), 0);
+    assert.ok(gov(r.con).backlog("auto") > 0);
+    await drive(r, 1.0, true);
+    const g = writesTo(r, flat, rearm);
+    assert.equal(g.length, 1);
+    near(floatOf(g[0]), 0.5);
+    noErrors(r.e);
+  } finally {
+    await r.e.stop();
+  }
+});
+
 test("a simulation engine only logs a long stall and does not hold", async () => {
   const clock = new JumpClock(100, 1_700_000_000);
   const e = new Engine({ cfg: testCfg, clock, sim: true, tick: 0.05 });

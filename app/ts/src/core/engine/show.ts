@@ -1,6 +1,7 @@
 import { percent, signed } from "../numfmt.ts";
 import type { ShowState } from "../showclock.ts";
 import { songByName } from "../template.ts";
+import type { Song } from "../template.ts";
 import { buildModel, watchFreqs } from "../venue.ts";
 import type { VenueModel } from "../venue.ts";
 import { EngineControls } from "./controls.ts";
@@ -28,6 +29,7 @@ export class EngineShow extends EngineControls {
     const sameSong = norm === this.appliedSong;
     if (song !== null) this.show.scene = song.scene;
     if (sameSong) {
+      if (this.heldSong === norm) this.show.scene = null;
       this.rebuildTelemetry();
       return;
     }
@@ -39,26 +41,48 @@ export class EngineShow extends EngineControls {
       return;
     }
     const coach = this.assistant.coachMode;
-    if (song.scene !== null && this.status !== "takeover") {
+    const holdBack = !coach && this.held && this.status !== "takeover";
+    if (song.leadTarget !== null) this.assistant.leadTarget = song.leadTarget;
+    if (song.balance.size) {
+      for (const [ch, v] of song.balance) if (v !== null) this.assistant.balanceTargets.set(ch, v);
+    }
+    if (holdBack) {
+      this.heldSong = norm;
+      this.show.scene = null;
+    } else {
+      this.heldSong = null;
+      this.songWrites(song, coach);
+    }
+    const bits: string[] = [];
+    if (song.scene !== null) bits.push(`scene ${song.scene}`);
+    if (song.leadTarget !== null) bits.push(`lead ${signed(song.leadTarget, 1)} dB`);
+    if (song.guest) bits.push("guest");
+    const later = holdBack ? " (jobs on hold: the scene recall and guest mutes are held back until they re-arm)" : "";
+    this.assistant.emit("show", `song: ${song.name} -> ` + (bits.length ? bits.join(", ") : "no changes") + later);
+    this.rebuildTelemetry();
+  }
+
+  private songWrites(song: Song, coach: boolean): void {
+    if (this.status === "takeover") return;
+    let recalled = false;
+    if (song.scene !== null) {
       if (coach) {
         this.assistant.recommend("scene", null, `Song '${song.name}' → recall scene ${song.scene} on the console.`, true, {
           scene: song.scene,
           song: song.name,
         });
-      } else if (!validScene(song.scene) || !this.safeRecall(song.scene)) {
+      } else if (validScene(song.scene) && this.sendRecall(song.scene)) {
+        recalled = true;
+      } else {
         this.show.scene = null;
       }
     }
-    if (song.leadTarget !== null) this.assistant.leadTarget = song.leadTarget;
-    if (song.balance.size) {
-      for (const [ch, v] of song.balance) if (v !== null) this.assistant.balanceTargets.set(ch, v);
-    }
-    const now2 = this.clock.monotonic();
+    const now = this.clock.monotonic();
     for (const gch of this.cfg.GUEST_CHANNELS) {
-      if (!this.cfg.CHANNELS.has(gch) || this.status === "takeover") continue;
+      if (!this.cfg.CHANNELS.has(gch)) continue;
       const want = !song.guest;
       if (this.muted.get(gch) === want) continue;
-      if (now2 < (this.assistant.manualHoldUntil.get(gch) ?? -1e9)) continue;
+      if (now < (this.assistant.manualHoldUntil.get(gch) ?? -1e9)) continue;
       if (coach) {
         this.assistant.recommend("guest", gch, `${want ? "Mute" : "Unmute"} ${this.chan(gch)} for '${song.name}'.`, true, { mute: want });
       } else {
@@ -66,11 +90,16 @@ export class EngineShow extends EngineControls {
         this.muted.set(gch, want);
       }
     }
-    const bits: string[] = [];
-    if (song.scene !== null) bits.push(`scene ${song.scene}`);
-    if (song.leadTarget !== null) bits.push(`lead ${signed(song.leadTarget, 1)} dB`);
-    if (song.guest) bits.push("guest");
-    this.assistant.emit("show", `song: ${song.name} -> ` + (bits.length ? bits.join(", ") : "no changes"));
+    if (recalled) this.beginSync(now);
+  }
+
+  protected override replaySong(name: string): void {
+    if (name !== this.appliedSong || this.status === "takeover" || this.assistant.coachMode) return;
+    const song = songByName(this.template, this.show.current);
+    if (song === null) return;
+    this.show.scene = song.scene;
+    this.songWrites(song, false);
+    this.assistant.emit("show", `song: ${song.name} -> the held-back scene recall and guest mutes are sent now that the jobs are re-armed`);
     this.rebuildTelemetry();
   }
 
@@ -88,6 +117,7 @@ export class EngineShow extends EngineControls {
       return;
     }
     if (!validScene(idx)) return;
+    this.heldSong = null;
     if (!this.safeRecall(idx)) {
       this.assistant.emit("show", `scene ${idx} recall failed`);
       this.rebuildTelemetry();
@@ -98,14 +128,19 @@ export class EngineShow extends EngineControls {
     this.rebuildTelemetry();
   }
 
-  protected safeRecall(idx: number): boolean {
+  private sendRecall(idx: number): boolean {
     try {
       this.con.recallScene(idx);
-      this.beginSync(this.clock.monotonic());
       return true;
     } catch {
       return false;
     }
+  }
+
+  protected safeRecall(idx: number): boolean {
+    if (!this.sendRecall(idx)) return false;
+    this.beginSync(this.clock.monotonic());
+    return true;
   }
 
   applyVenueModel(model: VenueModel | null): void {

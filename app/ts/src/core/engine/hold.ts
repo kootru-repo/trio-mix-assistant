@@ -28,6 +28,7 @@ export class EngineHold extends EngineBase {
   protected adopted = false;
   protected syncFailures = 0;
   private reflatten = new Set<number>();
+  protected heldSong: string | null = null;
   protected outside = new OutsideEdits({
     echoTolDb: this.cfg.safety.echoTolDb,
     echoWindowS: this.cfg.safety.echoWindowS,
@@ -91,7 +92,13 @@ export class EngineHold extends EngineBase {
 
   protected exitHold(reason: HoldReason): void {
     if (!this.holdReasons.delete(reason) || this.held) return;
-    for (const ch of this.reflatten) this.con.setEqBand(ch, this.cfg.unmask.band, this.cfg.unmask.freq, 0.0, this.cfg.unmask.q, true);
+    const locked = this.lockedSnapshot();
+    this.con.withLane("auto", () => {
+      for (const ch of this.reflatten) {
+        if (locked.includes(ch)) continue;
+        this.con.setEqBand(ch, this.cfg.unmask.band, this.cfg.unmask.freq, 0.0, this.cfg.unmask.q, true);
+      }
+    });
     this.reflatten.clear();
     for (const ch of this.assistant.fbStreak.keys()) this.assistant.fbStreak.set(ch, 0);
     for (const ch of this.assistant.feedback.fbLastFreq.keys()) this.assistant.feedback.fbLastFreq.set(ch, null);
@@ -137,8 +144,16 @@ export class EngineHold extends EngineBase {
     return this.sync !== null && this.sync.active;
   }
 
+  protected replaySong(_name: string): void {}
+
   protected tickHold(now: number): void {
-    if (this.link === null || this.sync === null || this.vetStatus === "running") return;
+    if (this.vetStatus === "running") return;
+    if (!this.held && this.heldSong !== null) {
+      const name = this.heldSong;
+      this.heldSong = null;
+      this.replaySong(name);
+    }
+    if (this.link === null || this.sync === null) return;
     const t = this.link.tick(now);
     if (t.probe) this.con.query("/xinfo");
     if (t.changed && (t.state === "stale" || t.state === "down")) {
@@ -192,7 +207,12 @@ export class EngineHold extends EngineBase {
   }
 
   protected onResume(now: number, gapS: number): void {
-    this.assistant.emit("system", `the engine was paused for about ${Math.round(Math.abs(gapS))} s (computer asleep or stalled)`);
+    this.assistant.emit(
+      "system",
+      gapS < 0
+        ? `the computer clock jumped back by about ${Math.round(-gapS)} s`
+        : `the engine was paused for about ${Math.round(gapS)} s (computer asleep or stalled)`,
+    );
     if (this.link === null || this.sync === null) return;
     this.enterHold("resume");
     this.link.reset();

@@ -213,6 +213,7 @@ export class EngineControls extends EngineHold {
     if (on && this.vetStatus === "running") this.vetAbort = true;
     if (on && this.status !== "takeover") {
       this.con.cancelRamps();
+      this.heldSong = null;
       this.con.setMainMute(true);
       this.enabledBackup = { ...this.assistant.enabled };
       for (const k of Object.keys(this.assistant.enabled)) this.assistant.enabled[k] = false;
