@@ -797,7 +797,13 @@ async function phone(ctx: Ctx): Promise<void> {
   });
 }
 
-export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<string | null>, cfg: Config): VetHostPort {
+export function inAppVet(
+  io: Io,
+  live: LiveConsole | null,
+  lanIp: () => Promise<string | null>,
+  cfg: Config,
+  given: ShowNames = NO_NAMES,
+): VetHostPort {
   return {
     console: live !== null,
     async run(req: VetRequest, control: VetControl): Promise<VetSummary> {
@@ -812,7 +818,7 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
         if (req.main) flags.push("--vet-main");
       }
       const lines: string[] = [];
-      const scrub = req.identify ? (text: string): string => text : scrubberFor(io);
+      const scrub = req.identify ? (text: string): string => text : scrubberFor(io, given);
       const out = await runVet(
         parseCliArgs(flags),
         { ...io, out: (l) => lines.push(l.replace(/\r/g, "")) },
@@ -833,8 +839,25 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
   };
 }
 
-export function showWords(appDir: string): string[] {
+export interface ShowNames {
+  template: string | null;
+  venue: string;
+}
+
+const NO_NAMES: ShowNames = { template: null, venue: "" };
+
+function fileWords(path: string): string[] {
+  try {
+    return templateWords(readFileSync(path, "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+export function showWords(appDir: string, given: ShowNames = NO_NAMES): string[] {
   const words: string[] = [];
+  if (given.venue.trim()) words.push(given.venue.trim());
+  if (given.template) words.push(...fileWords(given.template));
   let cfg: Record<string, string>;
   try {
     cfg = readConf(join(appDir, "show.conf"));
@@ -843,24 +866,18 @@ export function showWords(appDir: string): string[] {
   }
   for (const k of ["VENUE", "TEMPLATE"]) if (cfg[k]) words.push(cfg[k]);
   const tmpl = (cfg["TEMPLATE"] ?? "").trim();
-  if (tmpl) {
-    try {
-      words.push(...templateWords(readFileSync(isAbsolute(tmpl) ? tmpl : join(appDir, tmpl), "utf8")));
-    } catch {
-      return words;
-    }
-  }
+  if (tmpl) words.push(...fileWords(isAbsolute(tmpl) ? tmpl : join(appDir, tmpl)));
   return words;
 }
 
-export function scrubberFor(io: Io): (text: string) => string {
+export function scrubberFor(io: Io, given: ShowNames = NO_NAMES): (text: string) => string {
   const words: string[] = [];
   try {
     words.push(hostname(), userInfo().username);
   } catch {
     words.length = 0;
   }
-  words.push(...showWords(io.layout.appDir));
+  words.push(...showWords(io.layout.appDir, given));
   let devices: string[] = [];
   try {
     devices = io.factory === null ? [] : io.factory.listDevices().map((d) => d.name ?? "");
@@ -925,7 +942,7 @@ export interface VetOutcome {
 }
 
 export async function runVet(args: Args, ioIn: Io, hooks: VetHooks): Promise<VetOutcome> {
-  const scrub = args.vetKeepNames ? (text: string): string => text : scrubberFor(ioIn);
+  const scrub = args.vetKeepNames ? (text: string): string => text : scrubberFor(ioIn, args);
   const io: Io = { ...ioIn, out: (line) => ioIn.out(scrub(line)) };
   const sys = systemFacts();
   const head = [

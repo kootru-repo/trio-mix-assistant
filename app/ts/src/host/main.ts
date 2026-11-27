@@ -642,7 +642,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     const mapped = args.auto || chanMap === null ? null : [...chanMap.keys()];
     engine.diagHost = (identify) => ({
       ...systemFacts(),
-      scrub: identify ? (text: string): string => text : scrubberFor(io),
+      scrub: identify ? (text: string): string => text : scrubberFor(io, args),
       mode: modeLabel(args, cfg),
       audioModule: moduleFacts(io.factory),
       audioSkipped: usesEmulatedFeed ? EMULATED_FEED : null,
@@ -656,6 +656,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
       rxLive !== null ? { rx: rxLive, ip: args.consoleIp || cfg.CONSOLE_IP, port: cfg.CONSOLE_PORT } : null,
       () => Promise.resolve(ip),
       cfg,
+      args,
     );
     const url = `${scheme}://${ip}:${args.port}/`;
     const wildcard = WILDCARD_HOSTS.includes(args.host);

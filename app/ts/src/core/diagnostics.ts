@@ -337,10 +337,13 @@ export interface ScrubFacts {
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const HEX = "[0-9A-Fa-f]{1,4}";
+const V6_TAIL = `(?:${HEX}:)*(?:\\d{1,3}(?:\\.\\d{1,3}){3}|${HEX})`;
 const IPV6 = new RegExp(
-  `(?<![\\w:.])(?:(?:${HEX}:){4,7}${HEX}|(?:${HEX}(?::${HEX})*)?::(?:(?:${HEX}:)*(?:\\d{1,3}(?:\\.\\d{1,3}){3}|x\\.x\\.x\\.x|${HEX}))?)(?:%[\\w.-]+)?(?![\\w:])`,
+  `(?<![\\w:.])(?:(?:${HEX}:){4,7}${HEX}|${HEX}(?::${HEX})*::(?:${V6_TAIL})?|::${V6_TAIL})(?:%[\\w.-]+)?(?!\\w|:[0-9A-Fa-f:])`,
   "g",
 );
+const MAC = /^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$/;
+const hideV6 = (m: string): string => (m === "::1" ? m : MAC.test(m) ? "xx:xx:xx:xx:xx:xx" : "x:x:x:x:x:x:x:x");
 
 export function templateWords(json: string): string[] {
   let d: unknown;
@@ -366,15 +369,23 @@ export function templateWords(json: string): string[] {
 export function makeScrubber(f: ScrubFacts): (text: string) => string {
   const byLength = (a: string, b: string): number => b.length - a.length;
   const names = [...new Set(f.devices.map((d) => d.replace(/\s+/g, " ").trim()).filter((d) => d.length >= 4))].sort(byLength);
-  const devices = names.map((d) => new RegExp(d.split(" ").map(escapeRegExp).join("\\s+"), "g"));
+  const devices = names.map((d) => d.split(" ").map(escapeRegExp).join("\\s+"));
   const words = [...new Set(f.words.map((w) => w.trim()).filter((w) => w.length >= 3))].sort(byLength);
+  const wordAlts = words.map((w) => `(?<![\\p{L}\\p{N}])${escapeRegExp(w)}(?![\\p{L}\\p{N}])`);
+  const deviceAlt = devices.length ? [`(?<device>${devices.join("|")})`] : [];
+  const privateNames = deviceAlt.length + wordAlts.length ? new RegExp([...deviceAlt, ...wordAlts].join("|"), "giu") : null;
   return (text) => {
     let out = text;
-    for (const d of devices) out = out.replace(d, "(device name hidden)");
-    for (const w of words) out = out.replace(new RegExp(escapeRegExp(w), "gi"), "(name hidden)");
+    if (privateNames !== null)
+      out = out.replace(privateNames, (...m: unknown[]) => {
+        const groups = m[m.length - 1];
+        return typeof groups === "object" && groups !== null && "device" in groups && groups.device !== undefined
+          ? "(device name hidden)"
+          : "(name hidden)";
+      });
+    out = out.replace(IPV6, hideV6);
     out = out.replace(/\b(?!127\.0\.0\.1\b)\d{1,3}(?:\.\d{1,3}){3}\b/g, "x.x.x.x");
     out = out.replace(/\b[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}\b/g, "xx:xx:xx:xx:xx:xx");
-    out = out.replace(IPV6, (m) => (m === "::1" ? m : "x:x:x:x:x:x:x:x"));
     out = out.replace(/((?:\/xinfo|answered:) (?:x\.x\.x\.x|127\.0\.0\.1)) (.+) (\S+) (\S+)$/gm, "$1 (console name hidden) $3 $4");
     return out;
   };

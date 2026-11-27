@@ -48,3 +48,33 @@ test("the show's private words come from show.conf and from the template it name
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("song names are hidden only as whole words, and never inside the scrubber's own placeholders", () => {
+  const scrub = makeScrubber({ devices: ["Hidden Mic"], words: ["Here", "Home", "Run", "name", "hidden"] });
+  assert.equal(scrub("Fix: check where the device is. There, Here."), "Fix: check where the device is. There, (name hidden).");
+  assert.equal(scrub("Run checks in the home folder"), "(name hidden) checks in the (name hidden) folder");
+  assert.equal(scrub("Running Homer"), "Running Homer");
+  assert.equal(scrub("input Hidden Mic"), "input (device name hidden)");
+});
+
+test("an IPv6 address is hidden whole: next to MAC-like groups, before a colon, and never a bare ::", () => {
+  const scrub = makeScrubber({ devices: [], words: [] });
+  assert.equal(scrub("addr 2001:db8:12:34:56:78:9a:bc up"), "addr x:x:x:x:x:x:x:x up");
+  assert.equal(scrub("bind 2001:db8::7: address in use"), "bind x:x:x:x:x:x:x:x: address in use");
+  assert.equal(scrub("fe80::1c2b:3d4e:5f60:7a8b: no route"), "x:x:x:x:x:x:x:x: no route");
+  assert.equal(scrub("route :: none, Prefix: :: (unspecified)"), "route :: none, Prefix: :: (unspecified)");
+  assert.equal(scrub("card aa:bb:cc:dd:ee:ff and ::ffff:192.168.1.9"), "card xx:xx:xx:xx:xx:xx and x:x:x:x:x:x:x:x");
+  assert.equal(scrub("loopback ::1 at 10:23:45 on 127.0.0.1"), "loopback ::1 at 10:23:45 on 127.0.0.1");
+});
+
+test("a template or venue given on the command line is private too, as well as the ones in show.conf", () => {
+  const dir = mkdtempSync(join(tmpdir(), "scrub-args-"));
+  try {
+    const set = join(dir, "sunday.json");
+    writeFileSync(set, JSON.stringify({ name: "Sunday Set", songs: [{ name: "Amazing Grace" }] }));
+    assert.deepEqual(showWords(dir, { template: set, venue: "Riverside Hall" }).sort(), ["Amazing Grace", "Riverside Hall", "Sunday Set"]);
+    assert.deepEqual(showWords(dir, { template: join(dir, "missing.json"), venue: "" }), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
