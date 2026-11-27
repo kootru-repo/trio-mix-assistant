@@ -1,0 +1,27 @@
+name: Enhance locks
+
+# The enhancement engine's locks on its own pull requests (enhance/round-*): the vendored engine matches its manifest, and nothing
+# outside enhance.json "writable" or under a protected rule changed. Settings are read from the base commit, so a round cannot loosen
+# them. The tests, lint and Ratchet's checks run in ci.yml as for every pull request.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  locks:
+    if: startsWith(github.head_ref, 'enhance/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Vendored engine and protected or writable paths
+        run: node tools/engine/gate.mjs turn --only vendor,protect --no-rerun --base origin/main
