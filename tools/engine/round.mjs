@@ -37,7 +37,11 @@ export function syncOwner() {
   const dirty = dirtyPaths(); if (dirty.length) return `not synced: the main tree has ${dirty.length} uncommitted change(s) (${dirty.slice(0, 4).join(', ')})`;
   const busy = busyInMain(); if (busy) return `not synced: the main tree is busy (${busy})`;
   const m = g(MAIN, ['merge', '--ff-only', '--quiet', def]);
-  return m.ok ? `synced: ${own} fast-forwarded to ${def} (${g(MAIN, ['rev-parse', '--short', 'HEAD']).out})` : `not synced: ${own} has commits of its own that ${def} lacks; the owner merges them`;
+  if (m.ok) return `synced: ${own} fast-forwarded to ${def} (${g(MAIN, ['rev-parse', '--short', 'HEAD']).out})`;
+  // the owner's commits reached the remote by a squash merge: merging them into remote/base changes nothing, so the branch can take it whole
+  const t = g(MAIN, ['merge-tree', '--write-tree', def, own]), want = g(MAIN, ['rev-parse', `${def}^{tree}`]).out;
+  if (t.ok && t.out.split('\n')[0] === want) { const r = g(MAIN, ['reset', '--keep', '--quiet', def]); if (r.ok) return `synced: ${own} moved to ${def} (${g(MAIN, ['rev-parse', '--short', 'HEAD']).out}); its own commits were already there, squash-merged`; }
+  return `not synced: ${own} has commits of its own that ${def} lacks; the owner merges them`;
 }
 
 /** the engine's own open pull requests (head names under pr.prefix), or { error } */
@@ -98,17 +102,18 @@ async function plan(argv) {
   { const sc = scopeRefusal(CFG, ROOT); if (sc) say(4, sc); }   // games only, never research (docs/adr/0005)
   const v = verifyVendor(ENGINE); if (v.status !== 'pass') say(4, [`the engine copy does not match its manifest:`, ...v.lines]);
   const rt = ratchetOff(); if (rt) say(4, rt);
-  const hr = reasons(facts({ launchgate: false, round: true })); if (hr.length) say(3, ['HOLD:', ...hr.map(x => `- ${x}`)]);
+  // the owner's branch follows the remote base first, whether or not a round then runs (pr.sync_owner); a waiting or idle plan still says it
+  const synced = PR ? syncOwner() : null, wait = (code, lines) => say(code, synced ? [].concat(lines, synced) : lines);
+  const hr = reasons(facts({ launchgate: false, round: true })); if (hr.length) wait(3, ['HOLD:', ...hr.map(x => `- ${x}`)]);
   let n = want;
   if (A.launchgate && existsSync(RATCHET)) {
     // launchOk(n - 1): Ratchet counts the workers already running, so the nth worker may start while n - 1 run
     let last = null; for (; n >= 1; n--) { last = launchOk(n - 1); if (!last) break; }
-    if (n < 1) say(3, `Ratchet's launch gate says wait, even for one worker: ${last}`);
+    if (n < 1) wait(3, `Ratchet's launch gate says wait, even for one worker: ${last}`);
   }
   const all = ranked(), cells = cellId ? all.filter(c => c.id === cellId && c.rank[0] < 7) : pick(n, all);
-  if (!cells.length) say(5, cellId ? `${cellId} is not a cell that wants work now (unknown, claimed or parked): node ${ENGINE_REL}/coverage.mjs map` : 'no cell wants work: every cell is up to date, claimed or parked');
-  const synced = PR ? syncOwner() : null;
-  if (PR && !goal) { const open = openPrs(); if (open.error) say(4, open.error); if (open.length >= A.pr.max_open) say(3, `waiting for the owner: the engine's pull request(s) ${open.join(', ')} are open (autonomy.pr.max_open ${A.pr.max_open}); merge or close them first`); }
+  if (!cells.length) wait(5, cellId ? `${cellId} is not a cell that wants work now (unknown, claimed or parked): node ${ENGINE_REL}/coverage.mjs map` : 'no cell wants work: every cell is up to date, claimed or parked');
+  if (PR && !goal) { const open = openPrs(); if (open.error) say(4, open.error); if (open.length >= A.pr.max_open) wait(3, `waiting for the owner: the engine's pull request(s) ${open.join(', ')} are open (autonomy.pr.max_open ${A.pr.max_open}); merge or close them first`); }
   const int = integration(goal?.branch, { fresh: PR && !goal }); if (int.error) say(4, int.error);
   const workers = cells.map((c, i) => ({ index: i, cell: c.id, port: CFG.port ? CFG.port + 1 + i : null }));
   const { id } = addRound({ integration: int, workers, goal: !!goal, wanted: want, got: n });
@@ -231,9 +236,9 @@ function landPr(id) {
   const p = g(MAIN, ['push', '--quiet', '--force', A.pr.remote, `${int}:refs/heads/${head}`]);
   if (!p.ok) return `not offered: pushing ${head} failed: ${p.out.split('\n').slice(-1)[0]}`;
   const log = g(MAIN, ['log', '--reverse', '--format=- %s', `${def}..${int}`]).out;
-  const body = [`Round ${id} of the enhancement engine: ${n} commit(s), each landed on ${int} by the trusted gate.`, '', log, '', 'The engine never merges this: the owner reviews it and merges or closes it. The next round waits while it is open.', '', '🤖 Generated with [Claude Code](https://claude.com/claude-code)'].join('\n');
+  const body = [`Round ${id} of the enhancement engine: ${n} commit(s), each landed on ${int} by the trusted gate.`, '', log, '', A.pr.auto_merge === 'after-locks' ? 'Auto-merge: the trusted enhance-locks check (the base branch\'s engine, run on this tree) turns it on once the locks pass, and off if a later push fails them; GitHub then merges this by itself once its required checks pass, with no review. Close it to stop that. The next round waits while it is open.' : A.pr.auto_merge ? 'Auto-merge is on: GitHub merges this by itself once its required checks pass, with no review. Close it, or turn auto-merge off on it, to stop that. The next round waits while it is open.' : 'The engine never merges this: the owner reviews it and merges or closes it. The next round waits while it is open.', '', '🤖 Generated with [Claude Code](https://claude.com/claude-code)'].join('\n');
   const c = runArgs(A.pr.create, { base: A.pr.base, head, title: `enhance round ${id}: ${n} commit(s)`, body });
-  if (c.ok && A.pr.auto_merge) { const m = runArgs(A.pr.merge, { base: A.pr.base, head }); return `offered: pull request ${c.out.split('\n').slice(-1)[0]} (${head} into ${A.pr.base}); ${m.ok ? 'auto-merge on: the host merges it when its required checks pass' : `auto-merge could not be turned on (${m.out.split('\n').slice(-1)[0]}); the owner merges it`}`; }
+  if (c.ok && A.pr.auto_merge === true) { const m = runArgs(A.pr.merge, { base: A.pr.base, head }); return `offered: pull request ${c.out.split('\n').slice(-1)[0]} (${head} into ${A.pr.base}); ${m.ok ? 'auto-merge on: the host merges it when its required checks pass' : `auto-merge could not be turned on (${m.out.split('\n').slice(-1)[0]}); the owner merges it`}`; }
   return c.ok ? `offered: pull request ${c.out.split('\n').slice(-1)[0]} (${head} into ${A.pr.base})` : `pushed ${head}, but opening the pull request failed: ${c.out.split('\n').slice(-1)[0]}`;
 }
 

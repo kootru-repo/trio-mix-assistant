@@ -1,0 +1,71 @@
+name: Enhance locks
+
+# The enhancement engine's locks on its own pull requests (enhance/round-*), from a workflow the pull request cannot change:
+# pull_request_target always runs main's copy of this file, and the gate below is main's copy of the engine, judging the pull
+# request's tree with main's settings. Nothing from the pull request is run: its tree is only read through git.
+# When the locks pass, this turns GitHub auto-merge on (enhance.json autonomy.pr.auto_merge "after-locks"); when a later push fails
+# them, it turns auto-merge off. GitHub then merges only after ci-ok passes as well. Other pull requests pass straight through.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: enhance-locks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  enhance-locks:
+    name: enhance-locks (trusted)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Not a round
+        if: ${{ !startsWith(github.event.pull_request.head.ref, 'enhance/round-') || github.event.pull_request.head.repo.full_name != github.repository }}
+        run: echo "Not an enhancement round from this repository; nothing to lock."
+      - run: git config --global core.autocrlf false
+        if: ${{ startsWith(github.event.pull_request.head.ref, 'enhance/round-') && github.event.pull_request.head.repo.full_name == github.repository }}
+      - name: Main's engine and settings (trusted)
+        if: ${{ startsWith(github.event.pull_request.head.ref, 'enhance/round-') && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+      - name: The pull request's tree (read through git, never run)
+        if: ${{ startsWith(github.event.pull_request.head.ref, 'enhance/round-') && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        if: ${{ startsWith(github.event.pull_request.head.ref, 'enhance/round-') && github.event.pull_request.head.repo.full_name == github.repository }}
+        with:
+          node-version: 22
+      - name: Vendored engine and protected or writable paths, judged by main's engine
+        id: locks
+        if: ${{ startsWith(github.event.pull_request.head.ref, 'enhance/round-') && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          ENHANCE_ROOT: ${{ github.workspace }}/pr
+          ENHANCE_ROLE: ci
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        working-directory: pr
+        run: node "$GITHUB_WORKSPACE/base/tools/engine/gate.mjs" turn --only vendor,protect --no-rerun --base "$BASE_SHA"
+      - name: Locks passed, so auto-merge goes on
+        if: ${{ success() && steps.locks.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash --delete-branch
+      - name: Locks failed, so auto-merge goes off
+        if: ${{ failure() && steps.locks.outcome == 'failure' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto || true

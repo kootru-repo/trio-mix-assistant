@@ -45,7 +45,7 @@
     "max_pending": 3,
     "park_after": 3,
     "worktrees": "engine",
-    "pr": { "base": "main", "remote": "origin", "prefix": "enhance/round-", "max_open": 1, "auto_merge": true, "sync_owner": true }
+    "pr": { "base": "main", "remote": "origin", "prefix": "enhance/round-", "max_open": 1, "auto_merge": "after-locks", "sync_owner": true }
   },
   "judge": { "title": "the trio mix assistant's dashboard and docs", "calibrated": false, "dimensions": [] },
   "coverage": { "sources": {} }
