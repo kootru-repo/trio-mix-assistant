@@ -116,9 +116,10 @@ lines with `\n` before hashing; a downloaded file has Windows line endings, so c
 failed step and every step run on the real console it lists the commands sent to the console and the replies
 received.
 
-By default the report and the log hide audio device names, IP and MAC addresses, the computer and user
-names, the venue and template names from `show.conf`, the console's own name and the song and scene
-entries of the decision log in the full-test report, replacing them with "hidden" or `x.x.x.x`. Channel counts, sample rates, firmware and every
+By default the report and the log hide audio device names, IP addresses (IPv4 and IPv6) and MAC addresses,
+the computer and user names, the venue and template names from `show.conf`, the template's title and every
+song name in it (three letters or more) wherever they appear, the console's own name, and the song and scene entries of the decision
+log in the full-test report, replacing them with "hidden" or `x.x.x.x`. Channel counts, sample rates, firmware and every
 step result stay. A private word that is not in one of those places is not caught. Tick **Keep device
 names, network addresses and show names** (under Run checks, **Keep device names and network
 addresses**) only when you are asked to send them.

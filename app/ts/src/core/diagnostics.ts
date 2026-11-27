@@ -336,6 +336,33 @@ export interface ScrubFacts {
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const HEX = "[0-9A-Fa-f]{1,4}";
+const IPV6 = new RegExp(
+  `(?<![\\w:.])(?:(?:${HEX}:){4,7}${HEX}|(?:${HEX}(?::${HEX})*)?::(?:(?:${HEX}:)*(?:\\d{1,3}(?:\\.\\d{1,3}){3}|x\\.x\\.x\\.x|${HEX}))?)(?:%[\\w.-]+)?(?![\\w:])`,
+  "g",
+);
+
+export function templateWords(json: string): string[] {
+  let d: unknown;
+  try {
+    d = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  if (typeof d !== "object" || d === null || Array.isArray(d)) return [];
+  const t = d as Record<string, unknown>;
+  const out: string[] = [];
+  if (typeof t["name"] === "string" && t["name"].trim()) out.push(t["name"].trim());
+  const songs = t["songs"];
+  if (Array.isArray(songs))
+    for (const s of songs) {
+      if (typeof s !== "object" || s === null) continue;
+      const name = (s as Record<string, unknown>)["name"];
+      if (typeof name === "string" && name.trim()) out.push(name.trim());
+    }
+  return out;
+}
+
 export function makeScrubber(f: ScrubFacts): (text: string) => string {
   const byLength = (a: string, b: string): number => b.length - a.length;
   const names = [...new Set(f.devices.map((d) => d.replace(/\s+/g, " ").trim()).filter((d) => d.length >= 4))].sort(byLength);
@@ -347,6 +374,7 @@ export function makeScrubber(f: ScrubFacts): (text: string) => string {
     for (const w of words) out = out.replace(new RegExp(escapeRegExp(w), "gi"), "(name hidden)");
     out = out.replace(/\b(?!127\.0\.0\.1\b)\d{1,3}(?:\.\d{1,3}){3}\b/g, "x.x.x.x");
     out = out.replace(/\b[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}\b/g, "xx:xx:xx:xx:xx:xx");
+    out = out.replace(IPV6, (m) => (m === "::1" ? m : "x:x:x:x:x:x:x:x"));
     out = out.replace(/((?:\/xinfo|answered:) (?:x\.x\.x\.x|127\.0\.0\.1)) (.+) (\S+) (\S+)$/gm, "$1 (console name hidden) $3 $4");
     return out;
   };

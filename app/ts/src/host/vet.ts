@@ -4,13 +4,13 @@ import http from "node:http";
 import https from "node:https";
 import net, { isIP } from "node:net";
 import { hostname, tmpdir, userInfo } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { Calibrator } from "../core/calibration.ts";
 import type { Clock } from "../core/clock.ts";
 import { copyConfig } from "../core/config.ts";
 import type { Config } from "../core/config.ts";
 import { SimConsole, dbToFader } from "../core/console.ts";
-import { makeScrubber, redact } from "../core/diagnostics.ts";
+import { makeScrubber, redact, templateWords } from "../core/diagnostics.ts";
 import { listAudioDevices } from "../core/devicecapture.ts";
 import { generatePinkNoise } from "../core/dsp.ts";
 import { EmulatedDesk } from "../core/emulator.ts";
@@ -833,6 +833,26 @@ export function inAppVet(io: Io, live: LiveConsole | null, lanIp: () => Promise<
   };
 }
 
+export function showWords(appDir: string): string[] {
+  const words: string[] = [];
+  let cfg: Record<string, string>;
+  try {
+    cfg = readConf(join(appDir, "show.conf"));
+  } catch {
+    return words;
+  }
+  for (const k of ["VENUE", "TEMPLATE"]) if (cfg[k]) words.push(cfg[k]);
+  const tmpl = (cfg["TEMPLATE"] ?? "").trim();
+  if (tmpl) {
+    try {
+      words.push(...templateWords(readFileSync(isAbsolute(tmpl) ? tmpl : join(appDir, tmpl), "utf8")));
+    } catch {
+      return words;
+    }
+  }
+  return words;
+}
+
 export function scrubberFor(io: Io): (text: string) => string {
   const words: string[] = [];
   try {
@@ -840,12 +860,7 @@ export function scrubberFor(io: Io): (text: string) => string {
   } catch {
     words.length = 0;
   }
-  try {
-    const cfg = readConf(join(io.layout.appDir, "show.conf"));
-    for (const k of ["VENUE", "TEMPLATE"]) if (cfg[k]) words.push(cfg[k]);
-  } catch {
-    words.push();
-  }
+  words.push(...showWords(io.layout.appDir));
   let devices: string[] = [];
   try {
     devices = io.factory === null ? [] : io.factory.listDevices().map((d) => d.name ?? "");
