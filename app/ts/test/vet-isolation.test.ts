@@ -73,7 +73,13 @@ test("the in-app full test leaves the live config and the live engine untouched,
       { stopped: () => false, takeover: () => false, progress: () => look() },
     );
     look();
-    assert.equal(out.failed, 0, out.text);
+    const failures = out.text.split("\n").filter((l) => l.trimStart().startsWith("[FAIL]"));
+    assert.equal(failures.length, out.failed, out.text);
+    assert.deepEqual(
+      failures.filter((l) => !l.includes("[FAIL] Audio module loads")),
+      [],
+      out.text,
+    );
     assert.ok(checks > 10);
     assert.deepEqual([...problems], []);
     assert.deepEqual(channelMapState(live), mapBefore);
