@@ -41,6 +41,7 @@ import { allLanIps, ensureCert, ensureTrustedCert, hostPermittedByCa, tlsHosts }
 import { NodeUdpFactory } from "./udp.ts";
 import { UdpSink } from "./udpsink.ts";
 import { VenueStore } from "./venuestore.ts";
+import { RunMarker } from "./runmarker.ts";
 import { inAppVet, runVet, scrubberFor } from "./vet.ts";
 
 const AUTO_CANDIDATES = 6;
@@ -575,6 +576,7 @@ async function runChecked(args: Args, io: Io): Promise<number> {
   let emu: EmulatedDesk | null = null;
   let engine: Engine | null = null;
   let server: DashboardServer | null = null;
+  let marker: RunMarker | null = null;
   try {
     if (args.emulate) {
       const built = buildEmulated(args, template, chanMap, auto, io, cfg);
@@ -635,7 +637,12 @@ async function runChecked(args: Args, io: Io): Promise<number> {
         `      Another copy already running? Try a different port:  --port ${args.port + 1}  (or PORT= in show.conf)`,
       );
     }
+    marker = new RunMarker(join(io.layout.appDir, "last-run.json"), io.clock);
+    const banner = marker.previousBanner();
+    for (const l of banner) io.out(l);
     await engine.start();
+    for (const l of banner) engine.assistant.emit("system", l.trim().replace(/^\[!\] /, ""));
+    marker.begin(engine.con);
     const faulted = engine;
     setFaultSink((detail) => faulted.fault(detail));
     const scheme = plan.tls ? "https" : "http";
@@ -685,6 +692,9 @@ async function runChecked(args: Args, io: Io): Promise<number> {
     await attempt(async () => {
       if (engine !== null) await engine.stop();
       else if (auto !== null) auto.stop();
+    });
+    await attempt(async () => {
+      if (marker !== null) marker.end();
     });
     await attempt(async () => {
       if (emu !== null) emu.stop();

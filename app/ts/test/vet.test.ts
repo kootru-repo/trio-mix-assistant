@@ -153,6 +153,7 @@ test("every console method, engine command and job has a row", async () => {
     "cancelRamps",
     "flushRamps",
     "record",
+    "noteChange",
     "send",
     "bumpRamp",
     "writeFader",

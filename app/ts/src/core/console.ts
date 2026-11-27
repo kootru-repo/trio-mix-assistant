@@ -99,6 +99,18 @@ export abstract class ConsoleBase {
 
   protected record(_event: Recorded): void {}
 
+  onRecorded: ((event: Recorded) => void) | null = null;
+
+  private noteChange(event: Recorded): void {
+    this.record(event);
+    if (this.onRecorded === null) return;
+    try {
+      this.onRecorded(event);
+    } catch {
+      return;
+    }
+  }
+
   close(): void {
     this.closed = true;
   }
@@ -148,7 +160,7 @@ export abstract class ConsoleBase {
     const v = clamp(db, lo, hi);
     this.send(`/ch/${zeroPad(ch, 2)}/mix/fader`, oscFloat(dbToFader(v)));
     this.written.set(ch, v);
-    this.record({ kind: "fader", ch, db: v });
+    this.noteChange({ kind: "fader", ch, db: v });
     if (this.onFaderWrite !== null) this.onFaderWrite(ch, v);
     return v;
   }
@@ -232,7 +244,7 @@ export abstract class ConsoleBase {
     finite(currentDb, deltaDb);
     const next = clamp(currentDb + deltaDb, this.cfg.limits.headampMinDb, this.cfg.limits.headampMaxDb);
     this.send(`/headamp/${zeroPad(ch - 1, 3)}/gain`, oscFloat((next + 12) / 72));
-    this.record({ kind: "gain", ch, db: next });
+    this.noteChange({ kind: "gain", ch, db: next });
     return next;
   }
 
@@ -259,49 +271,49 @@ export abstract class ConsoleBase {
   ): void {
     this.eqBand(`/ch/${zeroPad(ch, 2)}/eq/${band}`, hz, gainDb, q);
     this.send(`/ch/${zeroPad(ch, 2)}/eq/on`, oscInt(1));
-    this.record({ kind: "notch", ch, band, hz, gainDb, q });
+    this.noteChange({ kind: "notch", ch, band, hz, gainDb, q });
   }
 
   setBusEq(band: number, hz: number, gainDb: number, q: number = 4.0): void {
     this.eqBand(`/${this.cfg.MAIN_BUS}/eq/${band}`, hz, gainDb, q);
     this.send(`/${this.cfg.MAIN_BUS}/eq/on`, oscInt(1));
-    this.record({ kind: "bus_eq", band, hz, gainDb, q });
+    this.noteChange({ kind: "bus_eq", band, hz, gainDb, q });
   }
 
   setEqBand(ch: number, band: number, hz: number, gainDb: number, q: number, on: boolean = true): void {
     const g = on ? gainDb : 0;
     this.eqBand(`/ch/${zeroPad(ch, 2)}/eq/${band}`, hz, g, q);
     if (on) this.send(`/ch/${zeroPad(ch, 2)}/eq/on`, oscInt(1));
-    this.record({ kind: "eq_band", ch, band, hz, gainDb: g, q, on });
+    this.noteChange({ kind: "eq_band", ch, band, hz, gainDb: g, q, on });
   }
 
   setSend(ch: number, bus: number, levelDb: number): void {
     finite(levelDb);
     this.send(`/ch/${zeroPad(ch, 2)}/mix/${zeroPad(bus, 2)}/level`, oscFloat(dbToFader(levelDb)));
-    this.record({ kind: "send", ch, bus, levelDb });
+    this.noteChange({ kind: "send", ch, bus, levelDb });
   }
 
   setFxReturn(fx: number, levelDb: number): void {
     finite(levelDb);
     this.send(`/fxrtn/${zeroPad(fx, 2)}/mix/fader`, oscFloat(dbToFader(levelDb)));
-    this.record({ kind: "fx_return", fx, levelDb });
+    this.noteChange({ kind: "fx_return", fx, levelDb });
   }
 
   recallScene(index: number): void {
     if (!Number.isInteger(index) || index < 0 || index > 99) throw new RangeError("scene index must be an integer from 0 to 99");
     this.send("/-action/goscene", oscInt(index));
     this.eqGain.clear();
-    this.record({ kind: "scene", index });
+    this.noteChange({ kind: "scene", index });
   }
 
   setMainMute(muted: boolean): void {
     this.withLane("safety", () => this.send(`/${this.cfg.MAIN_BUS}/mix/on`, oscInt(muted ? 0 : 1)));
-    this.record({ kind: "main_mute", muted });
+    this.noteChange({ kind: "main_mute", muted });
   }
 
   clearChannelEq(ch: number): void {
     this.send(`/ch/${zeroPad(ch, 2)}/eq/on`, oscInt(0));
-    this.record({ kind: "eq_clear", ch });
+    this.noteChange({ kind: "eq_clear", ch });
   }
 
   setFaderRaw(ch: number, db: number): number {
@@ -312,19 +324,19 @@ export abstract class ConsoleBase {
 
   setChannelMute(ch: number, muted: boolean): void {
     this.send(`/ch/${zeroPad(ch, 2)}/mix/on`, oscInt(muted ? 0 : 1));
-    this.record({ kind: "ch_mute", ch, muted });
+    this.noteChange({ kind: "ch_mute", ch, muted });
   }
 
   setPolarity(ch: number, inverted: boolean): void {
     this.send(`/ch/${zeroPad(ch, 2)}/preamp/invert`, oscInt(inverted ? 1 : 0));
-    this.record({ kind: "polarity", ch, inverted });
+    this.noteChange({ kind: "polarity", ch, inverted });
   }
 
   setMainFader(db: number): number {
     finite(db);
     const v = clamp(db, -90, 10);
     this.send(`/${this.cfg.MAIN_BUS}/mix/fader`, oscFloat(dbToFader(v)));
-    this.record({ kind: "master", db: v });
+    this.noteChange({ kind: "master", db: v });
     return v;
   }
 

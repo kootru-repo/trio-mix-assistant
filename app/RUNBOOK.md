@@ -207,6 +207,8 @@ one step the emulator can't do for you. Done once per firmware.
 
 ## 3. Show‑day launch
 
+If the last run was closed without a proper stop (the laptop crashed, lost power, or the window was killed), the app says so at start, in the start window and the dashboard log, and lists what that run had set on the console: fader and preamp levels, mutes, the recalled scene, EQ notches and whether the main output was muted. The console keeps those values. Check them, or recall your scene, before the show. A run stopped with Ctrl+C or by closing the app properly gives no such message.
+
 ### macOS
 ```bash
 $ ./TrioMixAssistant --hardware \

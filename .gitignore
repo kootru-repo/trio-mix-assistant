@@ -40,3 +40,5 @@ app/ts/dist/
 
 # --- Enhancement engine records ---
 tools/engine/out/
+**/last-run.json
+**/last-run.json.tmp
