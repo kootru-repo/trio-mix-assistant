@@ -59,4 +59,5 @@ export interface JobContext {
   emit(kind: string, msg: string, ch?: number | null): void;
   recommend(kind: string, ch: number | null, text: string, persist?: boolean, meta?: Record<string, unknown>, key?: string): void;
   noteLatency(kind: string): void;
+  locked(ch: number): boolean;
 }

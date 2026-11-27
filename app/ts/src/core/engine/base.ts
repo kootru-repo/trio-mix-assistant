@@ -153,6 +153,7 @@ export class EngineBase {
     this.assistant = new MixAssistant(autoLane(this.con), this.clock, {
       onEvent: (ev) => this.onEventHandler(ev),
       onLatency: (kind, seconds) => this.noteLatencyEv(kind, seconds),
+      locked: (ch) => this.lockedSnapshot().includes(ch),
       config: this.cfg,
     });
     this.calibrator = new Calibrator(this.con, this.cfg);

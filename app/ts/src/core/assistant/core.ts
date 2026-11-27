@@ -16,6 +16,7 @@ import { RoomModel, StageJob } from "./room.ts";
 export interface AssistantOptions {
   onEvent?: EventHandler | null;
   onLatency?: LatencyHandler | null;
+  locked?: ((ch: number) => boolean) | null;
   config: Config;
 }
 
@@ -45,6 +46,7 @@ export class MixAssistant {
     this.onEvent = opts.onEvent ?? null;
     this.onLatency = opts.onLatency ?? null;
     this.state = new MixState(this.cfg);
+    const locked = opts.locked ?? ((): boolean => false);
     this.coach = new Coach(this.cfg, clock, (kind, msg, ch) => this.emit(kind, msg, ch));
     const ctx: JobContext = {
       cfg: this.cfg,
@@ -54,6 +56,7 @@ export class MixAssistant {
       emit: (kind, msg, ch = null) => this.emit(kind, msg, ch),
       recommend: (kind, ch, text, persist = false, meta = {}, key) => this.coach.recommend(kind, ch, text, persist, meta, key),
       noteLatency: (kind) => this.noteLatency(kind),
+      locked: (ch) => locked(ch),
     };
     this.feedback = new FeedbackJob(ctx);
     this.clip = new ClipJob(ctx);

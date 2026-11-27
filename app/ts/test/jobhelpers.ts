@@ -63,6 +63,7 @@ export interface Harness {
   recs: Recommended[];
   latency: string[];
   coach: { on: boolean };
+  locks: Set<number>;
 }
 
 export function harness(over: Partial<Config> = {}): Harness {
@@ -73,6 +74,7 @@ export function harness(over: Partial<Config> = {}): Harness {
   const recs: Recommended[] = [];
   const latency: string[] = [];
   const coach = { on: false };
+  const locks = new Set<number>();
   const ctx: JobContext = {
     cfg,
     mixer,
@@ -81,8 +83,9 @@ export function harness(over: Partial<Config> = {}): Harness {
     emit: (kind, msg, ch = null) => events.push({ kind, msg, ch }),
     recommend: (kind, ch, text, persist = false, meta = {}) => recs.push({ kind, ch, text, persist, meta }),
     noteLatency: (kind) => latency.push(kind),
+    locked: (ch) => locks.has(ch),
   };
-  return { ctx, cfg, mixer, state, events, recs, latency, coach };
+  return { ctx, cfg, mixer, state, events, recs, latency, coach, locks };
 }
 
 export function tuned<S extends keyof ReturnType<typeof defaultTuning>>(

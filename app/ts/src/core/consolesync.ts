@@ -46,7 +46,7 @@ export class ConsoleSync {
   private values = new Map<number, SyncValues>();
   private status: SyncStatus = "idle";
   private tries = 0;
-  private lastSend = 0;
+  private lastSend: number | null = 0;
 
   constructor(opts: ConsoleSyncOptions) {
     this.opts = opts;
@@ -68,7 +68,7 @@ export class ConsoleSync {
     for (const address of this.asks.keys()) this.pending.add(address);
     this.status = this.pending.size === 0 ? "done" : "pending";
     this.tries = 1;
-    this.lastSend = now;
+    this.lastSend = Number.isFinite(now) ? now : null;
     for (const address of this.pending) this.opts.send(address);
   }
 
@@ -92,7 +92,12 @@ export class ConsoleSync {
   }
 
   poll(now: number): SyncStatus {
-    if (!this.active || !Number.isFinite(now) || now - this.lastSend < this.opts.retryS) return this.status;
+    if (!this.active || !Number.isFinite(now)) return this.status;
+    if (this.lastSend === null) {
+      this.lastSend = now;
+      return this.status;
+    }
+    if (now - this.lastSend < this.opts.retryS) return this.status;
     if (this.tries < this.opts.tries) {
       this.tries += 1;
       this.lastSend = now;

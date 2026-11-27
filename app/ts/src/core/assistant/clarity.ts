@@ -90,7 +90,7 @@ export class PhaseJob {
           { pair: [a, b], status: "inverted", corr: roundTo(corr, 2) },
           adviceKey,
         );
-      } else if (ready && armed) {
+      } else if (ready && armed && !this.ctx.locked(b)) {
         const newpol = !(this.polarity.get(b) ?? false);
         this.ctx.mixer.setPolarity(b, newpol);
         this.polarity.set(b, newpol);
@@ -136,9 +136,10 @@ export class UnmaskJob {
   release(): void {
     const cfg = this.ctx.cfg;
     for (const ch of [...this.duckApplied.keys()]) {
+      if (this.ctx.locked(ch)) continue;
       this.ctx.mixer.setEqBand(ch, cfg.unmask.band, cfg.unmask.freq, 0.0, cfg.unmask.q, true);
+      this.duckApplied.delete(ch);
     }
-    this.duckApplied.clear();
     this.duckGain = 0;
   }
 
@@ -164,7 +165,8 @@ export class UnmaskJob {
     const target = present ? cfg.unmask.depthDb : 0;
     const coef = target < this.duckGain ? cfg.unmask.attack : cfg.unmask.release;
     this.duckGain = (1 - coef) * this.duckGain + coef * target;
-    for (const ch of targets) {
+    const free = targets.filter((c) => !this.ctx.locked(c));
+    for (const ch of free) {
       if (Math.abs(this.duckGain - (this.duckApplied.get(ch) ?? 0)) >= cfg.unmask.writeEpsDb) {
         const g = roundTo(this.duckGain, 1);
         this.ctx.mixer.setEqBand(ch, cfg.unmask.band, cfg.unmask.freq, g, cfg.unmask.q, true);
@@ -175,7 +177,7 @@ export class UnmaskJob {
       this.lastUnmaskLog = now;
       this.ctx.emit(
         "unmask",
-        `vocal up → ducking ${fixed(cfg.unmask.freq, 0)} Hz ${signed(this.duckGain, 1)} dB on ${targets.length} instrument(s)`,
+        `vocal up → ducking ${fixed(cfg.unmask.freq, 0)} Hz ${signed(this.duckGain, 1)} dB on ${free.length} instrument(s)`,
       );
     }
   }

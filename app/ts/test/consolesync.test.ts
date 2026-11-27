@@ -318,3 +318,35 @@ test("a poll at a time that is not a finite number is ignored and later retries 
   assert.equal(sent.length, 6);
   assert.equal(sync.poll(11.5), "failed");
 });
+
+for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+  test(`begin at ${bad} sends the reads and times the retries from the first finite poll`, () => {
+    const { sync, sent } = rig([1], 0.5, 3);
+    sync.begin(bad);
+    assert.equal(sent.length, 3);
+    assert.equal(sync.active, true);
+    assert.equal(sync.poll(Number.NaN), "pending");
+    assert.equal(sync.poll(20), "pending");
+    assert.equal(sync.poll(20.25), "pending");
+    assert.equal(sent.length, 3);
+    assert.equal(sync.poll(20.5), "pending");
+    assert.equal(sent.length, 6);
+    assert.equal(sync.poll(21), "pending");
+    assert.equal(sent.length, 9);
+    assert.equal(sync.poll(21.25), "pending");
+    assert.equal(sync.poll(21.5), "failed");
+    assert.equal(sent.length, 9);
+  });
+}
+
+test("a finite begin after a non-finite one times the retries from that begin", () => {
+  const { sync, sent } = rig([1], 0.5, 2);
+  sync.begin(Number.NaN);
+  sync.begin(30);
+  sent.length = 0;
+  assert.equal(sync.poll(30.25), "pending");
+  assert.deepEqual(sent, []);
+  assert.equal(sync.poll(30.5), "pending");
+  assert.equal(sent.length, 3);
+  assert.equal(sync.poll(31), "failed");
+});

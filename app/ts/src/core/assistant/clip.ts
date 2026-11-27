@@ -19,7 +19,7 @@ export class ClipJob {
 
   handle(ch: number, feat: ChannelFeatures, now: number): void {
     const { cfg, state, mixer } = this.ctx;
-    if (!state.enabled["clip"]) return;
+    if (!state.enabled["clip"] || this.ctx.locked(ch)) return;
     const coaching = this.ctx.coaching();
     if (feat.peakDbfs > cfg.clip.peakDbfs) {
       if (!coaching && now - need(this.lastClipT, ch) < cfg.clip.trimCooldownS) return;

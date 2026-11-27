@@ -48,6 +48,7 @@ export class FeedbackJob {
 
   handle(ch: number, feat: ChannelFeatures): void {
     const { cfg, state, mixer } = this.ctx;
+    if (this.ctx.locked(ch)) return;
     if (!state.enabled["feedback"]) {
       need(this.fbStreak, ch);
       this.fbStreak.set(ch, 0);
@@ -148,7 +149,7 @@ export class FeedbackJob {
     const cfg = this.ctx.cfg;
     let cleared = 0;
     for (const ch of cfg.CHANNELS.keys()) {
-      if (need(this.usedNotchBand, ch)) {
+      if (need(this.usedNotchBand, ch) && !this.ctx.locked(ch)) {
         this.ctx.mixer.clearChannelEq(ch);
         this.usedNotchBand.set(ch, 0);
         cleared++;

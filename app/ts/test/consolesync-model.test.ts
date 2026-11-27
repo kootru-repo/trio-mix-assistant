@@ -11,7 +11,12 @@ interface Reply {
   value: number | boolean | null;
 }
 
-type Ev = { k: "reply"; r: Reply } | { k: "poll"; dt: number } | { k: "badPoll"; t: number } | { k: "begin" };
+type Ev =
+  | { k: "reply"; r: Reply }
+  | { k: "poll"; dt: number }
+  | { k: "badPoll"; t: number }
+  | { k: "begin" }
+  | { k: "badBegin"; t: number };
 
 const fader = (ch: number): string => `/ch/0${ch}/mix/fader`;
 const gain = (ch: number): string => `/headamp/00${ch - 1}/gain`;
@@ -54,6 +59,7 @@ interface Run {
   wide: boolean;
   polls: readonly number[];
   bad: readonly number[];
+  badBegins: readonly number[];
   restart: boolean;
 }
 
@@ -70,6 +76,7 @@ const runs: readonly Run[] = [
     wide: true,
     polls: [0.25, 0.5, 100],
     bad: [],
+    badBegins: [],
     restart: true,
   },
   {
@@ -82,6 +89,7 @@ const runs: readonly Run[] = [
     wide: true,
     polls: [0.25, 0.5, 100],
     bad: [],
+    badBegins: [],
     restart: true,
   },
   {
@@ -94,6 +102,7 @@ const runs: readonly Run[] = [
     wide: false,
     polls: [0.25, 0.5],
     bad: [],
+    badBegins: [],
     restart: false,
   },
   {
@@ -106,6 +115,7 @@ const runs: readonly Run[] = [
     wide: true,
     polls: [0.25, 0.5, 100],
     bad: [],
+    badBegins: [],
     restart: true,
   },
   {
@@ -118,6 +128,7 @@ const runs: readonly Run[] = [
     wide: false,
     polls: [0.5, 100],
     bad: [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY],
+    badBegins: [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY],
     restart: true,
   },
 ];
@@ -126,6 +137,7 @@ const alphabetOf = (run: Run): Ev[] => [
   ...replies(run.channels, run.wide).map((r): Ev => ({ k: "reply", r })),
   ...run.polls.map((dt): Ev => ({ k: "poll", dt })),
   ...run.bad.map((t): Ev => ({ k: "badPoll", t })),
+  ...run.badBegins.map((t): Ev => ({ k: "badBegin", t })),
   ...(run.restart ? [{ k: "begin" } as const] : []),
 ];
 
@@ -133,6 +145,7 @@ const label = (e: Ev): string => {
   if (e.k === "begin") return "begin";
   if (e.k === "poll") return `poll(+${e.dt})`;
   if (e.k === "badPoll") return `poll(${e.t})`;
+  if (e.k === "badBegin") return `begin(${e.t})`;
   return `reply(${e.r.address}=${e.r.value === null ? "bad" : String(e.r.value)})`;
 };
 
@@ -156,7 +169,7 @@ interface Model {
   status: SyncStatus;
   now: number;
   beganAt: number;
-  lastSend: number;
+  lastSend: number | null;
   rounds: number;
   answers: Map<string, number | boolean>;
   sends: Map<string, number>;
@@ -194,12 +207,12 @@ const runSequence = (run: Run, alphabet: readonly Ev[], seq: readonly number[], 
     if (!sameList(got, want)) fail(`sent [${got.join(" ")}], expected [${want.join(" ")}]`);
     for (const a of got) m.sends.set(a, (m.sends.get(a) ?? 0) + 1);
   };
-  const begin = (): void => {
-    sync.begin(m.now);
+  const begin = (at: number): void => {
+    sync.begin(at);
     m.answers = new Map();
     m.sends = new Map();
-    m.beganAt = m.now;
-    m.lastSend = m.now;
+    m.beganAt = Number.isFinite(at) ? at : m.now;
+    m.lastSend = Number.isFinite(at) ? at : null;
     m.rounds = 1;
     m.status = table.length === 0 ? "done" : "pending";
     expectSent(all);
@@ -210,7 +223,8 @@ const runSequence = (run: Run, alphabet: readonly Ev[], seq: readonly number[], 
   for (const ev of steps) {
     trail.push(ev);
     const before = m.status;
-    if (ev.k === "begin") begin();
+    if (ev.k === "begin") begin(m.now);
+    else if (ev.k === "badBegin") begin(ev.t);
     else if (ev.k === "reply") {
       const kind = kindOf.get(ev.r.address);
       const want = m.status === "pending" && kind !== undefined && !m.answers.has(ev.r.address) && ev.r.value !== null;
@@ -233,7 +247,11 @@ const runSequence = (run: Run, alphabet: readonly Ev[], seq: readonly number[], 
     } else {
       m.now += ev.dt;
       let want: string[] = [];
-      if (m.status === "pending" && m.now - m.lastSend >= retryS) {
+      const sentAt = m.lastSend;
+      if (m.status === "pending" && sentAt === null) {
+        m.lastSend = m.now;
+        m.beganAt = m.now;
+      } else if (m.status === "pending" && sentAt !== null && m.now - sentAt >= retryS) {
         if (m.rounds < run.tries) {
           m.rounds++;
           m.lastSend = m.now;
@@ -257,7 +275,8 @@ const runSequence = (run: Run, alphabet: readonly Ev[], seq: readonly number[], 
         if (pendingList().length > 0) tally.doneWithGaps++;
       }
     }
-    if (before !== "pending" && before !== "idle" && ev.k !== "begin" && m.status !== before) fail("a finished sync changed status");
+    if (before !== "pending" && before !== "idle" && ev.k !== "begin" && ev.k !== "badBegin" && m.status !== before)
+      fail("a finished sync changed status");
     if (sync.active !== (m.status === "pending")) fail(`active is ${sync.active} with status ${m.status}`);
     if (m.status === "done") {
       for (const a of table) if (a.kind === "fader" && !m.answers.has(a.address)) fail(`done without a reply for ${a.address}`);

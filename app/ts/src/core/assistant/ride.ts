@@ -20,6 +20,7 @@ export class RideJob {
 
   rideToward(ch: number, feat: ChannelFeatures, targetOut: number, now: number, minInterval: number, kind: string): void {
     const { cfg, state, mixer } = this.ctx;
+    if (this.ctx.locked(ch)) return;
     const a = cfg.ride.ema;
     const e = need(this.inEma, ch);
     const ema = e === null ? feat.rmsDbfs : (1 - a) * e + a * feat.rmsDbfs;
