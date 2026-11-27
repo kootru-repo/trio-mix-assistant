@@ -99,10 +99,47 @@ jobs:
           path: app/ts/TrioMixAssistant-macos-${{ matrix.mac }}.tar.gz
           retention-days: 30
 
+  serial:
+    # Tests that use real threads and the real clock run one at a time here, apart from the parallel suite in the gate,
+    # so a busy runner does not make them fail. They check that things happen, with loose bounds on how fast.
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022, macos-latest, macos-15-intel]
+    defaults:
+      run:
+        working-directory: app/ts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run test:serial
+
+  perf:
+    # Report only, for now: block analysis time against the 21.3 ms block, normalised by a calibration workload. It goes in the
+    # run summary and never fails CI; after about 20 runs the numbers become the baseline it gates against.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: app/ts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run bench
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [gate, gate-oldest-node, dashboard, mac-app]
+    needs: [gate, gate-oldest-node, dashboard, mac-app, serial]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

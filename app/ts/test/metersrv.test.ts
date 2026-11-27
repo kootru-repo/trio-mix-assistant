@@ -1,6 +1,7 @@
 import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { budgetMs } from "./timing.ts";
 import { MemNetwork } from "../src/core/memtransport.ts";
 import { chFromFaderAddr, MeterReceiver } from "../src/core/metersrv.ts";
 import { dbToFader, faderToDb } from "../src/core/console.ts";
@@ -194,12 +195,20 @@ test("routing an adversarial address and many distinct addresses stays cheap", a
   assert.ok(attack.length <= 100);
   const t0 = performance.now();
   rx.dispatch(attack);
-  assert.ok(performance.now() - t0 < 50);
+  const attackMs = performance.now() - t0;
+  assert.ok(
+    attackMs < budgetMs(50),
+    `one adversarial address took ${attackMs.toFixed(1)} ms (budget ${budgetMs(50).toFixed(0)} ms on this runner)`,
+  );
   const packets: Uint8Array[] = [];
   for (let i = 0; i < 10000; i++) packets.push(encodeMessage(`/ch/${i}/mix/${"x".repeat(i % 40)}/${i}`, [oscFloat(0.5)]));
   const t1 = performance.now();
   for (const p of packets) rx.dispatch(p);
-  assert.ok(performance.now() - t1 < 1000);
+  const manyMs = performance.now() - t1;
+  assert.ok(
+    manyMs < budgetMs(1000),
+    `10,000 addresses took ${manyMs.toFixed(0)} ms (budget ${budgetMs(1000).toFixed(0)} ms on this runner)`,
+  );
   assert.deepEqual(faders, []);
   assert.deepEqual(meters, []);
   rx.stop();

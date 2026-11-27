@@ -2,6 +2,7 @@ import { defaultConfig } from "../src/core/config.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { budgetMs } from "./timing.ts";
 import { fileURLToPath } from "node:url";
 import { dbToFader, OscConsole } from "../src/core/console.ts";
 import { EmulatedDesk } from "../src/core/emulator.ts";
@@ -867,7 +868,8 @@ test("a node path with a long run of slashes is answered quickly", async () => {
     r.ed.send("/node", oscStr("a" + "/".repeat(60000) + "b"));
     r.ed.send("/node", oscStr("/".repeat(60000)));
     await r.net.settle();
-    assert.ok(performance.now() - t0 < 500);
+    const ms = performance.now() - t0;
+    assert.ok(ms < budgetMs(500), `two long slash runs took ${ms.toFixed(0)} ms (budget ${budgetMs(500).toFixed(0)} ms on this runner)`);
     assert.equal(r.ed.inbox.length, 2);
   } finally {
     r.stop();
