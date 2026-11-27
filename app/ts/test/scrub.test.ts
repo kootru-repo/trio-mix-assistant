@@ -17,13 +17,18 @@ test("the scrubber hides IPv6 addresses in full, compressed and zoned forms, and
     "firmware 4.06-8, card aa:bb:cc:dd:ee:ff",
   ].join("\n");
   const out = scrub(input);
-  for (const gone of ["2001:0db8", "8a2e", "fe80::", "1c2b", "en0", "2001:db8::7", "ffff", "192.168"]) assert.ok(!out.includes(gone), `${gone} survived: ${out}`);
-  for (const kept of ["::1 stays", "10:23:45", "00:01:02", "4.06-8", "xx:xx:xx:xx:xx:xx"]) assert.ok(out.includes(kept), `${kept} lost: ${out}`);
+  for (const gone of ["2001:0db8", "8a2e", "fe80::", "1c2b", "en0", "2001:db8::7", "ffff", "192.168"])
+    assert.ok(!out.includes(gone), `${gone} survived: ${out}`);
+  for (const kept of ["::1 stays", "10:23:45", "00:01:02", "4.06-8", "xx:xx:xx:xx:xx:xx"])
+    assert.ok(out.includes(kept), `${kept} lost: ${out}`);
   assert.match(out, /lan x:x:x:x:x:x:x:x up/);
 });
 
 test("the template's own name and every song name are private words; a broken template gives none", () => {
-  const json = JSON.stringify({ name: "Sunday at Grace", songs: [{ name: "Amazing Grace", scene: 1 }, { name: "  Way Maker  " }, { name: 7 }, {}] });
+  const json = JSON.stringify({
+    name: "Sunday at Grace",
+    songs: [{ name: "Amazing Grace", scene: 1 }, { name: "  Way Maker  " }, { name: 7 }, {}],
+  });
   assert.deepEqual(templateWords(json), ["Sunday at Grace", "Amazing Grace", "Way Maker"]);
   assert.deepEqual(templateWords("{not json"), []);
   assert.deepEqual(templateWords(JSON.stringify({ songs: "nope" })), []);

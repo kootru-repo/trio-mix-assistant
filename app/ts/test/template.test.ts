@@ -25,6 +25,15 @@ test("a template without a channel map checks balance channels against the injec
 test("the default template is checked against the injected config", () => {
   const before = channelsOf();
   assert.equal(defaultTemplate(testCfg).songs.length, 4);
-  assert.throws(() => defaultTemplate(configWith({ CHANNELS: new Map([[1, "a"]]) })), TemplateError);
+  const small = defaultTemplate(configWith({ CHANNELS: new Map([[1, "a"]]) }));
+  assert.deepEqual([...(small.songs.find((s) => s.name === "Bloom")?.balance.keys() ?? [])], []);
+  assert.deepEqual(
+    [
+      ...(defaultTemplate(testCfg)
+        .songs.find((s) => s.name === "Bloom")
+        ?.balance.keys() ?? []),
+    ],
+    [5, 7],
+  );
   assert.equal(channelsOf(), before);
 });

@@ -175,12 +175,13 @@ export function fromObject(d: Json, cfg: Config): ShowTemplate {
 }
 
 export function defaultTemplate(cfg: Config): ShowTemplate {
+  const bloomBalance = Object.fromEntries(Object.entries({ "5": -21.0, "7": -26.0 }).filter(([ch]) => cfg.CHANNELS.has(Number(ch))));
   return fromObject(
     {
       name: "Acoustic Trio — demo set",
       songs: [
         { name: "Gravity", scene: 1, lead_target: -6.0 },
-        { name: "Bloom", scene: 2, lead_target: -7.0, balance: { "5": -21.0, "7": -26.0 } },
+        { name: "Bloom", scene: 2, lead_target: -7.0, balance: bloomBalance },
         { name: "Wildflower", scene: 3, lead_target: -5.0 },
         { name: "Tide", scene: 4, lead_target: -6.5, guest: true },
       ],
