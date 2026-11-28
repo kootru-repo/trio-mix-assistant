@@ -19,7 +19,7 @@
     "bench": "node --experimental-strip-types --no-warnings bench/blocks.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.7",
+    "@biomejs/biome": "2.6.9",
     "@types/node": "22.20.5",
     "postject": "1.0.0-alpha.6",
     "typescript": "7.0.2"
